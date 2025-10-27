@@ -216,7 +216,7 @@ const Products = () => {
                   <div>
                     <h3 className="text-lg font-medium text-gray-900">{produit.nom}</h3>
                     <p className="text-sm text-gray-500">
-                      Ref: {produit.reference || 'N/A'} | Prix: {produit.prixAchat} €
+                      Ref: {produit.reference || 'N/A'} | Prix: {produit.prixAchat} DA
                     </p>
                     <p className="text-sm text-gray-500 mt-2">
                       Variantes: {produit.variantes?.length || 0}
@@ -308,7 +308,7 @@ const Products = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700">Prix d'achat (€) *</label>
+                <label className="block text-sm font-medium text-gray-700">Prix d'achat (DA) *</label>
                 <input
                   type="number"
                   step="0.01"

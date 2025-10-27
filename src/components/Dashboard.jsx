@@ -79,7 +79,7 @@ const Dashboard = () => {
                     Valeur Stock Total
                   </dt>
                   <dd className="text-lg font-semibold text-gray-900">
-                    {totalStockValue.toFixed(2)} €
+                    {totalStockValue.toFixed(2)} DA
                   </dd>
                 </dl>
               </div>
@@ -99,7 +99,7 @@ const Dashboard = () => {
                     Dû aux Fournisseurs
                   </dt>
                   <dd className="text-lg font-semibold text-red-600">
-                    {totalDue.toFixed(2)} €
+                    {totalDue.toFixed(2)} DA
                   </dd>
                 </dl>
               </div>
@@ -119,7 +119,7 @@ const Dashboard = () => {
                     Total Payé
                   </dt>
                   <dd className="text-lg font-semibold text-green-600">
-                    {totalPaid.toFixed(2)} €
+                    {totalPaid.toFixed(2)} DA
                   </dd>
                 </dl>
               </div>
@@ -165,7 +165,7 @@ const Dashboard = () => {
                   <div>
                     <h3 className="text-lg font-medium text-gray-900">{produit.nom}</h3>
                     <p className="text-sm text-gray-500">
-                      Prix d'achat: {produit.prixAchat} €
+                      Prix d'achat: {produit.prixAchat} DA
                       {produit.reference && ` | Référence: ${produit.reference}`}
                     </p>
                   </div>

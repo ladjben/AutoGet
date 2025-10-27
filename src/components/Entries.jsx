@@ -134,7 +134,7 @@ const Entries = () => {
                         Fournisseur: {getFournisseurName(entree.fournisseurId)}
                       </p>
                       <p className="text-sm font-semibold text-blue-600 mt-1">
-                        Montant total: {entreeValue.toFixed(2)} €
+                        Montant total: {entreeValue.toFixed(2)} DA
                       </p>
                     </div>
                     <div className="flex flex-col items-end space-y-2">
@@ -172,7 +172,7 @@ const Entries = () => {
                         <div key={idx} className="bg-gray-50 p-3 rounded text-sm">
                           <span className="font-medium">{produit?.nom || 'Produit inconnu'}</span>
                           <span className="ml-3 text-blue-600">Qté: {ligne.quantite}</span>
-                          <span className="ml-3 text-green-600">Valeur: {ligneValue.toFixed(2)} €</span>
+                          <span className="ml-3 text-green-600">Valeur: {ligneValue.toFixed(2)} DA</span>
                         </div>
                       );
                     })}
@@ -234,7 +234,7 @@ const Entries = () => {
                       <option value="">Sélectionner</option>
                       {state.produits.map((produit) => (
                         <option key={produit.id} value={produit.id}>
-                          {produit.nom} - {produit.prixAchat}€
+                          {produit.nom} - {produit.prixAchat}DA
                         </option>
                       ))}
                     </select>

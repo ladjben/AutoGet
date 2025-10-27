@@ -100,7 +100,7 @@ const Products = () => {
                     <div className="mt-2 text-sm text-gray-500">
                       <span>Référence: {produit.reference || 'N/A'}</span>
                       <span className="ml-4 text-blue-600 font-semibold">
-                        Prix d'achat: {produit.prixAchat} €
+                        Prix d'achat: {produit.prixAchat} DA
                       </span>
                     </div>
                   </div>
@@ -156,7 +156,7 @@ const Products = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700">Prix d'achat (€) *</label>
+                <label className="block text-sm font-medium text-gray-700">Prix d'achat (DA) *</label>
                 <input
                   type="number"
                   step="0.01"

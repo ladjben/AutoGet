@@ -164,20 +164,20 @@ const Suppliers = () => {
                           <div>
                             <span className="text-sm text-gray-500">Total dû:</span>
                             <span className="ml-2 text-lg font-bold text-red-600">
-                              {totalDue.toFixed(2)} €
+                              {totalDue.toFixed(2)} DA
                             </span>
                           </div>
                           <div>
                             <span className="text-sm text-gray-500">Total payé:</span>
                             <span className="ml-2 text-lg font-bold text-green-600">
-                              {totalPaye.toFixed(2)} €
+                              {totalPaye.toFixed(2)} DA
                             </span>
                           </div>
                         </div>
                         <div className={`px-4 py-2 rounded-lg ${totalDue - totalPaye > 0 ? 'bg-orange-100 border border-orange-300' : 'bg-green-100 border border-green-300'}`}>
                           <span className="text-sm font-semibold text-gray-700">Reste à payer:</span>
                           <span className={`ml-2 text-xl font-bold ${totalDue - totalPaye > 0 ? 'text-orange-600' : 'text-green-600'}`}>
-                            {(totalDue - totalPaye).toFixed(2)} €
+                            {(totalDue - totalPaye).toFixed(2)} DA
                           </span>
                         </div>
                       </div>
@@ -205,7 +205,7 @@ const Suppliers = () => {
                             <div key={paiement.id} className="bg-green-50 p-2 rounded flex justify-between items-center text-sm">
                               <div>
                                 <span className="font-medium">{paiement.date}</span>
-                                <span className="ml-3 text-green-700 font-semibold">+{paiement.montant.toFixed(2)} €</span>
+                                <span className="ml-3 text-green-700 font-semibold">+{paiement.montant.toFixed(2)} DA</span>
                                 {paiement.description && <span className="ml-3 text-gray-600">{paiement.description}</span>}
                               </div>
                               <button
@@ -304,7 +304,7 @@ const Suppliers = () => {
                     const due = calculateTotalDue(fournisseur.id);
                     return (
                       <option key={fournisseur.id} value={fournisseur.id}>
-                        {fournisseur.nom} {due > 0 ? `(Dû: ${due.toFixed(2)}€)` : ''}
+                        {fournisseur.nom} {due > 0 ? `(Dû: ${due.toFixed(2)}DA)` : ''}
                       </option>
                     );
                   })}
@@ -312,7 +312,7 @@ const Suppliers = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700">Montant (€) *</label>
+                <label className="block text-sm font-medium text-gray-700">Montant (DA) *</label>
                 <input
                   type="number"
                   step="0.01"
@@ -337,19 +337,19 @@ const Suppliers = () => {
                         <div className="text-sm space-y-1">
                           <div className="flex justify-between">
                             <span className="text-gray-600">Reste actuel:</span>
-                            <span className="font-semibold text-orange-600">{restantActuel.toFixed(2)} €</span>
+                            <span className="font-semibold text-orange-600">{restantActuel.toFixed(2)} DA</span>
                           </div>
                           {montantPaiement > 0 && (
                             <>
                               <div className="flex justify-between">
                                 <span className="text-gray-600">Paiement:</span>
-                                <span className="font-semibold text-green-600">-{montantPaiement.toFixed(2)} €</span>
+                                <span className="font-semibold text-green-600">-{montantPaiement.toFixed(2)} DA</span>
                               </div>
                               <div className="border-t pt-1 mt-1">
                                 <div className="flex justify-between">
                                   <span className="font-semibold text-gray-800">Nouveau reste:</span>
                                   <span className={`font-bold text-lg ${nouveauReste > 0 ? 'text-orange-600' : 'text-green-600'}`}>
-                                    {nouveauReste.toFixed(2)} €
+                                    {nouveauReste.toFixed(2)} DA
                                   </span>
                                 </div>
                               </div>
