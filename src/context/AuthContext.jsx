@@ -53,6 +53,35 @@ export const AuthProvider = ({ children }) => {
     return { success: false, error: 'Nom d\'utilisateur ou mot de passe incorrect' };
   };
 
+  const signup = async ({ username, password, nom, role = 'user' }) => {
+    try {
+      // Load existing accounts
+      let accounts = JSON.parse(localStorage.getItem('auth_accounts')) || DEFAULT_ACCOUNTS;
+      
+      // Check if username already exists
+      if (accounts.find(acc => acc.username === username)) {
+        return { success: false, error: 'Ce nom d\'utilisateur existe déjà' };
+      }
+      
+      // Create new account
+      const newAccount = {
+        id: `user_${Date.now()}`,
+        username,
+        password,
+        role, // Always 'user' for new signups
+        name: nom
+      };
+      
+      // Add to accounts
+      accounts.push(newAccount);
+      localStorage.setItem('auth_accounts', JSON.stringify(accounts));
+      
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: 'Erreur lors de la création du compte' };
+    }
+  };
+
   const logout = () => {
     setUser(null);
     localStorage.removeItem('auth_user');
@@ -65,6 +94,7 @@ export const AuthProvider = ({ children }) => {
     user,
     loading,
     login,
+    signup,
     logout,
     isAdmin,
     isUser,

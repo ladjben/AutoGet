@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import Signup from './Signup';
 
 const Login = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showSignup, setShowSignup] = useState(false);
   const { login } = useAuth();
 
   const handleSubmit = async (e) => {
@@ -22,6 +24,15 @@ const Login = () => {
     }
     // Si succès, le contexte AuthContext redirigera automatiquement
   };
+
+  // Show signup if requested
+  if (showSignup) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+        <Signup onCancel={() => setShowSignup(false)} />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
@@ -102,6 +113,20 @@ const Login = () => {
               <div className="text-xs text-gray-500 mt-1">Peut ajouter uniquement</div>
             </div>
           </div>
+        </div>
+
+        {/* Signup Button */}
+        <div className="mt-6 text-center">
+          <p className="text-sm text-gray-600 mb-2">
+            Vous n'avez pas de compte ?
+          </p>
+          <button
+            type="button"
+            onClick={() => setShowSignup(true)}
+            className="text-blue-600 hover:text-blue-800 font-semibold"
+          >
+            Créer un nouveau compte
+          </button>
         </div>
       </div>
     </div>
