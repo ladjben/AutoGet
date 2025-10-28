@@ -71,7 +71,14 @@ const dataReducer = (state, action) => {
   
   switch (action.type) {
     case ActionTypes.LOAD_DATA:
-      return action.payload;
+      // Ensure all fields exist even for old data
+      return {
+        produits: action.payload.produits || [],
+        fournisseurs: action.payload.fournisseurs || [],
+        entrees: action.payload.entrees || [],
+        paiements: action.payload.paiements || [],
+        depenses: action.payload.depenses || []
+      };
       
     case ActionTypes.ADD_PRODUIT:
       newState = {

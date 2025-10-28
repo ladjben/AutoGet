@@ -19,6 +19,9 @@ const Depenses = () => {
 
   // Filter depenses based on search
   const getFilteredDepenses = () => {
+    if (!state.depenses || !Array.isArray(state.depenses)) {
+      return [];
+    }
     let filtered = [...state.depenses].reverse();
     
     if (searchType === 'single' && singleDate) {
@@ -191,7 +194,7 @@ const Depenses = () => {
       {/* Depenses List */}
       <div className="bg-white shadow overflow-hidden sm:rounded-md">
         <div className="divide-y divide-gray-200">
-          {state.depenses.length === 0 ? (
+          {(!state.depenses || state.depenses.length === 0) ? (
             <div className="p-6 text-center text-gray-500">
               Aucune dépense enregistrée
             </div>
