@@ -1,8 +1,10 @@
 import { useData, ActionTypes } from '../context/DataContext';
+import { useAuth } from '../context/AuthContext';
 import { useState } from 'react';
 
 const Entries = () => {
   const { state, dispatch, generateId } = useData();
+  const { isAdmin } = useAuth();
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState({
     fournisseurId: '',
@@ -145,7 +147,7 @@ const Entries = () => {
                       }`}>
                         {entree.paye ? '✓ Payé' : 'Non Payé'}
                       </span>
-                      {!entree.paye && (
+                      {!entree.paye && isAdmin() && (
                         <button
                           onClick={() => handleMarkPaye(entree.id)}
                           className="text-sm text-green-600 hover:text-green-800"
@@ -153,12 +155,14 @@ const Entries = () => {
                           Marquer Payé
                         </button>
                       )}
-                      <button
-                        onClick={() => handleDeleteEntree(entree.id)}
-                        className="text-sm text-red-600 hover:text-red-800"
-                      >
-                        🗑️ Supprimer
-                      </button>
+                      {isAdmin() && (
+                        <button
+                          onClick={() => handleDeleteEntree(entree.id)}
+                          className="text-sm text-red-600 hover:text-red-800"
+                        >
+                          🗑️ Supprimer
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -272,12 +276,14 @@ const Entries = () => {
                             {produit?.nom || 'Produit inconnu'}
                             <span className="ml-3 text-blue-600">Qté: {ligne.quantite}</span>
                           </div>
-                          <button
-                            onClick={() => handleDeleteLigne(idx)}
-                            className="text-red-600 hover:text-red-800"
-                          >
-                            Supprimer
-                          </button>
+                          {isAdmin() && (
+                            <button
+                              onClick={() => handleDeleteLigne(idx)}
+                              className="text-red-600 hover:text-red-800"
+                            >
+                              Supprimer
+                            </button>
+                          )}
                         </div>
                       );
                     })}

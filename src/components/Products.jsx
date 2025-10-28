@@ -1,8 +1,10 @@
 import { useData, ActionTypes } from '../context/DataContext';
+import { useAuth } from '../context/AuthContext';
 import { useState } from 'react';
 
 const Products = () => {
   const { state, dispatch, generateId } = useData();
+  const { isAdmin } = useAuth();
   const [showModal, setShowModal] = useState(false);
   const [editingProduit, setEditingProduit] = useState(null);
   const [formData, setFormData] = useState({
@@ -112,12 +114,14 @@ const Products = () => {
                     >
                       ✏️ Éditer
                     </button>
-                    <button
-                      onClick={() => handleDeleteProduit(produit.id)}
-                      className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-                    >
-                      🗑️ Supprimer
-                    </button>
+                    {isAdmin() && (
+                      <button
+                        onClick={() => handleDeleteProduit(produit.id)}
+                        className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+                      >
+                        🗑️ Supprimer
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

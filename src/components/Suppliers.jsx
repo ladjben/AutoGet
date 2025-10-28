@@ -1,8 +1,10 @@
 import { useData, ActionTypes } from '../context/DataContext';
+import { useAuth } from '../context/AuthContext';
 import { useState } from 'react';
 
 const Suppliers = () => {
   const { state, dispatch, generateId } = useData();
+  const { isAdmin } = useAuth();
   const [showModal, setShowModal] = useState(false);
   const [showPaiementModal, setShowPaiementModal] = useState(false);
   const [selectedFournisseur, setSelectedFournisseur] = useState(null);
@@ -183,12 +185,14 @@ const Suppliers = () => {
                       </div>
                     </div>
 
-                    <button
-                      onClick={() => handleDeleteFournisseur(fournisseur.id)}
-                      className="text-red-600 hover:text-red-800"
-                    >
-                      🗑️ Supprimer
-                    </button>
+                    {isAdmin() && (
+                      <button
+                        onClick={() => handleDeleteFournisseur(fournisseur.id)}
+                        className="text-red-600 hover:text-red-800"
+                      >
+                        🗑️ Supprimer
+                      </button>
+                    )}
                   </div>
 
                   {/* Paiements historiques */}
@@ -208,12 +212,14 @@ const Suppliers = () => {
                                 <span className="ml-3 text-green-700 font-semibold">+{paiement.montant.toFixed(2)} DA</span>
                                 {paiement.description && <span className="ml-3 text-gray-600">{paiement.description}</span>}
                               </div>
-                              <button
-                                onClick={() => handleDeletePaiement(paiement.id)}
-                                className="text-red-600 hover:text-red-800 text-xs"
-                              >
-                                Supprimer
-                              </button>
+                              {isAdmin() && (
+                                <button
+                                  onClick={() => handleDeletePaiement(paiement.id)}
+                                  className="text-red-600 hover:text-red-800 text-xs"
+                                >
+                                  Supprimer
+                                </button>
+                              )}
                             </div>
                           ))}
                       </div>

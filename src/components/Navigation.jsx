@@ -1,4 +1,4 @@
-const Navigation = ({ activeView, setActiveView }) => {
+const Navigation = ({ activeView, setActiveView, user, logout, isAdmin, isUser }) => {
   const navItems = [
     { id: 'dashboard', label: 'Tableau de Bord', icon: '📊' },
     { id: 'products', label: 'Produits', icon: '👟' },
@@ -10,7 +10,7 @@ const Navigation = ({ activeView, setActiveView }) => {
     <nav className="bg-white shadow-md">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
-          <div className="flex">
+          <div className="flex flex-1">
             <div className="flex-shrink-0 flex items-center">
               <h1 className="text-xl font-bold text-blue-600">Gestion Chaussures</h1>
             </div>
@@ -31,12 +31,36 @@ const Navigation = ({ activeView, setActiveView }) => {
               ))}
             </div>
           </div>
+          
+          {/* User info and logout */}
+          <div className="flex items-center space-x-4">
+            <div className="hidden sm:flex items-center space-x-3">
+              <div className="text-right">
+                <div className="text-sm font-medium text-gray-900">{user?.name}</div>
+                <div className={`text-xs ${isAdmin() ? 'text-red-600' : 'text-blue-600'}`}>
+                  {isAdmin() ? '🔴 Administrateur' : '🔵 Utilisateur'}
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={logout}
+              className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md text-sm font-medium transition"
+            >
+              Déconnexion
+            </button>
+          </div>
         </div>
       </div>
       
       {/* Mobile menu */}
       <div className="sm:hidden">
         <div className="pt-2 pb-3 space-y-1">
+          <div className="px-4 py-3 border-b border-gray-200">
+            <div className="text-sm font-medium text-gray-900">{user?.name}</div>
+            <div className={`text-xs ${isAdmin() ? 'text-red-600' : 'text-blue-600'}`}>
+              {isAdmin() ? '🔴 Administrateur' : '🔵 Utilisateur'}
+            </div>
+          </div>
           {navItems.map((item) => (
             <button
               key={item.id}
@@ -58,4 +82,3 @@ const Navigation = ({ activeView, setActiveView }) => {
 };
 
 export default Navigation;
-
