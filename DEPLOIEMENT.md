@@ -258,3 +258,4 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 
 Choisissez l'option qui vous convient et suivez les étapes ci-dessus. N'hésitez pas si vous avez besoin d'aide !
 
+

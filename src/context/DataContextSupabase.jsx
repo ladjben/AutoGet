@@ -7,6 +7,7 @@ const initialState = {
   fournisseurs: [],
   entrees: [],
   paiements: [],
+  depenses: [],
   isLoading: true
 };
 
@@ -17,6 +18,7 @@ const ActionTypes = {
   LOAD_FOURNISSEURS: 'LOAD_FOURNISSEURS',
   LOAD_ENTREES: 'LOAD_ENTREES',
   LOAD_PAIEMENTS: 'LOAD_PAIEMENTS',
+  LOAD_DEPENSES: 'LOAD_DEPENSES',
   
   // Products
   ADD_PRODUIT: 'ADD_PRODUIT',
@@ -40,6 +42,11 @@ const ActionTypes = {
   // Payments
   ADD_PAIEMENT: 'ADD_PAIEMENT',
   DELETE_PAIEMENT: 'DELETE_PAIEMENT',
+  
+  // Depenses
+  ADD_DEPENSE: 'ADD_DEPENSE',
+  UPDATE_DEPENSE: 'UPDATE_DEPENSE',
+  DELETE_DEPENSE: 'DELETE_DEPENSE',
 };
 
 // Reducer
@@ -59,6 +66,9 @@ const dataReducer = (state, action) => {
       
     case ActionTypes.LOAD_PAIEMENTS:
       return { ...state, paiements: action.payload };
+      
+    case ActionTypes.LOAD_DEPENSES:
+      return { ...state, depenses: action.payload };
       
     case ActionTypes.ADD_PRODUIT:
       return { ...state, produits: [...state.produits, action.payload] };
@@ -267,6 +277,15 @@ export const DataProvider = ({ children }) => {
 
       if (paiementsError) throw paiementsError;
       dispatch({ type: ActionTypes.LOAD_PAIEMENTS, payload: paiementsData || [] });
+
+      // Load depenses
+      const { data: depensesData, error: depensesError } = await supabase
+        .from('depenses')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (depensesError) throw depensesError;
+      dispatch({ type: ActionTypes.LOAD_DEPENSES, payload: depensesData || [] });
 
     } catch (error) {
       console.error('Error loading data:', error);
