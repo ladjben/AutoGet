@@ -8,6 +8,7 @@ import Dashboard from './components/Dashboard';
 import Products from './components/Products';
 import Entries from './components/Entries';
 import Suppliers from './components/Suppliers';
+import Depenses from './components/Depenses';
 import { useState } from 'react';
 
 // Sélection du provider selon la configuration
@@ -27,6 +28,8 @@ const AppContent = () => {
         return <Entries />;
       case 'suppliers':
         return <Suppliers />;
+      case 'depenses':
+        return <Depenses />;
       default:
         return <Dashboard />;
     }

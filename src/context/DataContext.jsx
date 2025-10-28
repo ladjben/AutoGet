@@ -5,7 +5,8 @@ const initialState = {
   produits: [],
   fournisseurs: [],
   entrees: [],
-  paiements: []
+  paiements: [],
+  depenses: []
 };
 
 // Storage key
@@ -57,6 +58,11 @@ const ActionTypes = {
   // Payments
   ADD_PAIEMENT: 'ADD_PAIEMENT',
   DELETE_PAIEMENT: 'DELETE_PAIEMENT',
+  
+  // Depenses
+  ADD_DEPENSE: 'ADD_DEPENSE',
+  UPDATE_DEPENSE: 'UPDATE_DEPENSE',
+  DELETE_DEPENSE: 'DELETE_DEPENSE',
 };
 
 // Reducer
@@ -219,6 +225,32 @@ const dataReducer = (state, action) => {
       newState = {
         ...state,
         paiements: state.paiements.filter(p => p.id !== action.payload)
+      };
+      saveData(newState);
+      return newState;
+      
+    case ActionTypes.ADD_DEPENSE:
+      newState = {
+        ...state,
+        depenses: [...state.depenses, action.payload]
+      };
+      saveData(newState);
+      return newState;
+      
+    case ActionTypes.UPDATE_DEPENSE:
+      newState = {
+        ...state,
+        depenses: state.depenses.map(d =>
+          d.id === action.payload.id ? action.payload : d
+        )
+      };
+      saveData(newState);
+      return newState;
+      
+    case ActionTypes.DELETE_DEPENSE:
+      newState = {
+        ...state,
+        depenses: state.depenses.filter(d => d.id !== action.payload)
       };
       saveData(newState);
       return newState;

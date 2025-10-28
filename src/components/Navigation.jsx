@@ -4,6 +4,7 @@ const Navigation = ({ activeView, setActiveView, user, logout, isAdmin, isUser }
     { id: 'products', label: 'Produits', icon: '👟' },
     { id: 'entries', label: 'Entrées de Stock', icon: '📥' },
     { id: 'suppliers', label: 'Fournisseurs', icon: '🏢' },
+    { id: 'depenses', label: 'Dépenses', icon: '💰' },
   ];
 
   return (
