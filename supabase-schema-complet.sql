@@ -74,6 +74,24 @@ CREATE TABLE IF NOT EXISTS depenses (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+-- Table des comptes utilisateurs
+CREATE TABLE IF NOT EXISTS comptes (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  username TEXT UNIQUE NOT NULL,
+  password TEXT NOT NULL,
+  nom TEXT NOT NULL,
+  role TEXT NOT NULL CHECK (role IN ('admin', 'user')),
+  active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Insérer les comptes par défaut
+INSERT INTO comptes (username, password, nom, role) VALUES
+  ('admin', 'admin123', 'Administrateur', 'admin'),
+  ('user', 'user123', 'Utilisateur', 'user')
+ON CONFLICT (username) DO NOTHING;
+
 -- Création des index pour améliorer les performances
 CREATE INDEX IF NOT EXISTS idx_variantes_produit_id ON variantes(produit_id);
 CREATE INDEX IF NOT EXISTS idx_entrees_fournisseur_id ON entrees(fournisseur_id);
@@ -82,6 +100,8 @@ CREATE INDEX IF NOT EXISTS idx_entree_lignes_variante_id ON entree_lignes(varian
 CREATE INDEX IF NOT EXISTS idx_entree_lignes_produit_id ON entree_lignes(produit_id);
 CREATE INDEX IF NOT EXISTS idx_paiements_fournisseur_id ON paiements(fournisseur_id);
 CREATE INDEX IF NOT EXISTS idx_depenses_date ON depenses(date);
+CREATE INDEX IF NOT EXISTS idx_comptes_username ON comptes(username);
+CREATE INDEX IF NOT EXISTS idx_comptes_role ON comptes(role);
 
 -- Fonction pour mettre à jour automatiquement updated_at
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -105,6 +125,9 @@ CREATE TRIGGER update_variantes_updated_at BEFORE UPDATE ON variantes
 CREATE TRIGGER update_entrees_updated_at BEFORE UPDATE ON entrees
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+CREATE TRIGGER update_comptes_updated_at BEFORE UPDATE ON comptes
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
 CREATE TRIGGER update_depenses_updated_at BEFORE UPDATE ON depenses
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -116,6 +139,7 @@ COMMENT ON TABLE entrees IS 'Entrées de marchandise';
 COMMENT ON TABLE entree_lignes IS 'Lignes détaillées des entrées';
 COMMENT ON TABLE paiements IS 'Paiements aux fournisseurs';
 COMMENT ON TABLE depenses IS 'Dépenses quotidiennes';
+COMMENT ON TABLE comptes IS 'Comptes utilisateurs (admin et user)';
 
 -- Activer les politiques RLS (Row Level Security)
 -- Vous devez d'abord désactiver RLS pour tester, puis les activer en production
@@ -128,6 +152,7 @@ ALTER TABLE entrees DISABLE ROW LEVEL SECURITY;
 ALTER TABLE entree_lignes DISABLE ROW LEVEL SECURITY;
 ALTER TABLE paiements DISABLE ROW LEVEL SECURITY;
 ALTER TABLE depenses DISABLE ROW LEVEL SECURITY;
+ALTER TABLE comptes DISABLE ROW LEVEL SECURITY;
 
 -- OU créer des politiques ouvertes pour tous (si vous voulez garder RLS)
 -- CREATE POLICY "Allow all operations on fournisseurs" ON fournisseurs
