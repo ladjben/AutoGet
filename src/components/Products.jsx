@@ -46,23 +46,34 @@ const Products = () => {
     setShowModal(false);
   };
 
-  const handleUpdateProduit = () => {
+  const handleUpdateProduit = async () => {
     if (!formData.nom || !formData.prixAchat) {
       alert('Veuillez remplir les champs obligatoires');
       return;
     }
 
-    const updatedProduit = {
-      ...editingProduit,
-      nom: formData.nom,
-      reference: formData.reference,
-      prixAchat: parseFloat(formData.prixAchat)
-    };
-
-    dispatch({ type: ActionTypes.UPDATE_PRODUIT, payload: updatedProduit });
-    resetForm();
-    setShowModal(false);
-    setEditingProduit(null);
+    if (USE_SUPABASE) {
+      const prix_achat = parseFloat(formData.prixAchat)
+      await dataCtx?.updateProduit?.(editingProduit.id, {
+        nom: formData.nom,
+        reference: formData.reference,
+        prix_achat,
+      })
+      resetForm()
+      setShowModal(false)
+      setEditingProduit(null)
+    } else {
+      const updatedProduit = {
+        ...editingProduit,
+        nom: formData.nom,
+        reference: formData.reference,
+        prixAchat: parseFloat(formData.prixAchat)
+      };
+      dispatch({ type: ActionTypes.UPDATE_PRODUIT, payload: updatedProduit });
+      resetForm();
+      setShowModal(false);
+      setEditingProduit(null);
+    }
   };
 
   const handleDeleteProduit = (id) => {

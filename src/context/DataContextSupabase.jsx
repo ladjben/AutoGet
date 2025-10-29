@@ -62,6 +62,22 @@ export const DataProvider = ({ children }) => {
     fetchDepenses()
   }
 
+  // Mise à jour produit
+  async function updateProduit(id, { nom, reference, prix_achat }) {
+    try {
+      const { error } = await supabase
+        .from('produits')
+        .update({ nom, reference, prix_achat })
+        .eq('id', id)
+      if (error) throw error
+      await fetchProduits()
+      return { success: true }
+    } catch (e) {
+      console.error('updateProduit:', e)
+      return { success: false, error: e?.message }
+    }
+  }
+
   // === NOUVEAU : lire les lignes d’une entrée ===
   async function fetchEntreeDetails(entreeId) {
     const { data, error } = await supabase
@@ -150,7 +166,7 @@ export const DataProvider = ({ children }) => {
         // reads
         fetchAll, fetchProduits, fetchFournisseurs, fetchEntrees, fetchDepenses, fetchEntreeDetails,
         // writes
-        addProduit, addFournisseur, addDepense,
+        addProduit, updateProduit, addFournisseur, addDepense,
         addEntreeWithLines, // ⬅️ NOUVEAU
       }}
     >
