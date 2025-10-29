@@ -108,11 +108,38 @@ const AppContent = () => {
   )
 }
 
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props)
+    this.state = { hasError: false, error: null }
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error }
+  }
+  componentDidCatch(error, info) {
+    // eslint-disable-next-line no-console
+    console.error('UI Error:', error, info)
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-red-50 text-red-700 p-6">
+          <h1 className="text-xl font-bold mb-2">Une erreur est survenue</h1>
+          <pre className="whitespace-pre-wrap text-sm">{String(this.state.error)}</pre>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
+
 function App() {
   return (
     <AuthProvider>
       <DataProvider>
-        <AppContent />
+        <ErrorBoundary>
+          <AppContent />
+        </ErrorBoundary>
       </DataProvider>
     </AuthProvider>
   )
