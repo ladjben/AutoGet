@@ -51,6 +51,7 @@ const navItems = [
 const AppHeader = ({ activeView, setActiveView, user, logout, isAdmin, isUser }) => {
   // Debug
   console.log('🚀 AppHeader chargé - version moderne avec shadcn/ui');
+  console.log('📊 Props:', { activeView, user: user?.name, hasLogout: !!logout });
   
   const isMobile = useIsMobile();
   const [supabaseStatus, setSupabaseStatus] = useState({ ok: true, msg: '', count: 0 });
