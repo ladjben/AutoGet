@@ -1,4 +1,4 @@
-import { useData, ActionTypes } from '../context/DataContext';
+import { useData, ActionTypes } from '../context/UnifiedDataContext';
 
 const Dashboard = () => {
   const { state } = useData();
