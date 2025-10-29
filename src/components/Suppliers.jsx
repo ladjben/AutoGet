@@ -39,6 +39,55 @@ const Suppliers = () => {
     description: ''
   });
 
+  // Helper functions - déclarer en premier
+  const getProduitName = (produitId) => {
+    const produit = (state.produits || []).find(p => p.id === produitId);
+    return produit ? produit.nom : 'Produit inconnu';
+  };
+
+  const getProduitPrixAchat = (produitId) => {
+    const produit = (state.produits || []).find(p => p.id === produitId);
+    return produit ? (produit.prix_achat ?? produit.prixAchat ?? 0) : 0;
+  };
+
+  // Récupérer toutes les entrées d'un fournisseur avec leurs détails
+  const getFournisseurEntrees = (fournisseurId) => {
+    let filteredEntrees = (state.entrees || []).filter(e => {
+      const fId = e.fournisseur_id ?? e.fournisseurId;
+      return fId === fournisseurId;
+    });
+
+    // Appliquer les filtres de date si présents
+    if (filters.dateStart && filters.dateEnd) {
+      filteredEntrees = filteredEntrees.filter(e => {
+        const entreeDate = e.date;
+        return entreeDate >= filters.dateStart && entreeDate <= filters.dateEnd;
+      });
+    }
+
+    return filteredEntrees;
+  };
+
+  // Calculer la valeur d'une entrée
+  const calculateEntreeValue = (entree) => {
+    if (!USE_SUPABASE && entree.lignes) {
+      // Mode local : lignes déjà incluses
+      return entree.lignes.reduce((sum, ligne) => {
+        return sum + (ligne.quantite || 0) * getProduitPrixAchat(ligne.produitId);
+      }, 0);
+    }
+    
+    // Mode Supabase : utiliser les détails chargés
+    if (USE_SUPABASE && entreesDetails[entree.id]) {
+      return entreesDetails[entree.id].reduce((sum, ligne) => {
+        const prix = ligne.produit_id?.prix_achat ?? 0;
+        return sum + (ligne.quantite || 0) * prix;
+      }, 0);
+    }
+    
+    return 0;
+  };
+
   const calculateTotalDue = (fournisseurId) => {
     let total = 0;
     const entrees = getFournisseurEntrees(fournisseurId);
@@ -187,34 +236,6 @@ const Suppliers = () => {
     return fournisseur ? fournisseur.nom : 'Inconnu';
   };
 
-  const getProduitName = (produitId) => {
-    const produit = (state.produits || []).find(p => p.id === produitId);
-    return produit ? produit.nom : 'Produit inconnu';
-  };
-
-  const getProduitPrixAchat = (produitId) => {
-    const produit = (state.produits || []).find(p => p.id === produitId);
-    return produit ? (produit.prix_achat ?? produit.prixAchat ?? 0) : 0;
-  };
-
-  // Récupérer toutes les entrées d'un fournisseur avec leurs détails
-  const getFournisseurEntrees = (fournisseurId) => {
-    let filteredEntrees = (state.entrees || []).filter(e => {
-      const fId = e.fournisseur_id ?? e.fournisseurId;
-      return fId === fournisseurId;
-    });
-
-    // Appliquer les filtres de date si présents
-    if (filters.dateStart && filters.dateEnd) {
-      filteredEntrees = filteredEntrees.filter(e => {
-        const entreeDate = e.date;
-        return entreeDate >= filters.dateStart && entreeDate <= filters.dateEnd;
-      });
-    }
-
-    return filteredEntrees;
-  };
-
   // Charger les détails d'une entrée (Supabase)
   const loadEntreeDetails = async (entreeId) => {
     if (!USE_SUPABASE || loadingDetails[entreeId] || entreesDetails[entreeId]) return;
@@ -228,26 +249,6 @@ const Suppliers = () => {
     } finally {
       setLoadingDetails(prev => ({ ...prev, [entreeId]: false }));
     }
-  };
-
-  // Calculer la valeur d'une entrée
-  const calculateEntreeValue = (entree) => {
-    if (!USE_SUPABASE && entree.lignes) {
-      // Mode local : lignes déjà incluses
-      return entree.lignes.reduce((sum, ligne) => {
-        return sum + (ligne.quantite || 0) * getProduitPrixAchat(ligne.produitId);
-      }, 0);
-    }
-    
-    // Mode Supabase : utiliser les détails chargés
-    if (USE_SUPABASE && entreesDetails[entree.id]) {
-      return entreesDetails[entree.id].reduce((sum, ligne) => {
-        const prix = ligne.produit_id?.prix_achat ?? 0;
-        return sum + (ligne.quantite || 0) * prix;
-      }, 0);
-    }
-    
-    return 0;
   };
 
   // Obtenir les lignes d'une entrée
