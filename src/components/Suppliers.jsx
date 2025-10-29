@@ -28,6 +28,27 @@ const Suppliers = () => {
   const deletePaiement = dataCtx?.deletePaiement;
   const { isAdmin } = useAuth();
   const { toast } = useToast();
+  
+  // Masquer toute la section pour les utilisateurs non-admin
+  if (!isAdmin()) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle>Accès Restreint</CardTitle>
+            <CardDescription>
+              Cette section est réservée aux administrateurs uniquement.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground text-center">
+              Vous devez être administrateur pour accéder à la gestion des fournisseurs.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
   const [showModal, setShowModal] = useState(false);
   const [showPaiementModal, setShowPaiementModal] = useState(false);
   const [selectedFournisseur, setSelectedFournisseur] = useState(null);
