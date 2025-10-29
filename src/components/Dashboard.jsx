@@ -1,6 +1,7 @@
 import { useData, ActionTypes } from '../context/UnifiedDataContext';
 import { USE_SUPABASE } from '../config';
 import { useMemo } from 'react';
+import { filterByPeriod } from '../utils/dateUtils';
 
 const Dashboard = () => {
   const dataCtx = useData();
@@ -298,6 +299,120 @@ const Dashboard = () => {
           </div>
         </div>
       </div>
+
+      {/* Statistiques par Période */}
+      {(() => {
+        const entrees = state.entrees || [];
+        const paiements = state.paiements || [];
+        const depenses = state.depenses || [];
+        
+        const todayEntrees = filterByPeriod(entrees, 'date', 'today');
+        const weekEntrees = filterByPeriod(entrees, 'date', 'week');
+        const monthEntrees = filterByPeriod(entrees, 'date', 'month');
+        
+        const todayPaiements = filterByPeriod(paiements, 'date', 'today');
+        const weekPaiements = filterByPeriod(paiements, 'date', 'week');
+        const monthPaiements = filterByPeriod(paiements, 'date', 'month');
+        
+        const todayDepenses = filterByPeriod(depenses, 'date', 'today');
+        const weekDepenses = filterByPeriod(depenses, 'date', 'week');
+        const monthDepenses = filterByPeriod(depenses, 'date', 'month');
+        
+        const calcEntrees = (items) => ({
+          count: items.length,
+          payees: items.filter(e => e.paye).length,
+          nonPayees: items.filter(e => !e.paye).length
+        });
+        
+        const calcPaiements = (items) => ({
+          count: items.length,
+          total: items.reduce((sum, p) => sum + (parseFloat(p.montant) || 0), 0),
+          moyenne: items.length > 0 ? items.reduce((sum, p) => sum + (parseFloat(p.montant) || 0), 0) / items.length : 0
+        });
+        
+        const calcDepenses = (items) => ({
+          count: items.length,
+          total: items.reduce((sum, d) => sum + (d.montant || 0), 0),
+          moyenne: items.length > 0 ? items.reduce((sum, d) => sum + (d.montant || 0), 0) / items.length : 0
+        });
+        
+        return (
+          <div className="bg-gradient-to-br from-gray-50 via-gray-100 to-gray-200 rounded-2xl p-6 border-4 border-gray-300 shadow-xl">
+            <h2 className="text-xl font-bold text-gray-800 mb-5 flex items-center gap-2">
+              <span className="bg-white p-2 rounded-lg shadow-sm text-lg">📅</span>
+              <span>Statistiques par Période</span>
+            </h2>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Journalier */}
+              <div className="bg-gradient-to-br from-blue-100 to-blue-200 border-3 border-blue-400 rounded-xl p-5 shadow-lg">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="bg-blue-500 text-white p-2 rounded-lg text-xl">📆</span>
+                  <span className="text-xs text-blue-700 font-bold bg-blue-300 px-3 py-1 rounded-full">Aujourd'hui</span>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-blue-700 font-medium">Entrées:</span>
+                    <span className="text-sm font-bold text-blue-900">{calcEntrees(todayEntrees).count}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-blue-700 font-medium">Paiements:</span>
+                    <span className="text-sm font-bold text-blue-900">{calcPaiements(todayPaiements).count} ({calcPaiements(todayPaiements).total.toFixed(2)} DA)</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-blue-700 font-medium">Dépenses:</span>
+                    <span className="text-sm font-bold text-blue-900">{calcDepenses(todayDepenses).count} ({calcDepenses(todayDepenses).total.toFixed(2)} DA)</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Hebdomadaire */}
+              <div className="bg-gradient-to-br from-green-100 to-green-200 border-3 border-green-400 rounded-xl p-5 shadow-lg">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="bg-green-500 text-white p-2 rounded-lg text-xl">📅</span>
+                  <span className="text-xs text-green-700 font-bold bg-green-300 px-3 py-1 rounded-full">Cette Semaine</span>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-green-700 font-medium">Entrées:</span>
+                    <span className="text-sm font-bold text-green-900">{calcEntrees(weekEntrees).count}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-green-700 font-medium">Paiements:</span>
+                    <span className="text-sm font-bold text-green-900">{calcPaiements(weekPaiements).count} ({calcPaiements(weekPaiements).total.toFixed(2)} DA)</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-green-700 font-medium">Dépenses:</span>
+                    <span className="text-sm font-bold text-green-900">{calcDepenses(weekDepenses).count} ({calcDepenses(weekDepenses).total.toFixed(2)} DA)</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Mensuel */}
+              <div className="bg-gradient-to-br from-purple-100 to-purple-200 border-3 border-purple-400 rounded-xl p-5 shadow-lg">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="bg-purple-500 text-white p-2 rounded-lg text-xl">📊</span>
+                  <span className="text-xs text-purple-700 font-bold bg-purple-300 px-3 py-1 rounded-full">Ce Mois</span>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-purple-700 font-medium">Entrées:</span>
+                    <span className="text-sm font-bold text-purple-900">{calcEntrees(monthEntrees).count}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-purple-700 font-medium">Paiements:</span>
+                    <span className="text-sm font-bold text-purple-900">{calcPaiements(monthPaiements).count} ({calcPaiements(monthPaiements).total.toFixed(2)} DA)</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-purple-700 font-medium">Dépenses:</span>
+                    <span className="text-sm font-bold text-purple-900">{calcDepenses(monthDepenses).count} ({calcDepenses(monthDepenses).total.toFixed(2)} DA)</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* PRODUITS */}
       <div className="bg-gradient-to-br from-blue-50 to-white rounded-xl border-3 border-blue-300 shadow-lg p-5">

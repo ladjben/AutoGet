@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { USE_SUPABASE } from '../config'
 import { useData, ActionTypes } from '../context/UnifiedDataContext'
 import { useAuth } from '../context/AuthContext'
+import { filterByPeriod } from '../utils/dateUtils'
 
 const Entries = () => {
   // Le provider actif change selon USE_SUPABASE (déjà géré dans App.jsx)
@@ -168,60 +169,78 @@ const Entries = () => {
     return filtered
   }, [entrees, filters])
 
+  // Fonction pour calculer les stats d'une liste d'entrées
+  const calculateStats = useMemo(() => {
+    return (entreesList) => {
+      let totalEntrees = entreesList.length
+      let totalPayees = 0
+      let totalNonPayees = 0
+      let totalValue = 0
+      let totalValuePayees = 0
+      let totalValueNonPayees = 0
+      let totalProduits = 0
+      
+      entreesList.forEach(entree => {
+        const paye = Boolean(entree.paye)
+        let entreeValue = 0
+        
+        if (!USE_SUPABASE && entree.lignes) {
+          entreeValue = calculateEntreeValueLocal(entree)
+          totalProduits += entree.lignes.reduce((sum, l) => sum + (l.quantite || 0), 0)
+        } else {
+          // Pour Supabase, estimation basique (limité sans détails chargés)
+          if (detail.openFor === entree.id && detail.rows.length > 0) {
+            entreeValue = detail.rows.reduce((sum, l) => {
+              const prix = l.produit_id?.prix_achat ?? 0
+              return sum + (l.quantite * prix)
+            }, 0)
+            totalProduits += detail.rows.reduce((sum, l) => sum + (l.quantite || 0), 0)
+          }
+        }
+        
+        totalValue += entreeValue
+        
+        if (paye) {
+          totalPayees++
+          totalValuePayees += entreeValue
+        } else {
+          totalNonPayees++
+          totalValueNonPayees += entreeValue
+        }
+      })
+      
+      const tauxPaye = totalEntrees > 0 ? (totalPayees / totalEntrees) * 100 : 0
+      
+      return {
+        totalEntrees,
+        totalPayees,
+        totalNonPayees,
+        totalValue,
+        totalValuePayees,
+        totalValueNonPayees,
+        totalProduits,
+        tauxPaye: tauxPaye.toFixed(1) + '%'
+      }
+    }
+  }, [calculateEntreeValueLocal, detail])
+
   // Calculer les statistiques globales
   const globalStats = useMemo(() => {
-    let totalEntrees = filteredEntrees.length
-    let totalPayees = 0
-    let totalNonPayees = 0
-    let totalValue = 0
-    let totalValuePayees = 0
-    let totalValueNonPayees = 0
-    let totalProduits = 0
-    
-    filteredEntrees.forEach(entree => {
-      const paye = Boolean(entree.paye)
-      let entreeValue = 0
-      
-      if (!USE_SUPABASE && entree.lignes) {
-        entreeValue = calculateEntreeValueLocal(entree)
-        totalProduits += entree.lignes.reduce((sum, l) => sum + (l.quantite || 0), 0)
-      } else {
-        // Pour Supabase, on essaie d'estimer en utilisant les produits connus si possible
-        // Mais on ne peut pas vraiment calculer sans charger les détails
-        // Donc on compte seulement les entrées où les détails sont déjà chargés
-        if (detail.openFor === entree.id && detail.rows.length > 0) {
-          entreeValue = detail.rows.reduce((sum, l) => {
-            const prix = l.produit_id?.prix_achat ?? 0
-            return sum + (l.quantite * prix)
-          }, 0)
-          totalProduits += detail.rows.reduce((sum, l) => sum + (l.quantite || 0), 0)
-        }
-      }
-      
-      totalValue += entreeValue
-      
-      if (paye) {
-        totalPayees++
-        totalValuePayees += entreeValue
-      } else {
-        totalNonPayees++
-        totalValueNonPayees += entreeValue
-      }
-    })
-    
-    const tauxPaye = totalEntrees > 0 ? (totalPayees / totalEntrees) * 100 : 0
+    return calculateStats(filteredEntrees)
+  }, [filteredEntrees, calculateStats])
+
+  // Statistiques par période
+  const periodStats = useMemo(() => {
+    const today = filterByPeriod(entrees || [], 'date', 'today')
+    const week = filterByPeriod(entrees || [], 'date', 'week')
+    const month = filterByPeriod(entrees || [], 'date', 'month')
     
     return {
-      totalEntrees,
-      totalPayees,
-      totalNonPayees,
-      totalValue,
-      totalValuePayees,
-      totalValueNonPayees,
-      totalProduits,
-      tauxPaye
+      today: calculateStats(today),
+      week: calculateStats(week),
+      month: calculateStats(month)
     }
-  }, [filteredEntrees, detail, calculateEntreeValueLocal])
+  }, [entrees, calculateStats])
 
   const handleDeleteEntree = async (entreeId) => {
     if (!window.confirm('Êtes-vous sûr de vouloir supprimer cette entrée ?')) return
@@ -348,7 +367,7 @@ const Entries = () => {
             </div>
             <p className="text-3xl font-extrabold text-green-800 mb-1">{globalStats.totalValue.toFixed(2)} DA</p>
             <p className="text-xs text-green-600 mt-2">
-              {globalStats.tauxPaye.toFixed(1)}% d'entrées payées
+              {globalStats.tauxPaye} d'entrées payées
             </p>
           </div>
           
@@ -383,6 +402,94 @@ const Entries = () => {
           <div className="bg-orange-50 rounded-lg p-3 text-center border-2 border-orange-300 shadow-sm">
             <p className="text-xs text-orange-600 mb-1 font-medium">Entrées Non Payées</p>
             <p className="text-xl font-bold text-orange-800">{globalStats.totalNonPayees}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Statistiques par Période */}
+      <div className="bg-gradient-to-br from-gray-50 via-gray-100 to-gray-200 rounded-2xl p-6 border-4 border-gray-300 shadow-xl">
+        <h2 className="text-xl font-bold text-gray-800 mb-5 flex items-center gap-2">
+          <span className="bg-white p-2 rounded-lg shadow-sm text-lg">📅</span>
+          <span>Statistiques par Période</span>
+        </h2>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Journalier */}
+          <div className="bg-gradient-to-br from-blue-100 to-blue-200 border-3 border-blue-400 rounded-xl p-5 shadow-lg">
+            <div className="flex items-center justify-between mb-3">
+              <span className="bg-blue-500 text-white p-2 rounded-lg text-xl">📆</span>
+              <span className="text-xs text-blue-700 font-bold bg-blue-300 px-3 py-1 rounded-full">Aujourd'hui</span>
+            </div>
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-blue-700 font-medium">Entrées:</span>
+                <span className="text-sm font-bold text-blue-900">{periodStats.today.totalEntrees}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-blue-700 font-medium">Valeur:</span>
+                <span className="text-sm font-bold text-blue-900">{periodStats.today.totalValue.toFixed(2)} DA</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-blue-700 font-medium">Produits:</span>
+                <span className="text-sm font-bold text-blue-900">{periodStats.today.totalProduits}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-blue-700 font-medium">Payées:</span>
+                <span className="text-sm font-bold text-blue-900">{periodStats.today.totalPayees}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Hebdomadaire */}
+          <div className="bg-gradient-to-br from-green-100 to-green-200 border-3 border-green-400 rounded-xl p-5 shadow-lg">
+            <div className="flex items-center justify-between mb-3">
+              <span className="bg-green-500 text-white p-2 rounded-lg text-xl">📅</span>
+              <span className="text-xs text-green-700 font-bold bg-green-300 px-3 py-1 rounded-full">Cette Semaine</span>
+            </div>
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-green-700 font-medium">Entrées:</span>
+                <span className="text-sm font-bold text-green-900">{periodStats.week.totalEntrees}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-green-700 font-medium">Valeur:</span>
+                <span className="text-sm font-bold text-green-900">{periodStats.week.totalValue.toFixed(2)} DA</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-green-700 font-medium">Produits:</span>
+                <span className="text-sm font-bold text-green-900">{periodStats.week.totalProduits}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-green-700 font-medium">Payées:</span>
+                <span className="text-sm font-bold text-green-900">{periodStats.week.totalPayees}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Mensuel */}
+          <div className="bg-gradient-to-br from-purple-100 to-purple-200 border-3 border-purple-400 rounded-xl p-5 shadow-lg">
+            <div className="flex items-center justify-between mb-3">
+              <span className="bg-purple-500 text-white p-2 rounded-lg text-xl">📊</span>
+              <span className="text-xs text-purple-700 font-bold bg-purple-300 px-3 py-1 rounded-full">Ce Mois</span>
+            </div>
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-purple-700 font-medium">Entrées:</span>
+                <span className="text-sm font-bold text-purple-900">{periodStats.month.totalEntrees}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-purple-700 font-medium">Valeur:</span>
+                <span className="text-sm font-bold text-purple-900">{periodStats.month.totalValue.toFixed(2)} DA</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-purple-700 font-medium">Produits:</span>
+                <span className="text-sm font-bold text-purple-900">{periodStats.month.totalProduits}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-purple-700 font-medium">Payées:</span>
+                <span className="text-sm font-bold text-purple-900">{periodStats.month.totalPayees}</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>

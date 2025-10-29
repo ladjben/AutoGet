@@ -2,6 +2,7 @@ import { useData, ActionTypes } from '../context/UnifiedDataContext';
 import { USE_SUPABASE } from '../config';
 import { useAuth } from '../context/AuthContext';
 import { useState, useMemo, useEffect } from 'react';
+import { filterByPeriod } from '../utils/dateUtils';
 
 const Depenses = () => {
   const dataCtx = useData();
@@ -452,6 +453,114 @@ const Depenses = () => {
           </div>
         )}
       </div>
+
+      {/* Statistiques par Période */}
+      {(() => {
+        const today = filterByPeriod(state.depenses || [], 'date', 'today');
+        const week = filterByPeriod(state.depenses || [], 'date', 'week');
+        const month = filterByPeriod(state.depenses || [], 'date', 'month');
+        
+        const calcStats = (items) => {
+          const total = items.reduce((sum, d) => sum + (d.montant || 0), 0);
+          const count = items.length;
+          const moyenne = count > 0 ? total / count : 0;
+          const categories = new Set(items.map(d => d.depense_categories?.nom || d.nom || 'Sans nom').filter(Boolean));
+          return { total, count, moyenne, categories: categories.size };
+        };
+        
+        const statsToday = calcStats(today);
+        const statsWeek = calcStats(week);
+        const statsMonth = calcStats(month);
+        
+        return (
+          <div className="bg-gradient-to-br from-gray-50 via-gray-100 to-gray-200 rounded-2xl p-6 border-4 border-gray-300 shadow-xl">
+            <h2 className="text-xl font-bold text-gray-800 mb-5 flex items-center gap-2">
+              <span className="bg-white p-2 rounded-lg shadow-sm text-lg">📅</span>
+              <span>Statistiques par Période</span>
+            </h2>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Journalier */}
+              <div className="bg-gradient-to-br from-blue-100 to-blue-200 border-3 border-blue-400 rounded-xl p-5 shadow-lg">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="bg-blue-500 text-white p-2 rounded-lg text-xl">📆</span>
+                  <span className="text-xs text-blue-700 font-bold bg-blue-300 px-3 py-1 rounded-full">Aujourd'hui</span>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-blue-700 font-medium">Nombre:</span>
+                    <span className="text-sm font-bold text-blue-900">{statsToday.count}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-blue-700 font-medium">Total:</span>
+                    <span className="text-sm font-bold text-blue-900">{statsToday.total.toFixed(2)} DA</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-blue-700 font-medium">Moyenne:</span>
+                    <span className="text-sm font-bold text-blue-900">{statsToday.moyenne.toFixed(2)} DA</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-blue-700 font-medium">Catégories:</span>
+                    <span className="text-sm font-bold text-blue-900">{statsToday.categories}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Hebdomadaire */}
+              <div className="bg-gradient-to-br from-green-100 to-green-200 border-3 border-green-400 rounded-xl p-5 shadow-lg">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="bg-green-500 text-white p-2 rounded-lg text-xl">📅</span>
+                  <span className="text-xs text-green-700 font-bold bg-green-300 px-3 py-1 rounded-full">Cette Semaine</span>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-green-700 font-medium">Nombre:</span>
+                    <span className="text-sm font-bold text-green-900">{statsWeek.count}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-green-700 font-medium">Total:</span>
+                    <span className="text-sm font-bold text-green-900">{statsWeek.total.toFixed(2)} DA</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-green-700 font-medium">Moyenne:</span>
+                    <span className="text-sm font-bold text-green-900">{statsWeek.moyenne.toFixed(2)} DA</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-green-700 font-medium">Catégories:</span>
+                    <span className="text-sm font-bold text-green-900">{statsWeek.categories}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Mensuel */}
+              <div className="bg-gradient-to-br from-purple-100 to-purple-200 border-3 border-purple-400 rounded-xl p-5 shadow-lg">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="bg-purple-500 text-white p-2 rounded-lg text-xl">📊</span>
+                  <span className="text-xs text-purple-700 font-bold bg-purple-300 px-3 py-1 rounded-full">Ce Mois</span>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-purple-700 font-medium">Nombre:</span>
+                    <span className="text-sm font-bold text-purple-900">{statsMonth.count}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-purple-700 font-medium">Total:</span>
+                    <span className="text-sm font-bold text-purple-900">{statsMonth.total.toFixed(2)} DA</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-purple-700 font-medium">Moyenne:</span>
+                    <span className="text-sm font-bold text-purple-900">{statsMonth.moyenne.toFixed(2)} DA</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-purple-700 font-medium">Catégories:</span>
+                    <span className="text-sm font-bold text-purple-900">{statsMonth.categories}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Résumé par nom de dépense */}
       {depensesParNom.length > 0 && (

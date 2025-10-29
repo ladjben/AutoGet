@@ -2,6 +2,7 @@ import { useData, ActionTypes } from '../context/UnifiedDataContext';
 import { USE_SUPABASE } from '../config';
 import { useAuth } from '../context/AuthContext';
 import { useState, useMemo } from 'react';
+import { filterByPeriod } from '../utils/dateUtils';
 
 const Products = () => {
   const dataCtx = useData();

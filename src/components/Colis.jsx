@@ -2,6 +2,7 @@ import { useData, ActionTypes } from '../context/UnifiedDataContext';
 import { USE_SUPABASE } from '../config';
 import { useAuth } from '../context/AuthContext';
 import { useState, useMemo } from 'react';
+import { filterByPeriod } from '../utils/dateUtils';
 
 const Colis = () => {
   const dataCtx = useData();
@@ -51,19 +52,15 @@ const Colis = () => {
     return filtered;
   }, [state.colis, filters]);
 
-  // Statistiques globales
-  const stats = useMemo(() => {
-    const colis = filteredColis;
-    const totalColis = colis.reduce((sum, c) => sum + (parseInt(c.nombre) || 0), 0);
-    const nombreJours = colis.length;
+  // Fonction pour calculer les stats d'une liste de colis
+  const calculateStatsColis = (colisList) => {
+    const totalColis = colisList.reduce((sum, c) => sum + (parseInt(c.nombre) || 0), 0);
+    const nombreJours = colisList.length;
     const moyenneParJour = nombreJours > 0 ? totalColis / nombreJours : 0;
-    const maxColis = colis.length > 0 ? Math.max(...colis.map(c => parseInt(c.nombre) || 0)) : 0;
-    const minColis = colis.length > 0 ? Math.min(...colis.map(c => parseInt(c.nombre) || 0).filter(n => n > 0)) : 0;
-    
-    // Statistiques supplémentaires
-    const totalJours = filteredColis.length;
-    const joursAvecActivite = filteredColis.filter(c => parseInt(c.nombre) > 0).length;
-    const tauxActivite = totalJours > 0 ? (joursAvecActivite / totalJours) * 100 : 0;
+    const maxColis = colisList.length > 0 ? Math.max(...colisList.map(c => parseInt(c.nombre) || 0)) : 0;
+    const minColis = colisList.length > 0 ? Math.min(...colisList.map(c => parseInt(c.nombre) || 0).filter(n => n > 0)) : 0;
+    const joursAvecActivite = colisList.filter(c => parseInt(c.nombre) > 0).length;
+    const tauxActivite = nombreJours > 0 ? (joursAvecActivite / nombreJours) * 100 : 0;
     
     return {
       totalColis,
@@ -71,11 +68,28 @@ const Colis = () => {
       moyenneParJour,
       maxColis,
       minColis,
-      totalJours,
       joursAvecActivite,
-      tauxActivite
+      tauxActivite: tauxActivite.toFixed(1) + '%'
     };
+  };
+
+  // Statistiques globales
+  const stats = useMemo(() => {
+    return calculateStatsColis(filteredColis);
   }, [filteredColis]);
+
+  // Statistiques par période
+  const periodStats = useMemo(() => {
+    const today = filterByPeriod(state.colis || [], 'date', 'today');
+    const week = filterByPeriod(state.colis || [], 'date', 'week');
+    const month = filterByPeriod(state.colis || [], 'date', 'month');
+    
+    return {
+      today: calculateStatsColis(today),
+      week: calculateStatsColis(week),
+      month: calculateStatsColis(month)
+    };
+  }, [state.colis]);
 
   const handleAddColis = async () => {
     if (!formData.nombre || !formData.date) {
@@ -270,7 +284,7 @@ const Colis = () => {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-4 border-t-3 border-gray-400">
           <div className="bg-white/90 rounded-lg p-4 text-center border-2 border-gray-300 shadow-sm">
             <p className="text-xs text-gray-600 mb-1 font-medium">Total Jours</p>
-            <p className="text-2xl font-bold text-gray-900">{stats.totalJours}</p>
+            <p className="text-2xl font-bold text-gray-900">{stats.nombreJours}</p>
           </div>
           <div className="bg-cyan-50 rounded-lg p-4 text-center border-2 border-cyan-300 shadow-sm">
             <p className="text-xs text-cyan-600 mb-1 font-medium">Jours avec Activité</p>
@@ -278,13 +292,101 @@ const Colis = () => {
           </div>
           <div className="bg-teal-50 rounded-lg p-4 text-center border-2 border-teal-300 shadow-sm">
             <p className="text-xs text-teal-600 mb-1 font-medium">Taux d'Activité</p>
-            <p className="text-2xl font-bold text-teal-800">{stats.tauxActivite.toFixed(1)}%</p>
+            <p className="text-2xl font-bold text-teal-800">{stats.tauxActivite}</p>
           </div>
           <div className="bg-pink-50 rounded-lg p-4 text-center border-2 border-pink-300 shadow-sm">
             <p className="text-xs text-pink-600 mb-1 font-medium">Moyenne par Jour Actif</p>
             <p className="text-2xl font-bold text-pink-800">
               {stats.joursAvecActivite > 0 ? (stats.totalColis / stats.joursAvecActivite).toFixed(1) : '0'}
             </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Statistiques par Période */}
+      <div className="bg-gradient-to-br from-gray-50 via-gray-100 to-gray-200 rounded-2xl p-6 border-4 border-gray-300 shadow-xl">
+        <h2 className="text-xl font-bold text-gray-800 mb-5 flex items-center gap-2">
+          <span className="bg-white p-2 rounded-lg shadow-sm text-lg">📅</span>
+          <span>Statistiques par Période</span>
+        </h2>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Journalier */}
+          <div className="bg-gradient-to-br from-blue-100 to-blue-200 border-3 border-blue-400 rounded-xl p-5 shadow-lg">
+            <div className="flex items-center justify-between mb-3">
+              <span className="bg-blue-500 text-white p-2 rounded-lg text-xl">📆</span>
+              <span className="text-xs text-blue-700 font-bold bg-blue-300 px-3 py-1 rounded-full">Aujourd'hui</span>
+            </div>
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-blue-700 font-medium">Nombre:</span>
+                <span className="text-sm font-bold text-blue-900">{periodStats.today.totalColis}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-blue-700 font-medium">Jours:</span>
+                <span className="text-sm font-bold text-blue-900">{periodStats.today.nombreJours}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-blue-700 font-medium">Moyenne:</span>
+                <span className="text-sm font-bold text-blue-900">{periodStats.today.moyenneParJour.toFixed(1)}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-blue-700 font-medium">Max:</span>
+                <span className="text-sm font-bold text-blue-900">{periodStats.today.maxColis}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Hebdomadaire */}
+          <div className="bg-gradient-to-br from-green-100 to-green-200 border-3 border-green-400 rounded-xl p-5 shadow-lg">
+            <div className="flex items-center justify-between mb-3">
+              <span className="bg-green-500 text-white p-2 rounded-lg text-xl">📅</span>
+              <span className="text-xs text-green-700 font-bold bg-green-300 px-3 py-1 rounded-full">Cette Semaine</span>
+            </div>
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-green-700 font-medium">Nombre:</span>
+                <span className="text-sm font-bold text-green-900">{periodStats.week.totalColis}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-green-700 font-medium">Jours:</span>
+                <span className="text-sm font-bold text-green-900">{periodStats.week.nombreJours}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-green-700 font-medium">Moyenne:</span>
+                <span className="text-sm font-bold text-green-900">{periodStats.week.moyenneParJour.toFixed(1)}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-green-700 font-medium">Max:</span>
+                <span className="text-sm font-bold text-green-900">{periodStats.week.maxColis}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Mensuel */}
+          <div className="bg-gradient-to-br from-purple-100 to-purple-200 border-3 border-purple-400 rounded-xl p-5 shadow-lg">
+            <div className="flex items-center justify-between mb-3">
+              <span className="bg-purple-500 text-white p-2 rounded-lg text-xl">📊</span>
+              <span className="text-xs text-purple-700 font-bold bg-purple-300 px-3 py-1 rounded-full">Ce Mois</span>
+            </div>
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-purple-700 font-medium">Nombre:</span>
+                <span className="text-sm font-bold text-purple-900">{periodStats.month.totalColis}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-purple-700 font-medium">Jours:</span>
+                <span className="text-sm font-bold text-purple-900">{periodStats.month.nombreJours}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-purple-700 font-medium">Moyenne:</span>
+                <span className="text-sm font-bold text-purple-900">{periodStats.month.moyenneParJour.toFixed(1)}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-purple-700 font-medium">Max:</span>
+                <span className="text-sm font-bold text-purple-900">{periodStats.month.maxColis}</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
