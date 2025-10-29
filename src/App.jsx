@@ -1,9 +1,12 @@
 import React, { useState } from 'react'
+
+// Provider unifié (local ou Supabase selon ta config)
 import { DataProvider } from './context/UnifiedDataContext'
 
-// DataProvider est désormais fourni par le pont unifié
+// Auth
 import { AuthProvider, useAuth } from './context/AuthContext'
 
+// UI / Pages
 import Login from './components/Login'
 import AppHeader from './components/AppHeader'
 import Dashboard from './components/Dashboard'
@@ -14,8 +17,11 @@ import Depenses from './components/Depenses'
 import Colis from './components/Colis'
 import Salaries from './components/Salaries'
 
-// Le pont unifié choisit le provider selon USE_SUPABASE
-
+/**
+ * Garde ce composant simple : AppHeader reçoit
+ * - la nouvelle API (onNavigate, role, produitsCount, supabaseStatus, onLogout, brand)
+ * - ET les anciennes props (setActiveView, isAdmin, isUser, logout) pour compatibilité.
+ */
 const AppContent = () => {
   const [activeView, setActiveView] = useState('dashboard')
   const { user, logout, isAdmin, isUser } = useAuth()
@@ -41,7 +47,7 @@ const AppContent = () => {
     }
   }
 
-  // Si pas authentifié, afficher la page de login
+  // Non connecté → page Login
   if (!user) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -52,21 +58,37 @@ const AppContent = () => {
     )
   }
 
+  // Compteurs / Status (met un vrai produitsCount si tu as un state global)
+  const produitsCount = 0
+  const supabaseStatus = 'Connexion OK'
+
   return (
     <div className="min-h-screen bg-gray-50">
       <AppHeader
+        /* ====== API moderne (shadcn) ====== */
+        brand={{ title: 'COSMOS ALGÉRIE', subtitle: 'Gestion & Suivi' }}
         activeView={activeView}
-        setActiveView={setActiveView}
+        onNavigate={setActiveView}
         user={user}
-        logout={logout}
+        role={isAdmin?.() ? 'Administrateur' : 'Utilisateur'}
+        produitsCount={produitsCount}
+        supabaseStatus={supabaseStatus}
+        onLogout={logout}
+        /* ====== Compat héritée (ancien header) ====== */
+        setActiveView={setActiveView}
         isAdmin={isAdmin}
         isUser={isUser}
+        logout={logout}
       />
-      <main className="p-6">{renderView()}</main>
+
+      <main className="p-6">
+        {renderView()}
+      </main>
     </div>
   )
 }
 
+/** Garde une boundary simple pour éviter un écran blanc silencieux */
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props)
