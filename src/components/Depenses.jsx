@@ -23,30 +23,20 @@ const Depenses = () => {
   const [searchType, setSearchType] = useState('all'); // 'all', 'single', 'range'
   const [singleDate, setSingleDate] = useState('');
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
+  const [showCategoriesModal, setShowCategoriesModal] = useState(false);
+  const [newCategory, setNewCategory] = useState('');
   
-  // Noms de dépenses prédéfinis
-  const nomsDepensesPred = [
-    'Transport',
-    'Loyer',
-    'Électricité',
-    'Eau',
-    'Gaz',
-    'Internet',
-    'Téléphone',
-    'Nourriture',
-    'Médicaments',
-    'Éducation',
-    'Vêtements',
-    'Divertissement',
-    'Matériel de bureau',
-    'Entretien',
-    'Réparations',
-    'Fournitures',
-    'Publicité',
-    'Assurance',
-    'Impôts',
-    'Autres'
-  ];
+  // Extraire les noms uniques des dépenses existantes comme suggestions
+  const categoriesExistantes = useMemo(() => {
+    if (!state.depenses || !Array.isArray(state.depenses)) return [];
+    const noms = new Set();
+    state.depenses.forEach(d => {
+      if (d.nom && d.nom.trim()) {
+        noms.add(d.nom.trim());
+      }
+    });
+    return Array.from(noms).sort();
+  }, [state.depenses]);
 
   const [formData, setFormData] = useState({
     nom: '',
@@ -189,21 +179,127 @@ const Depenses = () => {
     setFormData({ nom: '', montant: '', description: '', date: new Date().toISOString().split('T')[0] });
   };
 
+  // Gérer les catégories
+  const handleAddCategory = () => {
+    if (!newCategory.trim()) {
+      alert('Veuillez entrer un nom de catégorie');
+      return;
+    }
+    setNewCategory('');
+    // Juste fermer le modal, la catégorie sera disponible dans la liste après la première utilisation
+    setShowCategoriesModal(false);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900">Dépenses</h1>
-        <button
-          onClick={() => {
-            setEditingDepense(null);
-            resetForm();
-            setShowModal(true);
-          }}
-          className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
-        >
-          + Nouvelle Dépense
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={() => setShowCategoriesModal(true)}
+            className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg shadow-sm transition-colors flex items-center gap-2"
+          >
+            <span>📋</span>
+            <span>Gérer les Catégories</span>
+          </button>
+          <button
+            onClick={() => {
+              setEditingDepense(null);
+              resetForm();
+              setShowModal(true);
+            }}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-sm transition-colors flex items-center gap-2"
+          >
+            <span>+</span>
+            <span>Nouvelle Dépense</span>
+          </button>
+        </div>
       </div>
+
+      {/* Modal Gestion des Catégories */}
+      {showCategoriesModal && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-lg bg-white">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold text-gray-900">📋 Gérer les Catégories de Dépenses</h3>
+              <button
+                onClick={() => {
+                  setShowCategoriesModal(false);
+                  setNewCategory('');
+                }}
+                className="text-gray-500 hover:text-gray-700 text-2xl"
+              >
+                ×
+              </button>
+            </div>
+            
+            {/* Créer une nouvelle catégorie */}
+            <div className="mb-6 p-4 bg-purple-50 rounded-lg border-2 border-purple-200">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Créer une nouvelle catégorie</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newCategory}
+                  onChange={(e) => setNewCategory(e.target.value)}
+                  placeholder="Ex: Transport, Loyer, Nourriture..."
+                  className="flex-1 border border-gray-300 rounded-md shadow-sm py-2 px-3"
+                  onKeyPress={(e) => e.key === 'Enter' && handleAddCategory()}
+                />
+                <button
+                  onClick={handleAddCategory}
+                  className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg"
+                >
+                  ➕ Ajouter
+                </button>
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                💡 La catégorie sera disponible après la création de la première dépense avec ce nom.
+              </p>
+            </div>
+
+            {/* Liste des catégories existantes */}
+            <div>
+              <h4 className="text-sm font-semibold text-gray-700 mb-3">
+                Catégories existantes ({categoriesExistantes.length})
+              </h4>
+              {categoriesExistantes.length === 0 ? (
+                <div className="bg-gray-50 rounded-lg p-4 text-center">
+                  <p className="text-sm text-gray-500">Aucune catégorie créée encore</p>
+                  <p className="text-xs text-gray-400 mt-1">Créez votre première dépense pour voir la catégorie apparaître ici</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {categoriesExistantes.map((cat) => {
+                    const count = (state.depenses || []).filter(d => d.nom === cat).length;
+                    const total = (state.depenses || []).filter(d => d.nom === cat).reduce((sum, d) => sum + (d.montant || 0), 0);
+                    return (
+                      <div key={cat} className="bg-white border-2 border-purple-200 rounded-lg p-3 hover:shadow-md transition-shadow">
+                        <div className="flex items-center justify-between mb-2">
+                          <h5 className="font-bold text-gray-900 text-sm">{cat}</h5>
+                        </div>
+                        <p className="text-xs text-gray-600 mb-1">{count} {count === 1 ? 'dépense' : 'dépenses'}</p>
+                        <p className="text-sm font-semibold text-purple-700">{total.toFixed(2)} DA</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="mt-6 flex justify-end">
+              <button
+                onClick={() => {
+                  setShowCategoriesModal(false);
+                  setNewCategory('');
+                }}
+                className="px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400"
+              >
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Search Section */}
       <div className="bg-white shadow rounded-lg p-6">
@@ -382,30 +478,42 @@ const Depenses = () => {
             
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700">Nom de la dépense *</label>
-                <select
-                  value={formData.nom}
-                  onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3"
-                  required
-                >
-                  <option value="">Sélectionner un nom...</option>
-                  {nomsDepensesPred.map((nom) => (
-                    <option key={nom} value={nom}>{nom}</option>
-                  ))}
-                </select>
-                <input
-                  type="text"
-                  placeholder="Ou créer un nouveau nom..."
-                  value={!nomsDepensesPred.includes(formData.nom) && formData.nom ? formData.nom : ''}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    if (value && !nomsDepensesPred.includes(value)) {
-                      setFormData({ ...formData, nom: value });
-                    }
-                  }}
-                  className="mt-2 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 text-sm"
-                />
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Nom de la dépense (Catégorie) *
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    list="categories-list"
+                    value={formData.nom}
+                    onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
+                    placeholder="Tapez un nom ou sélectionnez une catégorie existante..."
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3"
+                    required
+                  />
+                  {categoriesExistantes.length > 0 && (
+                    <datalist id="categories-list">
+                      {categoriesExistantes.map((cat) => (
+                        <option key={cat} value={cat} />
+                      ))}
+                    </datalist>
+                  )}
+                </div>
+                <div className="mt-2 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowCategoriesModal(true)}
+                    className="text-xs text-purple-600 hover:text-purple-800 underline flex items-center gap-1"
+                  >
+                    <span>📋</span>
+                    <span>Gérer les catégories</span>
+                  </button>
+                  {categoriesExistantes.length > 0 && (
+                    <span className="text-xs text-gray-500">
+                      {categoriesExistantes.length} {categoriesExistantes.length === 1 ? 'catégorie' : 'catégories'} disponible{categoriesExistantes.length > 1 ? 's' : ''}
+                    </span>
+                  )}
+                </div>
               </div>
 
               <div>
