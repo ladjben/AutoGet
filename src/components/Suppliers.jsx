@@ -4,7 +4,18 @@ import { useAuth } from '../context/AuthContext';
 import { useState } from 'react';
 
 const Suppliers = () => {
-  const { state, dispatch, generateId, addFournisseur, addPaiement } = useData();
+  const dataCtx = useData();
+  const state = dataCtx?.state ?? {
+    produits: dataCtx?.produits ?? [],
+    fournisseurs: dataCtx?.fournisseurs ?? [],
+    entrees: dataCtx?.entrees ?? [],
+    paiements: dataCtx?.paiements ?? [],
+    depenses: dataCtx?.depenses ?? []
+  };
+  const dispatch = dataCtx?.dispatch;
+  const generateId = dataCtx?.generateId;
+  const addFournisseur = dataCtx?.addFournisseur;
+  const addPaiement = dataCtx?.addPaiement;
   const { isAdmin } = useAuth();
   const [showModal, setShowModal] = useState(false);
   const [showPaiementModal, setShowPaiementModal] = useState(false);
