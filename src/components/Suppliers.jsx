@@ -131,20 +131,75 @@ const Suppliers = () => {
     return total;
   };
 
-  // Calculer les totaux globaux
+  // Calculer tous les totaux globaux
   const globalTotals = useMemo(() => {
     let totalDueGlobal = 0;
     let totalPayeGlobal = 0;
+    let totalMarchandiseGlobal = 0;
+    let totalEntrees = 0;
+    let totalEntreesPayees = 0;
+    let totalEntreesNonPayees = 0;
+    let totalPaiements = 0;
+    let totalProduitsReçus = 0;
     
-    (state.fournisseurs || []).forEach(fournisseur => {
-      totalDueGlobal += calculateTotalDue(fournisseur.id);
-      totalPayeGlobal += calculateTotalPaye(fournisseur.id);
+    // Calculer pour chaque fournisseur
+    filteredFournisseurs.forEach(fournisseur => {
+      const due = calculateTotalDue(fournisseur.id);
+      const paye = calculateTotalPaye(fournisseur.id);
+      const entrees = getFournisseurEntrees(fournisseur.id);
+      const marchandise = entrees.reduce((sum, e) => sum + calculateEntreeValue(e), 0);
+      
+      totalDueGlobal += due;
+      totalPayeGlobal += paye;
+      totalMarchandiseGlobal += marchandise;
+      totalEntrees += entrees.length;
+      totalEntreesPayees += entrees.filter(e => e.paye).length;
+      totalEntreesNonPayees += entrees.filter(e => !e.paye).length;
+      
+      // Compter les produits dans les entrées
+      entrees.forEach(entree => {
+        const lignes = getEntreeLignes(entree);
+        totalProduitsReçus += lignes.reduce((sum, ligne) => sum + (ligne.quantite || 0), 0);
+      });
     });
+    
+    // Calculer les totaux des paiements
+    let filteredPaiements = state.paiements || [];
+    if (filters.fournisseurId) {
+      filteredPaiements = filteredPaiements.filter(p => {
+        const fId = p.fournisseur_id ?? p.fournisseurId;
+        return fId === filters.fournisseurId;
+      });
+    }
+    if (filters.dateStart && filters.dateEnd) {
+      filteredPaiements = filteredPaiements.filter(p => {
+        return p.date >= filters.dateStart && p.date <= filters.dateEnd;
+      });
+    }
+    totalPaiements = filteredPaiements.length;
+    
+    // Statistiques additionnelles
+    const fournisseursAvecDettes = filteredFournisseurs.filter(f => calculateTotalDue(f.id) > 0).length;
+    const fournisseursEnAttente = filteredFournisseurs.filter(f => (calculateTotalDue(f.id) - calculateTotalPaye(f.id)) > 0).length;
+    const moyenneDueParFournisseur = filteredFournisseurs.length > 0 ? totalDueGlobal / filteredFournisseurs.length : 0;
+    const moyennePayeParFournisseur = filteredFournisseurs.length > 0 ? totalPayeGlobal / filteredFournisseurs.length : 0;
+    const tauxPaiement = totalDueGlobal > 0 ? (totalPayeGlobal / totalDueGlobal) * 100 : 0;
     
     return {
       totalDue: totalDueGlobal,
       totalPaye: totalPayeGlobal,
-      reste: totalDueGlobal - totalPayeGlobal
+      reste: totalDueGlobal - totalPayeGlobal,
+      totalMarchandise: totalMarchandiseGlobal,
+      totalEntrees,
+      totalEntreesPayees,
+      totalEntreesNonPayees,
+      totalPaiements,
+      totalProduitsReçus,
+      fournisseursAvecDettes,
+      fournisseursEnAttente,
+      moyenneDueParFournisseur,
+      moyennePayeParFournisseur,
+      tauxPaiement
     };
   }, [state.fournisseurs, state.entrees, state.paiements, filters]);
 
@@ -412,42 +467,76 @@ const Suppliers = () => {
           </div>
         </div>
         
-        {/* Statistiques additionnelles */}
-        <div className="mt-4 pt-4 border-t-2 border-gray-400 grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-white/80 rounded-lg p-3 text-center">
+        {/* Statistiques additionnelles - Ligne 1 */}
+        <div className="mt-4 pt-4 border-t-2 border-gray-400 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+          <div className="bg-white/90 rounded-lg p-3 text-center border border-gray-300 shadow-sm">
             <p className="text-xs text-gray-600 mb-1">Total Fournisseurs</p>
-            <p className="text-lg font-bold text-gray-800">{filteredFournisseurs.length}</p>
+            <p className="text-xl font-bold text-gray-900">{filteredFournisseurs.length}</p>
+            <p className="text-xs text-gray-400 mt-1">Actifs</p>
           </div>
-          <div className="bg-white/80 rounded-lg p-3 text-center">
-            <p className="text-xs text-gray-600 mb-1">Entrées Totales</p>
-            <p className="text-lg font-bold text-gray-800">
-              {(state.entrees || []).filter(e => {
-                if (filters.fournisseurId) {
-                  const fId = e.fournisseur_id ?? e.fournisseurId;
-                  return fId === filters.fournisseurId;
-                }
-                return true;
-              }).length}
+          <div className="bg-blue-50 rounded-lg p-3 text-center border-2 border-blue-300 shadow-sm">
+            <p className="text-xs text-blue-600 mb-1 font-medium">Entrées Totales</p>
+            <p className="text-xl font-bold text-blue-800">{globalTotals.totalEntrees}</p>
+            <p className="text-xs text-blue-500 mt-1">
+              {globalTotals.totalEntreesPayees} payées / {globalTotals.totalEntreesNonPayees} non payées
             </p>
           </div>
-          <div className="bg-white/80 rounded-lg p-3 text-center">
-            <p className="text-xs text-gray-600 mb-1">Paiements Totaux</p>
-            <p className="text-lg font-bold text-gray-800">
-              {(state.paiements || []).filter(p => {
-                if (filters.fournisseurId) {
-                  const fId = p.fournisseur_id ?? p.fournisseurId;
-                  return fId === filters.fournisseurId;
-                }
-                return true;
-              }).length}
+          <div className="bg-green-50 rounded-lg p-3 text-center border-2 border-green-300 shadow-sm">
+            <p className="text-xs text-green-600 mb-1 font-medium">Paiements Totaux</p>
+            <p className="text-xl font-bold text-green-800">{globalTotals.totalPaiements}</p>
+            <p className="text-xs text-green-500 mt-1">Transactions</p>
+          </div>
+          <div className="bg-purple-50 rounded-lg p-3 text-center border-2 border-purple-300 shadow-sm">
+            <p className="text-xs text-purple-600 mb-1 font-medium">Valeur Marchandise</p>
+            <p className="text-xl font-bold text-purple-800">{globalTotals.totalMarchandise.toFixed(2)} DA</p>
+            <p className="text-xs text-purple-500 mt-1">Total reçu</p>
+          </div>
+          <div className="bg-indigo-50 rounded-lg p-3 text-center border-2 border-indigo-300 shadow-sm">
+            <p className="text-xs text-indigo-600 mb-1 font-medium">Produits Reçus</p>
+            <p className="text-xl font-bold text-indigo-800">{globalTotals.totalProduitsReçus}</p>
+            <p className="text-xs text-indigo-500 mt-1">Unités</p>
+          </div>
+          <div className="bg-yellow-50 rounded-lg p-3 text-center border-2 border-yellow-300 shadow-sm">
+            <p className="text-xs text-yellow-700 mb-1 font-medium">Taux Paiement</p>
+            <p className="text-xl font-bold text-yellow-800">{globalTotals.tauxPaiement.toFixed(1)}%</p>
+            <p className="text-xs text-yellow-600 mt-1">Pourcentage payé</p>
+          </div>
+        </div>
+
+        {/* Statistiques additionnelles - Ligne 2 */}
+        <div className="mt-3 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+          <div className="bg-red-50 rounded-lg p-3 text-center border-2 border-red-300 shadow-sm">
+            <p className="text-xs text-red-600 mb-1 font-medium">Fournisseurs avec Dettes</p>
+            <p className="text-xl font-bold text-red-800">{globalTotals.fournisseursAvecDettes}</p>
+            <p className="text-xs text-red-500 mt-1">En attente paiement</p>
+          </div>
+          <div className="bg-orange-50 rounded-lg p-3 text-center border-2 border-orange-300 shadow-sm">
+            <p className="text-xs text-orange-600 mb-1 font-medium">Fournisseurs en Attente</p>
+            <p className="text-xl font-bold text-orange-800">{globalTotals.fournisseursEnAttente}</p>
+            <p className="text-xs text-orange-500 mt-1">Non réglés</p>
+          </div>
+          <div className="bg-cyan-50 rounded-lg p-3 text-center border-2 border-cyan-300 shadow-sm">
+            <p className="text-xs text-cyan-600 mb-1 font-medium">Moyenne Due/Fournisseur</p>
+            <p className="text-xl font-bold text-cyan-800">{globalTotals.moyenneDueParFournisseur.toFixed(2)} DA</p>
+            <p className="text-xs text-cyan-500 mt-1">Par fournisseur</p>
+          </div>
+          <div className="bg-teal-50 rounded-lg p-3 text-center border-2 border-teal-300 shadow-sm">
+            <p className="text-xs text-teal-600 mb-1 font-medium">Moyenne Payée/Fournisseur</p>
+            <p className="text-xl font-bold text-teal-800">{globalTotals.moyennePayeParFournisseur.toFixed(2)} DA</p>
+            <p className="text-xs text-teal-500 mt-1">Par fournisseur</p>
+          </div>
+          <div className="bg-pink-50 rounded-lg p-3 text-center border-2 border-pink-300 shadow-sm">
+            <p className="text-xs text-pink-600 mb-1 font-medium">Entrées Payées</p>
+            <p className="text-xl font-bold text-pink-800">{globalTotals.totalEntreesPayees}</p>
+            <p className="text-xs text-pink-500 mt-1">
+              {globalTotals.totalEntrees > 0 ? `${((globalTotals.totalEntreesPayees / globalTotals.totalEntrees) * 100).toFixed(1)}%` : '0%'}
             </p>
           </div>
-          <div className="bg-white/80 rounded-lg p-3 text-center">
-            <p className="text-xs text-gray-600 mb-1">Valeur Marchandise</p>
-            <p className="text-lg font-bold text-gray-800">
-              {filteredFournisseurs.reduce((sum, f) => {
-                return sum + getFournisseurEntrees(f.id).reduce((s, e) => s + calculateEntreeValue(e), 0);
-              }, 0).toFixed(2)} DA
+          <div className="bg-slate-50 rounded-lg p-3 text-center border-2 border-slate-300 shadow-sm">
+            <p className="text-xs text-slate-600 mb-1 font-medium">Entrées Non Payées</p>
+            <p className="text-xl font-bold text-slate-800">{globalTotals.totalEntreesNonPayees}</p>
+            <p className="text-xs text-slate-500 mt-1">
+              {globalTotals.totalEntrees > 0 ? `${((globalTotals.totalEntreesNonPayees / globalTotals.totalEntrees) * 100).toFixed(1)}%` : '0%'}
             </p>
           </div>
         </div>
