@@ -60,12 +60,20 @@ const Colis = () => {
     const maxColis = colis.length > 0 ? Math.max(...colis.map(c => parseInt(c.nombre) || 0)) : 0;
     const minColis = colis.length > 0 ? Math.min(...colis.map(c => parseInt(c.nombre) || 0).filter(n => n > 0)) : 0;
     
+    // Statistiques supplémentaires
+    const totalJours = filteredColis.length;
+    const joursAvecActivite = filteredColis.filter(c => parseInt(c.nombre) > 0).length;
+    const tauxActivite = totalJours > 0 ? (joursAvecActivite / totalJours) * 100 : 0;
+    
     return {
       totalColis,
       nombreJours,
       moyenneParJour,
       maxColis,
-      minColis
+      minColis,
+      totalJours,
+      joursAvecActivite,
+      tauxActivite
     };
   }, [filteredColis]);
 
@@ -159,103 +167,136 @@ const Colis = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900">📦 Colis Envoyés</h1>
+      {/* En-tête amélioré */}
+      <div className="flex justify-between items-center bg-gradient-to-r from-blue-600 to-indigo-700 rounded-2xl p-6 shadow-xl">
+        <div className="flex items-center gap-4">
+          <div className="bg-white p-4 rounded-xl shadow-lg">
+            <span className="text-4xl">📦</span>
+          </div>
+          <div>
+            <h1 className="text-3xl font-extrabold text-white">Colis Envoyés</h1>
+            <p className="text-blue-100 text-sm mt-1">Suivi quotidien des envois</p>
+          </div>
+        </div>
         <button
           onClick={() => {
             setEditingColis(null);
             resetForm();
             setShowModal(true);
           }}
-          className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-colors flex items-center gap-2"
+          className="bg-white hover:bg-gray-100 text-blue-700 font-bold py-3 px-6 rounded-xl shadow-lg transition-all hover:shadow-xl flex items-center gap-2 transform hover:scale-105"
         >
-          <span>+</span>
+          <span className="text-xl">+</span>
           <span>Nouveau Colis</span>
         </button>
       </div>
 
-      {/* Résumé Global */}
+      {/* Résumé Global Amélioré */}
       <div className="bg-gradient-to-br from-gray-50 via-gray-100 to-gray-200 rounded-2xl p-6 border-4 border-gray-300 shadow-xl">
-        <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-          <span className="bg-white p-2 rounded-lg shadow-sm">📊</span>
-          <span>Résumé Global</span>
+        <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+          <span className="bg-white p-3 rounded-xl shadow-lg text-2xl">📊</span>
+          <span>Vue d'Ensemble Globale</span>
         </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-          <div className="bg-gradient-to-br from-blue-100 to-blue-200 border-3 border-blue-400 rounded-xl p-5 shadow-lg">
-            <div className="flex items-center justify-between mb-2">
-              <span className="bg-blue-500 text-white p-2 rounded-lg text-xl">📦</span>
-              <span className="text-xs text-blue-700 font-semibold bg-blue-300 px-2 py-1 rounded-full">
+        
+        {/* Ligne 1: Cartes principales */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
+          <div className="bg-gradient-to-br from-blue-100 to-blue-200 border-3 border-blue-400 rounded-xl p-6 shadow-lg hover:shadow-xl transition-all">
+            <div className="flex items-center justify-between mb-3">
+              <span className="bg-blue-500 text-white p-3 rounded-xl text-2xl shadow-md">📦</span>
+              <span className="text-xs text-blue-700 font-bold bg-blue-300 px-3 py-1.5 rounded-full shadow-sm">
                 Total Colis
               </span>
             </div>
-            <p className="text-3xl font-extrabold text-blue-800 mb-1">{stats.totalColis}</p>
-            <p className="text-xs text-blue-600 mt-2">
+            <p className="text-4xl font-extrabold text-blue-800 mb-2">{stats.totalColis}</p>
+            <p className="text-xs text-blue-600 font-medium">
               Colis envoyés au total
             </p>
           </div>
           
-          <div className="bg-gradient-to-br from-green-100 to-green-200 border-3 border-green-400 rounded-xl p-5 shadow-lg">
-            <div className="flex items-center justify-between mb-2">
-              <span className="bg-green-500 text-white p-2 rounded-lg text-xl">📅</span>
-              <span className="text-xs text-green-700 font-semibold bg-green-300 px-2 py-1 rounded-full">
+          <div className="bg-gradient-to-br from-green-100 to-green-200 border-3 border-green-400 rounded-xl p-6 shadow-lg hover:shadow-xl transition-all">
+            <div className="flex items-center justify-between mb-3">
+              <span className="bg-green-500 text-white p-3 rounded-xl text-2xl shadow-md">📅</span>
+              <span className="text-xs text-green-700 font-bold bg-green-300 px-3 py-1.5 rounded-full shadow-sm">
                 Jours Suivis
               </span>
             </div>
-            <p className="text-3xl font-extrabold text-green-800 mb-1">{stats.nombreJours}</p>
-            <p className="text-xs text-green-600 mt-2">
+            <p className="text-4xl font-extrabold text-green-800 mb-2">{stats.nombreJours}</p>
+            <p className="text-xs text-green-600 font-medium">
               Jours avec enregistrements
             </p>
           </div>
           
-          <div className="bg-gradient-to-br from-purple-100 to-purple-200 border-3 border-purple-400 rounded-xl p-5 shadow-lg">
-            <div className="flex items-center justify-between mb-2">
-              <span className="bg-purple-500 text-white p-2 rounded-lg text-xl">📊</span>
-              <span className="text-xs text-purple-700 font-semibold bg-purple-300 px-2 py-1 rounded-full">
+          <div className="bg-gradient-to-br from-purple-100 to-purple-200 border-3 border-purple-400 rounded-xl p-6 shadow-lg hover:shadow-xl transition-all">
+            <div className="flex items-center justify-between mb-3">
+              <span className="bg-purple-500 text-white p-3 rounded-xl text-2xl shadow-md">📊</span>
+              <span className="text-xs text-purple-700 font-bold bg-purple-300 px-3 py-1.5 rounded-full shadow-sm">
                 Moyenne/Jour
               </span>
             </div>
-            <p className="text-3xl font-extrabold text-purple-800 mb-1">{stats.moyenneParJour.toFixed(1)}</p>
-            <p className="text-xs text-purple-600 mt-2">
+            <p className="text-4xl font-extrabold text-purple-800 mb-2">{stats.moyenneParJour.toFixed(1)}</p>
+            <p className="text-xs text-purple-600 font-medium">
               Colis en moyenne par jour
             </p>
           </div>
           
-          <div className="bg-gradient-to-br from-orange-100 to-orange-200 border-3 border-orange-400 rounded-xl p-5 shadow-lg">
-            <div className="flex items-center justify-between mb-2">
-              <span className="bg-orange-500 text-white p-2 rounded-lg text-xl">⬆️</span>
-              <span className="text-xs text-orange-700 font-semibold bg-orange-300 px-2 py-1 rounded-full">
+          <div className="bg-gradient-to-br from-orange-100 to-orange-200 border-3 border-orange-400 rounded-xl p-6 shadow-lg hover:shadow-xl transition-all">
+            <div className="flex items-center justify-between mb-3">
+              <span className="bg-orange-500 text-white p-3 rounded-xl text-2xl shadow-md">⬆️</span>
+              <span className="text-xs text-orange-700 font-bold bg-orange-300 px-3 py-1.5 rounded-full shadow-sm">
                 Maximum
               </span>
             </div>
-            <p className="text-3xl font-extrabold text-orange-800 mb-1">{stats.maxColis}</p>
-            <p className="text-xs text-orange-600 mt-2">
+            <p className="text-4xl font-extrabold text-orange-800 mb-2">{stats.maxColis}</p>
+            <p className="text-xs text-orange-600 font-medium">
               Plus grand envoi
             </p>
           </div>
           
-          <div className="bg-gradient-to-br from-indigo-100 to-indigo-200 border-3 border-indigo-400 rounded-xl p-5 shadow-lg">
-            <div className="flex items-center justify-between mb-2">
-              <span className="bg-indigo-500 text-white p-2 rounded-lg text-xl">⬇️</span>
-              <span className="text-xs text-indigo-700 font-semibold bg-indigo-300 px-2 py-1 rounded-full">
+          <div className="bg-gradient-to-br from-indigo-100 to-indigo-200 border-3 border-indigo-400 rounded-xl p-6 shadow-lg hover:shadow-xl transition-all">
+            <div className="flex items-center justify-between mb-3">
+              <span className="bg-indigo-500 text-white p-3 rounded-xl text-2xl shadow-md">⬇️</span>
+              <span className="text-xs text-indigo-700 font-bold bg-indigo-300 px-3 py-1.5 rounded-full shadow-sm">
                 Minimum
               </span>
             </div>
-            <p className="text-3xl font-extrabold text-indigo-800 mb-1">{stats.minColis}</p>
-            <p className="text-xs text-indigo-600 mt-2">
+            <p className="text-4xl font-extrabold text-indigo-800 mb-2">{stats.minColis}</p>
+            <p className="text-xs text-indigo-600 font-medium">
               Plus petit envoi
+            </p>
+          </div>
+        </div>
+
+        {/* Ligne 2: Statistiques additionnelles */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-4 border-t-3 border-gray-400">
+          <div className="bg-white/90 rounded-lg p-4 text-center border-2 border-gray-300 shadow-sm">
+            <p className="text-xs text-gray-600 mb-1 font-medium">Total Jours</p>
+            <p className="text-2xl font-bold text-gray-900">{stats.totalJours}</p>
+          </div>
+          <div className="bg-cyan-50 rounded-lg p-4 text-center border-2 border-cyan-300 shadow-sm">
+            <p className="text-xs text-cyan-600 mb-1 font-medium">Jours avec Activité</p>
+            <p className="text-2xl font-bold text-cyan-800">{stats.joursAvecActivite}</p>
+          </div>
+          <div className="bg-teal-50 rounded-lg p-4 text-center border-2 border-teal-300 shadow-sm">
+            <p className="text-xs text-teal-600 mb-1 font-medium">Taux d'Activité</p>
+            <p className="text-2xl font-bold text-teal-800">{stats.tauxActivite.toFixed(1)}%</p>
+          </div>
+          <div className="bg-pink-50 rounded-lg p-4 text-center border-2 border-pink-300 shadow-sm">
+            <p className="text-xs text-pink-600 mb-1 font-medium">Moyenne par Jour Actif</p>
+            <p className="text-2xl font-bold text-pink-800">
+              {stats.joursAvecActivite > 0 ? (stats.totalColis / stats.joursAvecActivite).toFixed(1) : '0'}
             </p>
           </div>
         </div>
       </div>
 
-      {/* Filtres */}
+      {/* Filtres améliorés */}
       <div className="bg-gradient-to-br from-gray-50 to-white rounded-xl border-3 border-gray-300 shadow-lg p-5">
-        <h3 className="text-base font-extrabold text-gray-800 mb-4 flex items-center gap-2">
-          <span className="bg-blue-500 text-white p-2 rounded-lg">🔍</span>
+        <h3 className="text-lg font-extrabold text-gray-800 mb-4 flex items-center gap-2">
+          <span className="bg-blue-500 text-white p-2 rounded-lg shadow-md">🔍</span>
           <span>Filtres de Recherche</span>
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-white/80 rounded-lg p-3 border-2 border-gray-200 shadow-sm">
+          <div className="bg-white/90 rounded-lg p-4 border-2 border-gray-200 shadow-sm">
             <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-1">
               <span>📅</span>
               <span>Date début</span>
@@ -264,10 +305,10 @@ const Colis = () => {
               type="date"
               value={filters.dateStart}
               onChange={(e) => setFilters({ ...filters, dateStart: e.target.value })}
-              className="w-full border-2 border-gray-300 rounded-lg py-2.5 px-3 text-sm font-medium focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+              className="w-full border-2 border-gray-300 rounded-lg py-3 px-4 text-sm font-medium focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all shadow-sm"
             />
           </div>
-          <div className="bg-white/80 rounded-lg p-3 border-2 border-gray-200 shadow-sm">
+          <div className="bg-white/90 rounded-lg p-4 border-2 border-gray-200 shadow-sm">
             <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-1">
               <span>📅</span>
               <span>Date fin</span>
@@ -276,14 +317,14 @@ const Colis = () => {
               type="date"
               value={filters.dateEnd}
               onChange={(e) => setFilters({ ...filters, dateEnd: e.target.value })}
-              className="w-full border-2 border-gray-300 rounded-lg py-2.5 px-3 text-sm font-medium focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+              className="w-full border-2 border-gray-300 rounded-lg py-3 px-4 text-sm font-medium focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all shadow-sm"
             />
           </div>
         </div>
         {(filters.dateStart || filters.dateEnd) && (
           <button
             onClick={() => setFilters({ dateStart: '', dateEnd: '' })}
-            className="mt-4 px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white text-sm font-bold rounded-lg shadow-md hover:shadow-lg transition-all flex items-center gap-2"
+            className="mt-4 px-5 py-2.5 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white text-sm font-bold rounded-lg shadow-md hover:shadow-lg transition-all flex items-center gap-2"
           >
             <span>🔄</span>
             <span>Réinitialiser les filtres</span>
@@ -291,71 +332,78 @@ const Colis = () => {
         )}
       </div>
 
-      {/* Liste des colis */}
+      {/* Liste des colis améliorée */}
       <div className="space-y-4">
         {(!state.colis || state.colis.length === 0) ? (
-          <div className="bg-white rounded-lg border border-gray-200 p-8 text-center text-gray-500">
-            <p className="text-lg">Aucun enregistrement de colis</p>
+          <div className="bg-white rounded-2xl border-4 border-gray-300 shadow-xl p-12 text-center">
+            <div className="text-6xl mb-4">📦</div>
+            <p className="text-xl font-bold text-gray-700 mb-2">Aucun enregistrement de colis</p>
+            <p className="text-sm text-gray-500">Commencez par ajouter votre premier envoi</p>
           </div>
         ) : filteredColis.length === 0 ? (
-          <div className="bg-white rounded-lg border border-gray-200 p-8 text-center text-gray-500">
-            <p className="text-lg">Aucun colis trouvé pour les critères sélectionnés</p>
+          <div className="bg-white rounded-2xl border-4 border-gray-300 shadow-xl p-12 text-center">
+            <div className="text-6xl mb-4">🔍</div>
+            <p className="text-xl font-bold text-gray-700 mb-2">Aucun colis trouvé</p>
+            <p className="text-sm text-gray-500">Aucun résultat pour les critères sélectionnés</p>
           </div>
         ) : (
           filteredColis.map((colis) => (
-            <div key={colis.id} className="bg-gradient-to-br from-white to-gray-50 rounded-2xl border-4 border-gray-300 shadow-xl hover:shadow-2xl transition-all duration-300 p-6">
+            <div key={colis.id} className="bg-gradient-to-br from-white via-blue-50 to-indigo-50 rounded-2xl border-4 border-gray-300 shadow-xl hover:shadow-2xl transition-all duration-300 p-6">
               <div className="flex justify-between items-start">
                 <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="bg-blue-500 text-white p-3 rounded-xl shadow-lg">
-                      <span className="text-2xl">📦</span>
+                  <div className="flex items-center gap-4 mb-5">
+                    <div className="bg-gradient-to-br from-blue-600 to-indigo-700 text-white p-4 rounded-2xl shadow-xl">
+                      <span className="text-4xl">📦</span>
                     </div>
                     <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="text-xl font-extrabold text-gray-900">
-                          {colis.nombre} {colis.nombre > 1 ? 'colis' : 'colis'}
+                      <div className="flex items-center gap-3 mb-2">
+                        <h3 className="text-2xl font-extrabold text-gray-900">
+                          {colis.nombre}
                         </h3>
+                        <span className="bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-800 text-sm font-bold px-4 py-1.5 rounded-full border-2 border-blue-300 shadow-sm">
+                          {colis.nombre > 1 ? 'colis envoyés' : 'colis envoyé'}
+                        </span>
                       </div>
                       {colis.description && (
-                        <p className="text-sm text-gray-600 mt-1">
+                        <p className="text-sm text-gray-600 font-medium mt-2">
                           {colis.description}
                         </p>
                       )}
                     </div>
                   </div>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
-                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-300 rounded-xl p-4 shadow-sm">
-                      <p className="text-xs text-blue-600 mb-1 font-semibold flex items-center gap-1">
-                        <span>📅</span>
-                        <span>Date</span>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-5">
+                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 border-3 border-blue-300 rounded-xl p-5 shadow-md">
+                      <p className="text-xs text-blue-600 mb-2 font-extrabold flex items-center gap-2">
+                        <span className="text-lg">📅</span>
+                        <span>Date d'envoi</span>
                       </p>
-                      <p className="text-base font-bold text-blue-900">{colis.date}</p>
+                      <p className="text-lg font-extrabold text-blue-900">{colis.date}</p>
                     </div>
                     {colis.description && (
-                      <div className="bg-gradient-to-br from-gray-50 to-gray-100 border-2 border-gray-300 rounded-xl p-4 shadow-sm">
-                        <p className="text-xs text-gray-600 mb-1 font-semibold flex items-center gap-1">
-                          <span>📝</span>
+                      <div className="bg-gradient-to-br from-gray-50 to-gray-100 border-3 border-gray-300 rounded-xl p-5 shadow-md">
+                        <p className="text-xs text-gray-600 mb-2 font-extrabold flex items-center gap-2">
+                          <span className="text-lg">📝</span>
                           <span>Description</span>
                         </p>
-                        <p className="text-sm font-medium text-gray-800">{colis.description}</p>
+                        <p className="text-sm font-bold text-gray-800">{colis.description}</p>
                       </div>
                     )}
                   </div>
                 </div>
 
                 {isAdmin() && (
-                  <div className="flex flex-col gap-2 ml-6">
+                  <div className="flex flex-col gap-3 ml-6">
                     <button
                       onClick={() => openEditModal(colis)}
-                      className="px-4 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white text-sm font-bold rounded-xl transition-all shadow-md hover:shadow-xl flex items-center justify-center gap-2"
+                      className="px-5 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white text-sm font-extrabold rounded-xl transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2 transform hover:scale-105"
                     >
                       <span>✏️</span>
                       <span>Éditer</span>
                     </button>
                     <button
                       onClick={() => handleDeleteColis(colis.id)}
-                      className="px-4 py-2.5 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white text-sm font-bold rounded-xl transition-all shadow-md hover:shadow-xl flex items-center justify-center gap-2"
+                      className="px-5 py-3 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white text-sm font-extrabold rounded-xl transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2 transform hover:scale-105"
                     >
                       <span>🗑️</span>
                       <span>Supprimer</span>
@@ -368,66 +416,88 @@ const Colis = () => {
         )}
       </div>
 
-      {/* Add/Edit Modal */}
+      {/* Modal amélioré */}
       {showModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-lg bg-white">
-            <h3 className="text-lg font-bold text-gray-900 mb-4">
-              {editingColis ? 'Modifier le Colis' : 'Nouveau Colis'}
-            </h3>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Nombre de colis *</label>
-                <input
-                  type="number"
-                  min="1"
-                  value={formData.nombre}
-                  onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Date *</label>
-                <input
-                  type="date"
-                  value={formData.date}
-                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Description/Commentaire</label>
-                <textarea
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  rows="3"
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3"
-                  placeholder="Détails supplémentaires..."
-                />
-              </div>
-            </div>
-
-            <div className="mt-6 flex justify-end space-x-3">
+        <div className="fixed inset-0 bg-gray-900 bg-opacity-75 overflow-y-auto h-full w-full z-50 flex items-center justify-center p-4">
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 border-4 border-gray-300">
+            <div className="flex justify-between items-center mb-6 pb-4 border-b-3 border-gray-300">
+              <h3 className="text-2xl font-extrabold text-gray-900">
+                {editingColis ? '✏️ Modifier le Colis' : '➕ Nouveau Colis'}
+              </h3>
               <button
                 onClick={() => {
                   setShowModal(false);
                   setEditingColis(null);
                   resetForm();
                 }}
-                className="px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400"
+                className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
+              >
+                ×
+              </button>
+            </div>
+            
+            <div className="space-y-5">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-2">
+                  <span>📦</span>
+                  <span>Nombre de colis *</span>
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  value={formData.nombre}
+                  onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
+                  className="w-full border-3 border-gray-300 rounded-xl shadow-sm py-3 px-4 text-base font-medium focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+                  required
+                  placeholder="Ex: 5"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-2">
+                  <span>📅</span>
+                  <span>Date d'envoi *</span>
+                </label>
+                <input
+                  type="date"
+                  value={formData.date}
+                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                  className="w-full border-3 border-gray-300 rounded-xl shadow-sm py-3 px-4 text-base font-medium focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-2">
+                  <span>📝</span>
+                  <span>Description/Commentaire</span>
+                </label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  rows="4"
+                  className="w-full border-3 border-gray-300 rounded-xl shadow-sm py-3 px-4 text-base font-medium focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all resize-none"
+                  placeholder="Détails supplémentaires de l'envoi..."
+                />
+              </div>
+            </div>
+
+            <div className="mt-8 flex justify-end space-x-3 pt-4 border-t-3 border-gray-300">
+              <button
+                onClick={() => {
+                  setShowModal(false);
+                  setEditingColis(null);
+                  resetForm();
+                }}
+                className="px-5 py-2.5 bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold rounded-xl transition-all shadow-md"
               >
                 Annuler
               </button>
               <button
                 onClick={editingColis ? handleUpdateColis : handleAddColis}
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-extrabold rounded-xl transition-all shadow-lg hover:shadow-xl"
               >
-                {editingColis ? 'Modifier' : 'Ajouter'}
+                {editingColis ? '✅ Modifier' : '💾 Enregistrer'}
               </button>
             </div>
           </div>
@@ -438,4 +508,3 @@ const Colis = () => {
 };
 
 export default Colis;
-
