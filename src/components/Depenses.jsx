@@ -374,8 +374,11 @@ const Depenses = () => {
       )}
 
       {/* Search Section */}
-      <div className="bg-white shadow rounded-lg p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">🔍 Recherche par Date</h2>
+      <div className="bg-gradient-to-br from-gray-50 to-white rounded-xl border-3 border-gray-300 shadow-lg p-5">
+        <h2 className="text-base font-extrabold text-gray-800 mb-4 flex items-center gap-2">
+          <span className="bg-blue-500 text-white p-2 rounded-lg">🔍</span>
+          <span>Recherche par Date</span>
+        </h2>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Search Type Selector */}
@@ -436,12 +439,13 @@ const Depenses = () => {
 
         {/* Total Général */}
         {filteredDepenses.length > 0 && (
-          <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+          <div className="mt-4 p-5 bg-gradient-to-r from-blue-100 to-indigo-100 border-3 border-blue-400 rounded-xl shadow-lg">
             <div className="flex justify-between items-center">
-              <span className="text-lg font-semibold text-gray-700">
-                Total dépenses ({filteredDepenses.length}):
+              <span className="text-lg font-extrabold text-gray-800 flex items-center gap-2">
+                <span>📊</span>
+                <span>Total dépenses ({filteredDepenses.length}):</span>
               </span>
-              <span className="text-2xl font-bold text-blue-600">
+              <span className="text-3xl font-extrabold text-blue-800">
                 {calculateTotal().toFixed(2)} DA
               </span>
             </div>
@@ -477,67 +481,85 @@ const Depenses = () => {
       )}
 
       {/* Depenses List */}
-      <div className="bg-white shadow overflow-hidden sm:rounded-md">
-        <div className="divide-y divide-gray-200">
-          {(!state.depenses || state.depenses.length === 0) ? (
-            <div className="p-6 text-center text-gray-500">
-              Aucune dépense enregistrée
-            </div>
-          ) : filteredDepenses.length === 0 ? (
-            <div className="p-6 text-center text-gray-500">
-              Aucune dépense trouvée pour les critères sélectionnés
-            </div>
-          ) : (
-            filteredDepenses.map((depense) => (
-              <div key={depense.id} className="p-6">
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-4">
-                      <div className="text-2xl">💰</div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h3 className="text-lg font-medium text-gray-900">
-                            {depense.montant.toFixed(2)} DA
-                          </h3>
-                          {(depense.nom || depense.depense_categories?.nom) && (
-                            <span className="px-2 py-1 bg-purple-100 text-purple-800 text-xs font-semibold rounded-full">
-                              {depense.depense_categories?.nom || depense.nom}
-                            </span>
-                          )}
-                        </div>
-                        {depense.description && (
-                          <p className="text-sm text-gray-500 mt-1">
-                            {depense.description}
-                          </p>
+      <div className="space-y-4">
+        {(!state.depenses || state.depenses.length === 0) ? (
+          <div className="bg-white rounded-lg border border-gray-200 p-8 text-center text-gray-500">
+            <p className="text-lg">Aucune dépense enregistrée</p>
+          </div>
+        ) : filteredDepenses.length === 0 ? (
+          <div className="bg-white rounded-lg border border-gray-200 p-8 text-center text-gray-500">
+            <p className="text-lg">Aucune dépense trouvée pour les critères sélectionnés</p>
+          </div>
+        ) : (
+          filteredDepenses.map((depense) => (
+            <div key={depense.id} className="bg-gradient-to-br from-white to-gray-50 rounded-2xl border-4 border-gray-300 shadow-xl hover:shadow-2xl transition-all duration-300 p-6">
+              <div className="flex justify-between items-start">
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="bg-purple-500 text-white p-3 rounded-xl shadow-lg">
+                      <span className="text-2xl">💰</span>
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="text-xl font-extrabold text-gray-900">
+                          {depense.montant.toFixed(2)} DA
+                        </h3>
+                        {(depense.nom || depense.depense_categories?.nom) && (
+                          <span className="px-3 py-1 bg-gradient-to-r from-purple-100 to-indigo-100 text-purple-800 text-xs font-bold rounded-full border-2 border-purple-300">
+                            {depense.depense_categories?.nom || depense.nom}
+                          </span>
                         )}
-                        <p className="text-xs text-gray-400 mt-1">
-                          📅 {depense.date}
-                        </p>
                       </div>
+                      {depense.description && (
+                        <p className="text-sm text-gray-600 mt-1">
+                          {depense.description}
+                        </p>
+                      )}
                     </div>
                   </div>
-
-                  {isAdmin() && (
-                    <div className="flex space-x-2">
-                      <button
-                        onClick={() => openEditModal(depense)}
-                        className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-                      >
-                        ✏️ Éditer
-                      </button>
-                      <button
-                        onClick={() => handleDeleteDepense(depense.id)}
-                        className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-                      >
-                        🗑️ Supprimer
-                      </button>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-300 rounded-xl p-4 shadow-sm">
+                      <p className="text-xs text-blue-600 mb-1 font-semibold flex items-center gap-1">
+                        <span>📅</span>
+                        <span>Date</span>
+                      </p>
+                      <p className="text-base font-bold text-blue-900">{depense.date}</p>
                     </div>
-                  )}
+                    {depense.description && (
+                      <div className="bg-gradient-to-br from-gray-50 to-gray-100 border-2 border-gray-300 rounded-xl p-4 shadow-sm">
+                        <p className="text-xs text-gray-600 mb-1 font-semibold flex items-center gap-1">
+                          <span>📝</span>
+                          <span>Description</span>
+                        </p>
+                        <p className="text-sm font-medium text-gray-800">{depense.description}</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
+
+                {isAdmin() && (
+                  <div className="flex flex-col gap-2 ml-6">
+                    <button
+                      onClick={() => openEditModal(depense)}
+                      className="px-4 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white text-sm font-bold rounded-xl transition-all shadow-md hover:shadow-xl flex items-center justify-center gap-2"
+                    >
+                      <span>✏️</span>
+                      <span>Éditer</span>
+                    </button>
+                    <button
+                      onClick={() => handleDeleteDepense(depense.id)}
+                      className="px-4 py-2.5 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white text-sm font-bold rounded-xl transition-all shadow-md hover:shadow-xl flex items-center justify-center gap-2"
+                    >
+                      <span>🗑️</span>
+                      <span>Supprimer</span>
+                    </button>
+                  </div>
+                )}
               </div>
-            ))
-          )}
-        </div>
+            </div>
+          ))
+        )}
       </div>
 
       {/* Add/Edit Modal */}
