@@ -41,7 +41,7 @@ const Suppliers = () => {
         entree.lignes?.forEach(ligne => {
           const produit = state.produits.find(p => p.id === ligne.produitId);
           if (produit) {
-            entreeValue += ligne.quantite * produit.prixAchat;
+            entreeValue += ligne.quantite * (produit.prix_achat ?? produit.prixAchat ?? 0);
           }
         });
         total += entreeValue;
