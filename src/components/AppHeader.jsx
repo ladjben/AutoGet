@@ -72,10 +72,13 @@ const AppHeader = ({ activeView, setActiveView, user, logout, isAdmin, isUser })
         const { data, error } = await supabase.from('produits').select('id').limit(1);
         if (error) throw error;
         if (!cancelled) {
+          const currentCount = USE_SUPABASE 
+            ? (dataCtx?.produits?.length ?? 0)
+            : (dataCtx?.state?.produits?.length ?? 0);
           setSupabaseStatus({ 
             ok: true, 
-            msg: `OK — ${produitsCount} produits`, 
-            count: produitsCount 
+            msg: `OK — ${currentCount} produits`, 
+            count: currentCount 
           });
         }
       } catch (e) {
@@ -86,10 +89,19 @@ const AppHeader = ({ activeView, setActiveView, user, logout, isAdmin, isUser })
     };
 
     check();
+    // Mettre à jour aussi quand produitsCount change
+    if (!cancelled && produitsCount !== undefined) {
+      setSupabaseStatus(prev => ({
+        ...prev,
+        msg: prev.ok ? `OK — ${produitsCount} produits` : prev.msg,
+        count: produitsCount
+      }));
+    }
+    
     return () => {
       cancelled = true;
     };
-  }, [USE_SUPABASE, produitsCount]);
+  }, [USE_SUPABASE, produitsCount, dataCtx?.produits?.length, dataCtx?.state?.produits?.length]);
 
   // Calculer quels items mettre dans "Plus" (overflow) sur desktop
   const getVisibleItems = useCallback(() => {
