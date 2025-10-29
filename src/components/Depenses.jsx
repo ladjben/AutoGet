@@ -1,7 +1,7 @@
 import { useData, ActionTypes } from '../context/UnifiedDataContext';
 import { USE_SUPABASE } from '../config';
 import { useAuth } from '../context/AuthContext';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 
 const Depenses = () => {
   const dataCtx = useData();
@@ -17,7 +17,15 @@ const Depenses = () => {
   const addDepense = dataCtx?.addDepense;
   const updateDepense = dataCtx?.updateDepense;
   const deleteDepense = dataCtx?.deleteDepense;
+  const fetchDepenseCategories = dataCtx?.fetchDepenseCategories;
+  const addDepenseCategory = dataCtx?.addDepenseCategory;
+  const deleteDepenseCategory = dataCtx?.deleteDepenseCategory;
   const { isAdmin } = useAuth();
+
+  // Récupérer les catégories selon le mode
+  const depenseCategories = USE_SUPABASE 
+    ? (dataCtx?.depenseCategories ?? [])
+    : (state.depenseCategories ?? []);
   const [showModal, setShowModal] = useState(false);
   const [editingDepense, setEditingDepense] = useState(null);
   const [searchType, setSearchType] = useState('all'); // 'all', 'single', 'range'
@@ -25,18 +33,32 @@ const Depenses = () => {
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
   const [showCategoriesModal, setShowCategoriesModal] = useState(false);
   const [newCategory, setNewCategory] = useState('');
+
+  // Charger les catégories au démarrage (mode Supabase)
+  useEffect(() => {
+    if (USE_SUPABASE && fetchDepenseCategories) {
+      fetchDepenseCategories();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   
-  // Extraire les noms uniques des dépenses existantes comme suggestions
+  // Utiliser les catégories depuis la table (mode Supabase) ou extraire depuis dépenses (mode local)
   const categoriesExistantes = useMemo(() => {
-    if (!state.depenses || !Array.isArray(state.depenses)) return [];
-    const noms = new Set();
-    state.depenses.forEach(d => {
-      if (d.nom && d.nom.trim()) {
-        noms.add(d.nom.trim());
-      }
-    });
-    return Array.from(noms).sort();
-  }, [state.depenses]);
+    if (USE_SUPABASE) {
+      // Mode Supabase : utiliser les catégories de la table
+      return depenseCategories.map(cat => cat.nom).sort();
+    } else {
+      // Mode local : extraire depuis les dépenses
+      if (!state.depenses || !Array.isArray(state.depenses)) return [];
+      const noms = new Set();
+      state.depenses.forEach(d => {
+        if (d.nom && d.nom.trim()) {
+          noms.add(d.nom.trim());
+        }
+      });
+      return Array.from(noms).sort();
+    }
+  }, [depenseCategories, state.depenses, USE_SUPABASE]);
 
   const [formData, setFormData] = useState({
     nom: '',
@@ -166,11 +188,13 @@ const Depenses = () => {
 
   const openEditModal = (depense) => {
     setEditingDepense(depense);
+    // Utiliser le nom de la catégorie si disponible (Supabase), sinon le nom direct
+    const nomDepense = depense.depense_categories?.nom || depense.nom || '';
     setFormData({
-      nom: depense.nom || depense.description || '',
-      montant: depense.montant,
+      nom: nomDepense,
+      montant: depense.montant || '',
       description: depense.description || '',
-      date: depense.date
+      date: depense.date || new Date().toISOString().split('T')[0]
     });
     setShowModal(true);
   };
@@ -180,14 +204,42 @@ const Depenses = () => {
   };
 
   // Gérer les catégories
-  const handleAddCategory = () => {
+  const handleAddCategory = async () => {
     if (!newCategory.trim()) {
       alert('Veuillez entrer un nom de catégorie');
       return;
     }
-    setNewCategory('');
-    // Juste fermer le modal, la catégorie sera disponible dans la liste après la première utilisation
-    setShowCategoriesModal(false);
+
+    try {
+      if (USE_SUPABASE && addDepenseCategory) {
+        await addDepenseCategory(newCategory.trim());
+        setNewCategory('');
+      } else {
+        // Mode local : la catégorie sera créée quand on crée une dépense avec ce nom
+        alert('En mode local, créez une dépense avec ce nom pour créer la catégorie');
+        setNewCategory('');
+      }
+    } catch (e) {
+      alert('Erreur lors de la création de la catégorie: ' + (e?.message || 'inconnue'));
+      console.error('Erreur addDepenseCategory:', e);
+    }
+  };
+
+  const handleDeleteCategory = async (id) => {
+    if (!window.confirm('Êtes-vous sûr de vouloir supprimer cette catégorie ?')) {
+      return;
+    }
+
+    try {
+      if (USE_SUPABASE && deleteDepenseCategory) {
+        await deleteDepenseCategory(id);
+      } else {
+        alert('Suppression de catégorie non disponible en mode local');
+      }
+    } catch (e) {
+      alert('Erreur lors de la suppression: ' + (e?.message || 'inconnue'));
+      console.error('Erreur deleteDepenseCategory:', e);
+    }
   };
 
   return (
@@ -253,7 +305,10 @@ const Depenses = () => {
                 </button>
               </div>
               <p className="text-xs text-gray-500 mt-2">
-                💡 La catégorie sera disponible après la création de la première dépense avec ce nom.
+                {USE_SUPABASE 
+                  ? '💡 La catégorie sera créée immédiatement dans la base de données.'
+                  : '💡 En mode local, créez une dépense avec ce nom pour créer la catégorie.'
+                }
               </p>
             </div>
 
@@ -269,13 +324,30 @@ const Depenses = () => {
                 </div>
               ) : (
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                  {categoriesExistantes.map((cat) => {
-                    const count = (state.depenses || []).filter(d => d.nom === cat).length;
-                    const total = (state.depenses || []).filter(d => d.nom === cat).reduce((sum, d) => sum + (d.montant || 0), 0);
+                  {depenseCategories.map((cat) => {
+                    const count = (state.depenses || []).filter(d => 
+                      USE_SUPABASE 
+                        ? (d.categorie_id === cat.id || d.depense_categories?.id === cat.id)
+                        : d.nom === cat.nom
+                    ).length;
+                    const total = (state.depenses || []).filter(d => 
+                      USE_SUPABASE 
+                        ? (d.categorie_id === cat.id || d.depense_categories?.id === cat.id)
+                        : d.nom === cat.nom
+                    ).reduce((sum, d) => sum + (d.montant || 0), 0);
                     return (
-                      <div key={cat} className="bg-white border-2 border-purple-200 rounded-lg p-3 hover:shadow-md transition-shadow">
+                      <div key={cat.id || cat.nom} className="bg-white border-2 border-purple-200 rounded-lg p-3 hover:shadow-md transition-shadow">
                         <div className="flex items-center justify-between mb-2">
-                          <h5 className="font-bold text-gray-900 text-sm">{cat}</h5>
+                          <h5 className="font-bold text-gray-900 text-sm">{cat.nom}</h5>
+                          {USE_SUPABASE && isAdmin() && (
+                            <button
+                              onClick={() => handleDeleteCategory(cat.id)}
+                              className="text-red-600 hover:text-red-800 text-xs px-2 py-1 rounded hover:bg-red-50 transition-colors"
+                              title="Supprimer la catégorie"
+                            >
+                              🗑️
+                            </button>
+                          )}
                         </div>
                         <p className="text-xs text-gray-600 mb-1">{count} {count === 1 ? 'dépense' : 'dépenses'}</p>
                         <p className="text-sm font-semibold text-purple-700">{total.toFixed(2)} DA</p>
@@ -427,9 +499,9 @@ const Depenses = () => {
                           <h3 className="text-lg font-medium text-gray-900">
                             {depense.montant.toFixed(2)} DA
                           </h3>
-                          {depense.nom && (
+                          {(depense.nom || depense.depense_categories?.nom) && (
                             <span className="px-2 py-1 bg-purple-100 text-purple-800 text-xs font-semibold rounded-full">
-                              {depense.nom}
+                              {depense.depense_categories?.nom || depense.nom}
                             </span>
                           )}
                         </div>

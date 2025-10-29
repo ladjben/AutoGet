@@ -9,13 +9,20 @@ export const DataProvider = ({ children }) => {
   const [fournisseurs, setFournisseurs] = useState([])
   const [entrees, setEntrees] = useState([])
   const [depenses, setDepenses] = useState([])
+  const [depenseCategories, setDepenseCategories] = useState([])
 
   useEffect(() => {
     fetchAll()
   }, [])
 
   async function fetchAll() {
-    await Promise.all([fetchProduits(), fetchFournisseurs(), fetchEntrees(), fetchDepenses()])
+    await Promise.all([
+      fetchProduits(), 
+      fetchFournisseurs(), 
+      fetchEntrees(), 
+      fetchDepenses(),
+      fetchDepenseCategories()
+    ])
   }
 
   async function fetchProduits() {
@@ -40,9 +47,64 @@ export const DataProvider = ({ children }) => {
   }
 
   async function fetchDepenses() {
-    const { data, error } = await supabase.from('depenses').select('*').order('date', { ascending: false })
+    const { data, error } = await supabase
+      .from('depenses')
+      .select('*, depense_categories(id, nom)')
+      .order('date', { ascending: false })
     if (error) console.error(error)
     else setDepenses(data || [])
+  }
+
+  // === Gestion des catégories de dépenses ===
+  async function fetchDepenseCategories() {
+    const { data, error } = await supabase
+      .from('depense_categories')
+      .select('*')
+      .order('nom', { ascending: true })
+    if (error) console.error(error)
+    else setDepenseCategories(data || [])
+  }
+
+  async function addDepenseCategory(nom) {
+    try {
+      const { data, error } = await supabase
+        .from('depense_categories')
+        .insert([{ nom }])
+        .select()
+        .single()
+      if (error) throw error
+      await fetchDepenseCategories()
+      return { success: true, data }
+    } catch (e) {
+      console.error('addDepenseCategory:', e)
+      throw e
+    }
+  }
+
+  async function deleteDepenseCategory(id) {
+    try {
+      // Vérifier si la catégorie est utilisée
+      const { count } = await supabase
+        .from('depenses')
+        .select('id', { count: 'exact', head: true })
+        .eq('categorie_id', id)
+      
+      if (count > 0) {
+        throw new Error(`Cette catégorie est utilisée par ${count} dépense(s). Suppression impossible.`)
+      }
+
+      const { error } = await supabase
+        .from('depense_categories')
+        .delete()
+        .eq('id', id)
+      
+      if (error) throw error
+      await fetchDepenseCategories()
+      return { success: true }
+    } catch (e) {
+      console.error('deleteDepenseCategory:', e)
+      throw e
+    }
   }
 
   // === Petits create simples (déjà utiles ailleurs) ===
@@ -57,20 +119,32 @@ export const DataProvider = ({ children }) => {
     fetchFournisseurs()
   }
   async function addDepense(nom, montant, description, date) {
-    const { error } = await supabase.from('depenses').insert([{ nom, montant, description: description || '', date }])
-    if (error) return console.error(error)
-    fetchDepenses()
+    try {
+      // Le trigger SQL va créer/rattacher automatiquement la catégorie si nécessaire
+      const { error } = await supabase
+        .from('depenses')
+        .insert([{ nom, montant, description: description || '', date }])
+      if (error) throw error
+      await fetchDepenses()
+      await fetchDepenseCategories() // Rafraîchir les catégories au cas où une nouvelle a été créée
+      return { success: true }
+    } catch (e) {
+      console.error('addDepense:', e)
+      throw e
+    }
   }
 
   // Mise à jour dépense
   async function updateDepense(id, { nom, montant, description, date }) {
     try {
+      // Le trigger SQL va créer/rattacher automatiquement la catégorie si nécessaire
       const { error } = await supabase
         .from('depenses')
         .update({ nom, montant, description: description || '', date })
         .eq('id', id)
       if (error) throw error
       await fetchDepenses()
+      await fetchDepenseCategories() // Rafraîchir les catégories au cas où une nouvelle a été créée
       return { success: true }
     } catch (e) {
       console.error('updateDepense:', e)
@@ -214,11 +288,13 @@ export const DataProvider = ({ children }) => {
     <DataContext.Provider
       value={{
         // states
-        produits, fournisseurs, entrees, depenses,
+        produits, fournisseurs, entrees, depenses, depenseCategories,
         // reads
-        fetchAll, fetchProduits, fetchFournisseurs, fetchEntrees, fetchDepenses, fetchEntreeDetails,
+        fetchAll, fetchProduits, fetchFournisseurs, fetchEntrees, fetchDepenses, fetchDepenseCategories, fetchEntreeDetails,
         // writes
-        addProduit, updateProduit, deleteProduit, addFournisseur, addDepense, updateDepense, deleteDepense,
+        addProduit, updateProduit, deleteProduit, addFournisseur, 
+        addDepense, updateDepense, deleteDepense,
+        addDepenseCategory, deleteDepenseCategory,
         addEntreeWithLines, // ⬅️ NOUVEAU
       }}
     >
