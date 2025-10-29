@@ -131,6 +131,12 @@ const Suppliers = () => {
     return total;
   };
 
+  // Filtrer les fournisseurs - DOIT être déclaré avant globalTotals
+  const filteredFournisseurs = useMemo(() => {
+    if (!filters.fournisseurId) return state.fournisseurs || [];
+    return (state.fournisseurs || []).filter(f => f.id === filters.fournisseurId);
+  }, [state.fournisseurs, filters.fournisseurId]);
+
   // Calculer tous les totaux globaux
   const globalTotals = useMemo(() => {
     let totalDueGlobal = 0;
@@ -201,13 +207,7 @@ const Suppliers = () => {
       moyennePayeParFournisseur,
       tauxPaiement
     };
-  }, [state.fournisseurs, state.entrees, state.paiements, filters]);
-
-  // Filtrer les fournisseurs
-  const filteredFournisseurs = useMemo(() => {
-    if (!filters.fournisseurId) return state.fournisseurs || [];
-    return (state.fournisseurs || []).filter(f => f.id === filters.fournisseurId);
-  }, [state.fournisseurs, filters.fournisseurId]);
+  }, [state.fournisseurs, state.entrees, state.paiements, filters, filteredFournisseurs]);
 
   // Charger automatiquement les détails des entrées non payées pour le calcul
   useEffect(() => {
