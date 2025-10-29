@@ -16,6 +16,7 @@ const Suppliers = () => {
   const generateId = dataCtx?.generateId;
   const addFournisseur = dataCtx?.addFournisseur;
   const addPaiement = dataCtx?.addPaiement;
+  const deletePaiement = dataCtx?.deletePaiement;
   const { isAdmin } = useAuth();
   const [showModal, setShowModal] = useState(false);
   const [showPaiementModal, setShowPaiementModal] = useState(false);
@@ -193,41 +194,79 @@ const Suppliers = () => {
   };
 
   const handleAddPaiement = async () => {
-    if (!paiementData.fournisseurId || !paiementData.montant) {
-      alert('Veuillez remplir tous les champs obligatoires');
+    if (!paiementData.fournisseurId || !paiementData.montant || !paiementData.date) {
+      alert('Veuillez remplir tous les champs obligatoires (Fournisseur, Montant, Date)');
       return;
     }
 
-    if (USE_SUPABASE) {
-      await addPaiement(
-        paiementData.fournisseurId,
-        parseFloat(paiementData.montant),
-        paiementData.date,
-        paiementData.description || ''
-      );
-    } else {
-      const newPaiement = {
-        id: generateId(),
-        fournisseurId: paiementData.fournisseurId,
-        montant: parseFloat(paiementData.montant),
-        date: paiementData.date,
-        description: paiementData.description || ''
-      };
-      dispatch({ type: ActionTypes.ADD_PAIEMENT, payload: newPaiement });
-    }
+    try {
+      if (USE_SUPABASE) {
+        if (!addPaiement) {
+          throw new Error('Fonction addPaiement non disponible');
+        }
+        
+        // S'assurer que la date est au format YYYY-MM-DD
+        const dateFormatted = paiementData.date.includes('T') 
+          ? paiementData.date.split('T')[0] 
+          : paiementData.date;
+        
+        await addPaiement(
+          paiementData.fournisseurId,
+          parseFloat(paiementData.montant),
+          dateFormatted,
+          paiementData.description || ''
+        );
+      } else {
+        // Mode local
+        const dateFormatted = paiementData.date.includes('T') 
+          ? paiementData.date.split('T')[0] 
+          : paiementData.date;
+          
+        const newPaiement = {
+          id: generateId(),
+          fournisseurId: paiementData.fournisseurId,
+          montant: parseFloat(paiementData.montant),
+          date: dateFormatted,
+          description: paiementData.description || ''
+        };
+        dispatch({ type: ActionTypes.ADD_PAIEMENT, payload: newPaiement });
+      }
 
-    setPaiementData({
-      fournisseurId: '',
-      montant: '',
-      date: new Date().toISOString().split('T')[0],
-      description: ''
-    });
-    setShowPaiementModal(false);
+      // Réinitialiser le formulaire
+      setPaiementData({
+        fournisseurId: '',
+        montant: '',
+        date: new Date().toISOString().split('T')[0],
+        description: ''
+      });
+      setShowPaiementModal(false);
+      
+      // Rafraîchissement automatique géré par le contexte (fetchPaiements et fetchEntrees)
+    } catch (e) {
+      alert('Erreur lors de l\'enregistrement du paiement: ' + (e?.message || 'inconnue'));
+      console.error('Erreur handleAddPaiement:', e);
+    }
   };
 
-  const handleDeletePaiement = (id) => {
-    if (window.confirm('Êtes-vous sûr de vouloir supprimer ce paiement ?')) {
-      dispatch?.({ type: ActionTypes.DELETE_PAIEMENT, payload: id });
+  const handleDeletePaiement = async (id) => {
+    if (!window.confirm('Êtes-vous sûr de vouloir supprimer ce paiement ?')) {
+      return;
+    }
+
+    try {
+      if (USE_SUPABASE) {
+        if (!deletePaiement) {
+          throw new Error('Fonction deletePaiement non disponible');
+        }
+        await deletePaiement(id);
+      } else {
+        // Mode local
+        dispatch?.({ type: ActionTypes.DELETE_PAIEMENT, payload: id });
+      }
+      // Rafraîchissement automatique géré par le contexte
+    } catch (e) {
+      alert('Erreur lors de la suppression du paiement: ' + (e?.message || 'inconnue'));
+      console.error('Erreur handleDeletePaiement:', e);
     }
   };
 

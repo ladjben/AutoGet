@@ -8,6 +8,7 @@ export const DataProvider = ({ children }) => {
   const [produits, setProduits] = useState([])
   const [fournisseurs, setFournisseurs] = useState([])
   const [entrees, setEntrees] = useState([])
+  const [paiements, setPaiements] = useState([])
   const [depenses, setDepenses] = useState([])
   const [depenseCategories, setDepenseCategories] = useState([])
 
@@ -19,7 +20,8 @@ export const DataProvider = ({ children }) => {
     await Promise.all([
       fetchProduits(), 
       fetchFournisseurs(), 
-      fetchEntrees(), 
+      fetchEntrees(),
+      fetchPaiements(),
       fetchDepenses(),
       fetchDepenseCategories()
     ])
@@ -44,6 +46,15 @@ export const DataProvider = ({ children }) => {
       .order('date', { ascending: false })
     if (error) console.error(error)
     else setEntrees(data || [])
+  }
+
+  async function fetchPaiements() {
+    const { data, error } = await supabase
+      .from('paiements')
+      .select('*')
+      .order('date', { ascending: false })
+    if (error) console.error(error)
+    else setPaiements(data || [])
   }
 
   async function fetchDepenses() {
@@ -117,6 +128,63 @@ export const DataProvider = ({ children }) => {
     const { error } = await supabase.from('fournisseurs').insert([{ nom, contact, adresse }])
     if (error) return console.error(error)
     fetchFournisseurs()
+  }
+
+  // === Gestion des paiements ===
+  async function addPaiement(fournisseur_id, montant, date, description) {
+    try {
+      console.log('💰 Ajout paiement:', { fournisseur_id, montant, date, description })
+      
+      // S'assurer que la date est au format YYYY-MM-DD
+      const dateFormatted = date ? date.split('T')[0] : new Date().toISOString().split('T')[0]
+      
+      const { error } = await supabase
+        .from('paiements')
+        .insert([{
+          fournisseur_id,
+          montant: parseFloat(montant),
+          date: dateFormatted,
+          description: description || ''
+        }])
+      
+      if (error) throw error
+      
+      console.log('✅ Paiement ajouté avec succès')
+      
+      // Rafraîchir les paiements et les entrées (pour recalculer les soldes)
+      await Promise.all([
+        fetchPaiements(),
+        fetchEntrees()
+      ])
+      
+      return { success: true }
+    } catch (e) {
+      console.error('❌ Erreur addPaiement:', e?.message || e)
+      throw e
+    }
+  }
+
+  async function deletePaiement(id) {
+    try {
+      console.log('🗑️ Suppression paiement:', id)
+      const { error } = await supabase
+        .from('paiements')
+        .delete()
+        .eq('id', id)
+      if (error) throw error
+      console.log('✅ Paiement supprimé:', id)
+      
+      // Rafraîchir les paiements et les entrées
+      await Promise.all([
+        fetchPaiements(),
+        fetchEntrees()
+      ])
+      
+      return { success: true }
+    } catch (e) {
+      console.error('❌ Erreur deletePaiement:', e?.message || e)
+      throw e
+    }
   }
   async function addDepense(nom, montant, description, date) {
     try {
@@ -288,11 +356,12 @@ export const DataProvider = ({ children }) => {
     <DataContext.Provider
       value={{
         // states
-        produits, fournisseurs, entrees, depenses, depenseCategories,
+        produits, fournisseurs, entrees, paiements, depenses, depenseCategories,
         // reads
-        fetchAll, fetchProduits, fetchFournisseurs, fetchEntrees, fetchDepenses, fetchDepenseCategories, fetchEntreeDetails,
+        fetchAll, fetchProduits, fetchFournisseurs, fetchEntrees, fetchPaiements, fetchDepenses, fetchDepenseCategories, fetchEntreeDetails,
         // writes
-        addProduit, updateProduit, deleteProduit, addFournisseur, 
+        addProduit, updateProduit, deleteProduit, addFournisseur,
+        addPaiement, deletePaiement,
         addDepense, updateDepense, deleteDepense,
         addDepenseCategory, deleteDepenseCategory,
         addEntreeWithLines, // ⬅️ NOUVEAU

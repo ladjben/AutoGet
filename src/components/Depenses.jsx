@@ -315,9 +315,9 @@ const Depenses = () => {
             {/* Liste des catégories existantes */}
             <div>
               <h4 className="text-sm font-semibold text-gray-700 mb-3">
-                Catégories existantes ({categoriesExistantes.length})
+                Catégories existantes ({depenseCategories.length})
               </h4>
-              {categoriesExistantes.length === 0 ? (
+              {depenseCategories.length === 0 ? (
                 <div className="bg-gray-50 rounded-lg p-4 text-center">
                   <p className="text-sm text-gray-500">Aucune catégorie créée encore</p>
                   <p className="text-xs text-gray-400 mt-1">Créez votre première dépense pour voir la catégorie apparaître ici</p>
