@@ -3,6 +3,7 @@ import { USE_SUPABASE } from '../config';
 import { useMemo, useState, useEffect } from 'react';
 import { filterByPeriod } from '../utils/dateUtils';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '../context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -11,6 +12,7 @@ import { Download, Package, TrendingDown, TrendingUp, DollarSign, CreditCard, Sh
 
 const Dashboard = () => {
   const dataCtx = useData();
+  const { isAdmin } = useAuth();
   const state = dataCtx?.state ?? {
     produits: dataCtx?.produits ?? [],
     fournisseurs: dataCtx?.fournisseurs ?? [],
@@ -271,7 +273,8 @@ const Dashboard = () => {
         </Button>
       </div>
 
-      {/* Vue d'Ensemble Globale */}
+      {/* Vue d'Ensemble Globale - Admin seulement */}
+      {isAdmin() && (
       <Card>
         <CardHeader>
           <CardTitle>Vue d'Ensemble Globale</CardTitle>
@@ -404,6 +407,7 @@ const Dashboard = () => {
           </div>
         </CardContent>
       </Card>
+      )}
 
       {/* Statistiques par Période */}
       <Card>
@@ -490,6 +494,7 @@ const Dashboard = () => {
           </div>
         </CardContent>
       </Card>
+      )}
 
       {/* Produits */}
       <Card>
