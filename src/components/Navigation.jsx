@@ -21,21 +21,22 @@ const Navigation = ({ activeView, setActiveView, user, logout, isAdmin, isUser }
             <span className="ml-2 text-xs text-gray-500 font-medium hidden sm:inline">Gestion & Suivi</span>
           </div>
 
-          {/* Navigation items - Centré */}
-          <div className="flex-1 flex justify-center">
-            <div className="hidden md:flex items-center space-x-1">
+          {/* Navigation items - Centré avec scroll horizontal si nécessaire */}
+          <div className="flex-1 flex justify-center overflow-x-auto">
+            <div className="hidden md:flex items-center space-x-1 min-w-max">
               {navItems.map((item) => (
                 <button
                   key={item.id}
                   onClick={() => setActiveView(item.id)}
-                  className={`inline-flex items-center px-3 py-2 rounded-lg text-sm font-semibold transition-all ${
+                  className={`inline-flex items-center px-2.5 py-1.5 rounded-lg text-xs md:text-sm font-semibold transition-all whitespace-nowrap flex-shrink-0 ${
                     activeView === item.id
                       ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md'
                       : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
                   }`}
                 >
-                  <span className="mr-1.5">{item.icon}</span>
-                  <span>{item.label}</span>
+                  <span className="mr-1.5 text-sm">{item.icon}</span>
+                  <span className="hidden lg:inline">{item.label}</span>
+                  <span className="lg:hidden">{item.label.split(' ')[0]}</span>
                 </button>
               ))}
             </div>
