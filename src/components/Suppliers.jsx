@@ -107,7 +107,10 @@ const Suppliers = () => {
     
     // Filtrer par fournisseur si sélectionné
     if (filters.fournisseurId) {
-      filteredPaiements = filteredPaiements.filter(p => p.fournisseurId === filters.fournisseurId || p.fournisseur_id === filters.fournisseurId);
+      filteredPaiements = filteredPaiements.filter(p => {
+        const pFId = p.fournisseur_id ?? p.fournisseurId;
+        return pFId === filters.fournisseurId;
+      });
     }
     
     // Filtrer par date si sélectionné
@@ -119,9 +122,10 @@ const Suppliers = () => {
     }
     
     filteredPaiements.forEach(paiement => {
+      // Mode Supabase: fournisseur_id, Mode Local: fournisseurId
       const fId = paiement.fournisseur_id ?? paiement.fournisseurId;
       if (fId === fournisseurId) {
-        total += paiement.montant || 0;
+        total += parseFloat(paiement.montant || 0);
       }
     });
     return total;
@@ -301,6 +305,7 @@ const Suppliers = () => {
   // Filtrer les paiements pour un fournisseur avec filtres de date
   const getFilteredPaiements = (fournisseurId) => {
     let paiements = (state.paiements || []).filter(p => {
+      // Mode Supabase: fournisseur_id, Mode Local: fournisseurId
       const fId = p.fournisseur_id ?? p.fournisseurId;
       return fId === fournisseurId;
     });
