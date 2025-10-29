@@ -4,7 +4,17 @@ import { useAuth } from '../context/AuthContext';
 import { useState } from 'react';
 
 const Depenses = () => {
-  const { state, dispatch, generateId, addDepense } = useData();
+  const dataCtx = useData();
+  const state = dataCtx?.state ?? {
+    produits: dataCtx?.produits ?? [],
+    fournisseurs: dataCtx?.fournisseurs ?? [],
+    entrees: dataCtx?.entrees ?? [],
+    paiements: dataCtx?.paiements ?? [],
+    depenses: dataCtx?.depenses ?? []
+  };
+  const dispatch = dataCtx?.dispatch;
+  const generateId = dataCtx?.generateId;
+  const addDepense = dataCtx?.addDepense;
   const { isAdmin } = useAuth();
   const [showModal, setShowModal] = useState(false);
   const [editingDepense, setEditingDepense] = useState(null);
