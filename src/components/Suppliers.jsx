@@ -343,41 +343,112 @@ const Suppliers = () => {
         </div>
       </div>
 
-      {/* Résumé Global */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-gradient-to-r from-red-50 to-red-100 border-2 border-red-300 rounded-lg p-4 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-red-600 font-medium mb-1">Total Dû (Tous)</p>
-              <p className="text-2xl font-bold text-red-700">{globalTotals.totalDue.toFixed(2)} DA</p>
+      {/* Résumé Global Amélioré */}
+      <div className="bg-gradient-to-br from-gray-50 via-gray-100 to-gray-200 rounded-2xl p-6 border-4 border-gray-300 shadow-xl">
+        <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+          <span className="bg-white p-2 rounded-lg shadow-sm">📊</span>
+          <span>Vue d'Ensemble Globale</span>
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-gradient-to-br from-red-100 to-red-200 border-3 border-red-400 rounded-xl p-5 shadow-lg">
+            <div className="flex items-center justify-between mb-2">
+              <span className="bg-red-500 text-white p-2 rounded-lg text-xl">💸</span>
+              <span className="text-xs text-red-700 font-semibold bg-red-300 px-2 py-1 rounded-full">
+                Total Dû
+              </span>
             </div>
-            <span className="text-3xl">💸</span>
+            <p className="text-3xl font-extrabold text-red-800 mb-1">{globalTotals.totalDue.toFixed(2)} DA</p>
+            <p className="text-xs text-red-600 mt-2">
+              {filteredFournisseurs.filter(f => calculateTotalDue(f.id) > 0).length} fournisseur{filteredFournisseurs.filter(f => calculateTotalDue(f.id) > 0).length !== 1 ? 's' : ''} avec dettes
+            </p>
+          </div>
+          <div className="bg-gradient-to-br from-green-100 to-green-200 border-3 border-green-400 rounded-xl p-5 shadow-lg">
+            <div className="flex items-center justify-between mb-2">
+              <span className="bg-green-500 text-white p-2 rounded-lg text-xl">✅</span>
+              <span className="text-xs text-green-700 font-semibold bg-green-300 px-2 py-1 rounded-full">
+                Total Payé
+              </span>
+            </div>
+            <p className="text-3xl font-extrabold text-green-800 mb-1">{globalTotals.totalPaye.toFixed(2)} DA</p>
+            <p className="text-xs text-green-600 mt-2">
+              {globalTotals.totalPaye > 0 
+                ? `${((globalTotals.totalPaye / (globalTotals.totalDue || 1)) * 100).toFixed(1)}% du total dû`
+                : 'Aucun paiement enregistré'
+              }
+            </p>
+          </div>
+          <div className={`bg-gradient-to-br rounded-xl p-5 shadow-lg border-3 ${
+            globalTotals.reste > 0
+              ? 'from-orange-100 to-orange-200 border-orange-400'
+              : 'from-emerald-100 to-emerald-200 border-emerald-400'
+          }`}>
+            <div className="flex items-center justify-between mb-2">
+              <span className={`text-white p-2 rounded-lg text-xl ${
+                globalTotals.reste > 0 ? 'bg-orange-500' : 'bg-emerald-500'
+              }`}>
+                {globalTotals.reste > 0 ? '⏳' : '🎉'}
+              </span>
+              <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
+                globalTotals.reste > 0 
+                  ? 'text-orange-700 bg-orange-300' 
+                  : 'text-emerald-700 bg-emerald-300'
+              }`}>
+                {globalTotals.reste > 0 ? 'Reste à Payer' : 'Solde Positif'}
+              </span>
+            </div>
+            <p className={`text-3xl font-extrabold mb-1 ${
+              globalTotals.reste > 0 ? 'text-orange-800' : 'text-emerald-800'
+            }`}>
+              {Math.abs(globalTotals.reste).toFixed(2)} DA
+            </p>
+            <p className={`text-xs mt-2 ${
+              globalTotals.reste > 0 ? 'text-orange-600' : 'text-emerald-600'
+            }`}>
+              {globalTotals.reste > 0 
+                ? `${filteredFournisseurs.filter(f => (calculateTotalDue(f.id) - calculateTotalPaye(f.id)) > 0).length} fournisseur${filteredFournisseurs.filter(f => (calculateTotalDue(f.id) - calculateTotalPaye(f.id)) > 0).length !== 1 ? 's' : ''} en attente`
+                : '✅ Toutes les dettes sont payées'
+              }
+            </p>
           </div>
         </div>
-        <div className="bg-gradient-to-r from-green-50 to-green-100 border-2 border-green-300 rounded-lg p-4 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-green-600 font-medium mb-1">Total Payé (Tous)</p>
-              <p className="text-2xl font-bold text-green-700">{globalTotals.totalPaye.toFixed(2)} DA</p>
-            </div>
-            <span className="text-3xl">✅</span>
+        
+        {/* Statistiques additionnelles */}
+        <div className="mt-4 pt-4 border-t-2 border-gray-400 grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="bg-white/80 rounded-lg p-3 text-center">
+            <p className="text-xs text-gray-600 mb-1">Total Fournisseurs</p>
+            <p className="text-lg font-bold text-gray-800">{filteredFournisseurs.length}</p>
           </div>
-        </div>
-        <div className={`bg-gradient-to-r rounded-lg p-4 shadow-sm border-2 ${
-          globalTotals.reste > 0
-            ? 'from-orange-50 to-orange-100 border-orange-300'
-            : 'from-blue-50 to-blue-100 border-blue-300'
-        }`}>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className={`text-sm font-medium mb-1 ${
-                globalTotals.reste > 0 ? 'text-orange-600' : 'text-blue-600'
-              }`}>Reste à Payer (Tous)</p>
-              <p className={`text-2xl font-bold ${
-                globalTotals.reste > 0 ? 'text-orange-700' : 'text-blue-700'
-              }`}>{globalTotals.reste.toFixed(2)} DA</p>
-            </div>
-            <span className="text-3xl">{globalTotals.reste > 0 ? '⏳' : '🎉'}</span>
+          <div className="bg-white/80 rounded-lg p-3 text-center">
+            <p className="text-xs text-gray-600 mb-1">Entrées Totales</p>
+            <p className="text-lg font-bold text-gray-800">
+              {(state.entrees || []).filter(e => {
+                if (filters.fournisseurId) {
+                  const fId = e.fournisseur_id ?? e.fournisseurId;
+                  return fId === filters.fournisseurId;
+                }
+                return true;
+              }).length}
+            </p>
+          </div>
+          <div className="bg-white/80 rounded-lg p-3 text-center">
+            <p className="text-xs text-gray-600 mb-1">Paiements Totaux</p>
+            <p className="text-lg font-bold text-gray-800">
+              {(state.paiements || []).filter(p => {
+                if (filters.fournisseurId) {
+                  const fId = p.fournisseur_id ?? p.fournisseurId;
+                  return fId === filters.fournisseurId;
+                }
+                return true;
+              }).length}
+            </p>
+          </div>
+          <div className="bg-white/80 rounded-lg p-3 text-center">
+            <p className="text-xs text-gray-600 mb-1">Valeur Marchandise</p>
+            <p className="text-lg font-bold text-gray-800">
+              {filteredFournisseurs.reduce((sum, f) => {
+                return sum + getFournisseurEntrees(f.id).reduce((s, e) => s + calculateEntreeValue(e), 0);
+              }, 0).toFixed(2)} DA
+            </p>
           </div>
         </div>
       </div>
@@ -431,10 +502,10 @@ const Suppliers = () => {
         )}
       </div>
 
-      {/* Liste des fournisseurs */}
-      <div className="space-y-4">
+      {/* Liste des fournisseurs - Grille de cartes */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {filteredFournisseurs.length === 0 ? (
-          <div className="bg-white rounded-lg border border-gray-200 p-8 text-center text-gray-500">
+          <div className="col-span-full bg-white rounded-lg border border-gray-200 p-8 text-center text-gray-500">
             <p className="text-lg">Aucun fournisseur trouvé</p>
           </div>
         ) : (
@@ -443,72 +514,136 @@ const Suppliers = () => {
             const totalPaye = calculateTotalPaye(fournisseur.id);
             const reste = totalDue - totalPaye;
             const paiements = getFilteredPaiements(fournisseur.id);
+            const entrees = getFournisseurEntrees(fournisseur.id);
+            const entreesPayees = entrees.filter(e => e.paye).length;
+            const entreesNonPayees = entrees.filter(e => !e.paye).length;
+            const totalMarchandise = entrees.reduce((sum, e) => sum + calculateEntreeValue(e), 0);
             
             return (
-              <div key={fournisseur.id} className="bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow p-6">
-                <div className="flex justify-between items-start mb-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-3">
-                      <span className="text-3xl">🏢</span>
-                      <div>
-                        <h3 className="text-xl font-bold text-gray-900">{fournisseur.nom}</h3>
-                        {fournisseur.contact && (
-                          <p className="text-sm text-gray-600 mt-1">📞 {fournisseur.contact}</p>
-                        )}
-                        {fournisseur.adresse && (
-                          <p className="text-sm text-gray-600 mt-1">📍 {fournisseur.adresse}</p>
-                        )}
+              <div key={fournisseur.id} className="bg-white rounded-xl border-2 border-gray-200 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
+                {/* En-tête de la carte */}
+                <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-5">
+                  <div className="flex justify-between items-start">
+                    <div className="flex items-center gap-3 flex-1">
+                      <div className="bg-white/20 rounded-lg p-3">
+                        <span className="text-3xl">🏢</span>
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-2xl font-bold mb-1">{fournisseur.nom}</h3>
+                        <div className="flex flex-col gap-1 text-sm text-blue-100">
+                          {fournisseur.contact && <p>📞 {fournisseur.contact}</p>}
+                          {fournisseur.adresse && <p>📍 {fournisseur.adresse}</p>}
+                        </div>
                       </div>
                     </div>
-                    
-                    {/* Résumé financier */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4">
-                      <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                        <p className="text-xs text-red-600 mb-1">Total dû</p>
-                        <p className="text-lg font-bold text-red-700">{totalDue.toFixed(2)} DA</p>
-                      </div>
-                      <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                        <p className="text-xs text-green-600 mb-1">Total payé</p>
-                        <p className="text-lg font-bold text-green-700">{totalPaye.toFixed(2)} DA</p>
-                      </div>
-                      <div className={`rounded-lg p-3 border-2 ${
-                        reste > 0
-                          ? 'bg-orange-50 border-orange-300'
-                          : 'bg-blue-50 border-blue-300'
+                    {isAdmin() && (
+                      <button
+                        onClick={() => handleDeleteFournisseur(fournisseur.id)}
+                        className="bg-red-500 hover:bg-red-600 text-white p-2 rounded-lg transition-colors"
+                        title="Supprimer le fournisseur"
+                      >
+                        🗑️
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="p-5 space-y-4">
+                  {/* Statistiques rapides */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                      <p className="text-xs text-gray-500 mb-1">Entrées totales</p>
+                      <p className="text-lg font-bold text-gray-900">{entrees.length}</p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        {entreesPayees} payées / {entreesNonPayees} non payées
+                      </p>
+                    </div>
+                    <div className="bg-purple-50 rounded-lg p-3 border border-purple-200">
+                      <p className="text-xs text-purple-600 mb-1">Paiements</p>
+                      <p className="text-lg font-bold text-purple-700">{paiements.length}</p>
+                      <p className="text-xs text-purple-400 mt-1">Transactions</p>
+                    </div>
+                    <div className="bg-indigo-50 rounded-lg p-3 border border-indigo-200">
+                      <p className="text-xs text-indigo-600 mb-1">Marchandise totale</p>
+                      <p className="text-lg font-bold text-indigo-700">{totalMarchandise.toFixed(2)} DA</p>
+                      <p className="text-xs text-indigo-400 mt-1">Valeur reçue</p>
+                    </div>
+                    <div className={`rounded-lg p-3 border-2 ${
+                      reste > 0
+                        ? 'bg-orange-50 border-orange-300'
+                        : 'bg-blue-50 border-blue-300'
+                    }`}>
+                      <p className={`text-xs mb-1 ${
+                        reste > 0 ? 'text-orange-600' : 'text-blue-600'
                       }`}>
-                        <p className={`text-xs mb-1 ${
-                          reste > 0 ? 'text-orange-600' : 'text-blue-600'
-                        }`}>Reste à payer</p>
+                        {reste > 0 ? 'À payer' : 'Crédit'}
+                      </p>
+                      <p className={`text-lg font-bold ${
+                        reste > 0 ? 'text-orange-700' : 'text-blue-700'
+                      }`}>
+                        {Math.abs(reste).toFixed(2)} DA
+                      </p>
+                      <p className={`text-xs mt-1 ${
+                        reste > 0 ? 'text-orange-400' : 'text-blue-400'
+                      }`}>
+                        {reste > 0 ? 'En attente' : 'Surpayé'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Résumé financier principal */}
+                  <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-4 border-2 border-gray-300">
+                    <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                      <span>💳</span>
+                      <span>Résumé Financier</span>
+                    </h4>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="bg-red-50 border-2 border-red-300 rounded-lg p-3 text-center">
+                        <p className="text-xs text-red-600 mb-1 font-medium">Total Dû</p>
+                        <p className="text-xl font-bold text-red-700">{totalDue.toFixed(2)} DA</p>
+                        <p className="text-xs text-red-500 mt-1">{entreesNonPayees} entrée{entreesNonPayees !== 1 ? 's' : ''} non payée{entreesNonPayees !== 1 ? 's' : ''}</p>
+                      </div>
+                      <div className="bg-green-50 border-2 border-green-300 rounded-lg p-3 text-center">
+                        <p className="text-xs text-green-600 mb-1 font-medium">Total Payé</p>
+                        <p className="text-xl font-bold text-green-700">{totalPaye.toFixed(2)} DA</p>
+                        <p className="text-xs text-green-500 mt-1">{paiements.length} paiement{paiements.length !== 1 ? 's' : ''}</p>
+                      </div>
+                      <div className={`rounded-lg p-3 border-2 text-center ${
+                        reste > 0
+                          ? 'bg-orange-50 border-orange-400'
+                          : 'bg-emerald-50 border-emerald-400'
+                      }`}>
+                        <p className={`text-xs mb-1 font-medium ${
+                          reste > 0 ? 'text-orange-700' : 'text-emerald-700'
+                        }`}>
+                          {reste > 0 ? 'Reste à Payer' : 'Solde Positif'}
+                        </p>
                         <p className={`text-xl font-bold ${
-                          reste > 0 ? 'text-orange-700' : 'text-blue-700'
-                        }`}>{reste.toFixed(2)} DA</p>
+                          reste > 0 ? 'text-orange-800' : 'text-emerald-800'
+                        }`}>
+                          {Math.abs(reste).toFixed(2)} DA
+                        </p>
+                        <p className={`text-xs mt-1 ${
+                          reste > 0 ? 'text-orange-600' : 'text-emerald-600'
+                        }`}>
+                          {reste > 0 ? '⚠️ En dette' : '✅ À jour'}
+                        </p>
                       </div>
                     </div>
                   </div>
 
-                  {isAdmin() && (
-                    <button
-                      onClick={() => handleDeleteFournisseur(fournisseur.id)}
-                      className="ml-4 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2"
-                    >
-                      <span>🗑️</span>
-                      <span>Supprimer</span>
-                    </button>
-                  )}
-                </div>
-
                 {/* Entrées de stock détaillées */}
-                <div className="mt-4 border-t border-gray-200 pt-4">
+                <div className="border-t-2 border-gray-300 pt-4">
                   <div className="flex justify-between items-center mb-3">
-                    <h4 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                      <span>📦</span>
-                      <span>Entrées de Stock ({getFournisseurEntrees(fournisseur.id).length})</span>
+                    <h4 className="text-base font-bold text-gray-800 flex items-center gap-2">
+                      <span className="bg-blue-100 p-2 rounded-lg">📦</span>
+                      <span>Entrées de Stock <span className="text-blue-600">({entrees.length})</span></span>
                     </h4>
-                    {getFournisseurEntrees(fournisseur.id).length > 0 && (
-                      <div className="text-right">
-                        <p className="text-xs text-gray-500">Total marchandise reçue</p>
-                        <p className="text-base font-bold text-purple-700">
-                          {getFournisseurEntrees(fournisseur.id).reduce((sum, e) => sum + calculateEntreeValue(e), 0).toFixed(2)} DA
+                    {entrees.length > 0 && (
+                      <div className="text-right bg-purple-50 rounded-lg px-3 py-2 border border-purple-200">
+                        <p className="text-xs text-purple-600 font-medium">Total valeur reçue</p>
+                        <p className="text-lg font-bold text-purple-700">
+                          {totalMarchandise.toFixed(2)} DA
                         </p>
                       </div>
                     )}
@@ -613,10 +748,10 @@ const Suppliers = () => {
                 </div>
 
                 {/* Historique des paiements */}
-                <div className="mt-4 border-t border-gray-200 pt-4">
-                  <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                    <span>💰</span>
-                    <span>Historique des paiements ({paiements.length})</span>
+                <div className="border-t-2 border-gray-300 pt-4">
+                  <h4 className="text-base font-bold text-gray-800 mb-3 flex items-center gap-2">
+                    <span className="bg-green-100 p-2 rounded-lg">💰</span>
+                    <span>Historique des Paiements <span className="text-green-600">({paiements.length})</span></span>
                   </h4>
                   {paiements.length === 0 ? (
                     <div className="bg-gray-50 rounded-lg p-4 text-center">
@@ -648,6 +783,7 @@ const Suppliers = () => {
                       ))}
                     </div>
                   )}
+                </div>
                 </div>
               </div>
             );
