@@ -1,7 +1,14 @@
 import { useData, ActionTypes } from '../context/UnifiedDataContext';
 
 const Dashboard = () => {
-  const { state } = useData();
+  const dataCtx = useData();
+  const state = dataCtx?.state ?? {
+    produits: dataCtx?.produits ?? [],
+    fournisseurs: dataCtx?.fournisseurs ?? [],
+    entrees: dataCtx?.entrees ?? [],
+    paiements: dataCtx?.paiements ?? [],
+    depenses: dataCtx?.depenses ?? []
+  };
 
   const handleExport = () => {
     const dataStr = JSON.stringify(state, null, 2);
@@ -23,11 +30,11 @@ const Dashboard = () => {
     let totalPaid = 0;
 
     // Calculate amounts due and paid
-    state.entrees.forEach(entree => {
+    (state.entrees || []).forEach(entree => {
       let entreeValue = 0;
       
       entree.lignes?.forEach(ligne => {
-        const produit = state.produits.find(p => p.id === ligne.produitId);
+        const produit = (state.produits || []).find(p => p.id === ligne.produitId);
         if (produit) {
           entreeValue += ligne.quantite * produit.prixAchat;
         }
@@ -48,7 +55,7 @@ const Dashboard = () => {
   const { totalStockValue, totalDue, totalPaid, totalEntries } = calculateTotals();
 
   const getFournisseurName = (fournisseurId) => {
-    const fournisseur = state.fournisseurs.find(f => f.id === fournisseurId);
+    const fournisseur = (state.fournisseurs || []).find(f => f.id === fournisseurId);
     return fournisseur ? fournisseur.nom : 'Inconnu';
   };
 
@@ -154,12 +161,12 @@ const Dashboard = () => {
           <h2 className="text-xl font-semibold text-gray-900">Aperçu des Produits</h2>
         </div>
         <div className="divide-y divide-gray-200">
-          {state.produits.length === 0 ? (
+          {(state.produits || []).length === 0 ? (
             <div className="p-6 text-center text-gray-500">
               Aucun produit enregistré
             </div>
           ) : (
-            state.produits.map((produit) => (
+            (state.produits || []).map((produit) => (
               <div key={produit.id} className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
@@ -182,12 +189,12 @@ const Dashboard = () => {
           <h2 className="text-xl font-semibold text-gray-900">Historique des Entrées</h2>
         </div>
         <div className="divide-y divide-gray-200">
-          {state.entrees.length === 0 ? (
+          {(state.entrees || []).length === 0 ? (
             <div className="p-6 text-center text-gray-500">
               Aucune entrée enregistrée
             </div>
           ) : (
-            state.entrees.slice(-10).reverse().map((entree) => (
+            (state.entrees || []).slice(-10).reverse().map((entree) => (
               <div key={entree.id} className="p-4">
                 <div className="flex justify-between items-center">
                   <div>
