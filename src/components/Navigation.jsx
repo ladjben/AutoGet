@@ -9,6 +9,11 @@ const Navigation = ({ activeView, setActiveView, user, logout, isAdmin, isUser }
     { id: 'salaries', label: 'Salariés', icon: '👥' },
   ];
 
+  // Debug: Vérifier que navItems contient bien salaries
+  if (typeof window !== 'undefined' && !navItems.find(item => item.id === 'salaries')) {
+    console.error('❌ Salariés manquant dans navItems!', navItems);
+  }
+
   return (
     <nav className="bg-white shadow-md border-b border-gray-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -24,21 +29,30 @@ const Navigation = ({ activeView, setActiveView, user, logout, isAdmin, isUser }
           {/* Navigation items - Centré avec scroll horizontal si nécessaire */}
           <div className="flex-1 flex justify-center overflow-x-auto">
             <div className="hidden md:flex items-center space-x-1 min-w-max">
-              {navItems.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => setActiveView(item.id)}
-                  className={`inline-flex items-center px-2.5 py-1.5 rounded-lg text-xs md:text-sm font-semibold transition-all whitespace-nowrap flex-shrink-0 ${
-                    activeView === item.id
-                      ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                  }`}
-                >
-                  <span className="mr-1.5 text-sm">{item.icon}</span>
-                  <span className="hidden lg:inline">{item.label}</span>
-                  <span className="lg:hidden">{item.label.split(' ')[0]}</span>
-                </button>
-              ))}
+              {navItems.map((item) => {
+                // Debug pour Salariés
+                if (item.id === 'salaries') {
+                  console.log('✅ Salariés trouvé dans navItems:', item);
+                }
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => {
+                      console.log('Navigation vers:', item.id, item.label);
+                      setActiveView(item.id);
+                    }}
+                    className={`inline-flex items-center px-2.5 py-1.5 rounded-lg text-xs md:text-sm font-semibold transition-all whitespace-nowrap flex-shrink-0 ${
+                      activeView === item.id
+                        ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                    }`}
+                  >
+                    <span className="mr-1.5 text-sm">{item.icon}</span>
+                    <span className="hidden lg:inline">{item.label}</span>
+                    <span className="lg:hidden">{item.label.split(' ')[0]}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
