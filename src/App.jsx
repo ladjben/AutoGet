@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './config/supabaseClient'
-import { USE_SUPABASE } from './config'
+import { DataProvider } from './context/UnifiedDataContext'
 
-import { DataProvider as DataProviderLocal } from './context/DataContext'
-import { DataProvider as DataProviderSupabase } from './context/DataContextSupabase'
+// DataProvider est désormais fourni par le pont unifié
 import { AuthProvider, useAuth } from './context/AuthContext'
 
 import Login from './components/Login'
@@ -14,8 +13,7 @@ import Entries from './components/Entries'
 import Suppliers from './components/Suppliers'
 import Depenses from './components/Depenses'
 
-// Sélection du provider selon la configuration
-const DataProvider = USE_SUPABASE ? DataProviderSupabase : DataProviderLocal
+// Le pont unifié choisit le provider selon USE_SUPABASE
 
 // Petit composant bandeau pour afficher l’état de la connexion Supabase
 function SupabaseHealthBar() {

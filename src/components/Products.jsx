@@ -1,9 +1,10 @@
 import { useData, ActionTypes } from '../context/DataContext';
+import { USE_SUPABASE } from '../config';
 import { useAuth } from '../context/AuthContext';
 import { useState } from 'react';
 
 const Products = () => {
-  const { state, dispatch, generateId } = useData();
+  const { state, dispatch, generateId, addProduit } = useData();
   const { isAdmin } = useAuth();
   const [showModal, setShowModal] = useState(false);
   const [editingProduit, setEditingProduit] = useState(null);
@@ -13,20 +14,23 @@ const Products = () => {
     prixAchat: ''
   });
 
-  const handleAddProduit = () => {
+  const handleAddProduit = async () => {
     if (!formData.nom || !formData.prixAchat) {
       alert('Veuillez remplir les champs obligatoires (nom, prix d\'achat)');
       return;
     }
 
-    const newProduit = {
-      id: generateId(),
-      nom: formData.nom,
-      reference: formData.reference,
-      prixAchat: parseFloat(formData.prixAchat)
-    };
-
-    dispatch({ type: ActionTypes.ADD_PRODUIT, payload: newProduit });
+    if (USE_SUPABASE) {
+      await addProduit(formData.nom, formData.reference, parseFloat(formData.prixAchat));
+    } else {
+      const newProduit = {
+        id: generateId(),
+        nom: formData.nom,
+        reference: formData.reference,
+        prixAchat: parseFloat(formData.prixAchat)
+      };
+      dispatch({ type: ActionTypes.ADD_PRODUIT, payload: newProduit });
+    }
     resetForm();
     setShowModal(false);
   };

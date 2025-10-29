@@ -1,9 +1,10 @@
 import { useData, ActionTypes } from '../context/DataContext';
+import { USE_SUPABASE } from '../config';
 import { useAuth } from '../context/AuthContext';
 import { useState } from 'react';
 
 const Depenses = () => {
-  const { state, dispatch, generateId } = useData();
+  const { state, dispatch, generateId, addDepense } = useData();
   const { isAdmin } = useAuth();
   const [showModal, setShowModal] = useState(false);
   const [editingDepense, setEditingDepense] = useState(null);
@@ -42,20 +43,23 @@ const Depenses = () => {
     return filteredDepenses.reduce((sum, d) => sum + (d.montant || 0), 0);
   };
 
-  const handleAddDepense = () => {
+  const handleAddDepense = async () => {
     if (!formData.montant || !formData.date) {
       alert('Veuillez remplir le montant et la date');
       return;
     }
 
-    const newDepense = {
-      id: generateId(),
-      montant: parseFloat(formData.montant),
-      description: formData.description,
-      date: formData.date
-    };
-
-    dispatch({ type: ActionTypes.ADD_DEPENSE, payload: newDepense });
+    if (USE_SUPABASE) {
+      await addDepense(parseFloat(formData.montant), formData.description, formData.date);
+    } else {
+      const newDepense = {
+        id: generateId(),
+        montant: parseFloat(formData.montant),
+        description: formData.description,
+        date: formData.date
+      };
+      dispatch({ type: ActionTypes.ADD_DEPENSE, payload: newDepense });
+    }
     resetForm();
     setShowModal(false);
   };

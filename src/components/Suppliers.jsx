@@ -1,9 +1,10 @@
 import { useData, ActionTypes } from '../context/DataContext';
+import { USE_SUPABASE } from '../config';
 import { useAuth } from '../context/AuthContext';
 import { useState } from 'react';
 
 const Suppliers = () => {
-  const { state, dispatch, generateId } = useData();
+  const { state, dispatch, generateId, addFournisseur, addPaiement } = useData();
   const { isAdmin } = useAuth();
   const [showModal, setShowModal] = useState(false);
   const [showPaiementModal, setShowPaiementModal] = useState(false);
@@ -48,20 +49,23 @@ const Suppliers = () => {
     return total;
   };
 
-  const handleAddFournisseur = () => {
+  const handleAddFournisseur = async () => {
     if (!formData.nom) {
       alert('Veuillez entrer un nom de fournisseur');
       return;
     }
 
-    const newFournisseur = {
-      id: generateId(),
-      nom: formData.nom,
-      contact: formData.contact,
-      adresse: formData.adresse
-    };
-
-    dispatch({ type: ActionTypes.ADD_FOURNISSEUR, payload: newFournisseur });
+    if (USE_SUPABASE) {
+      await addFournisseur(formData.nom, formData.contact, formData.adresse);
+    } else {
+      const newFournisseur = {
+        id: generateId(),
+        nom: formData.nom,
+        contact: formData.contact,
+        adresse: formData.adresse
+      };
+      dispatch({ type: ActionTypes.ADD_FOURNISSEUR, payload: newFournisseur });
+    }
     setFormData({ nom: '', contact: '', adresse: '' });
     setShowModal(false);
   };
@@ -72,28 +76,36 @@ const Suppliers = () => {
     }
   };
 
-  const handleAddPaiement = () => {
+  const handleAddPaiement = async () => {
     if (!paiementData.fournisseurId || !paiementData.montant) {
       alert('Veuillez remplir tous les champs obligatoires');
       return;
     }
 
-    const newPaiement = {
-      id: generateId(),
-      fournisseurId: paiementData.fournisseurId,
-      montant: parseFloat(paiementData.montant),
-      date: paiementData.date,
-      description: paiementData.description || ''
-    };
-
-    dispatch({ type: ActionTypes.ADD_PAIEMENT, payload: newPaiement });
+    if (USE_SUPABASE) {
+      await addPaiement(
+        paiementData.fournisseurId,
+        parseFloat(paiementData.montant),
+        paiementData.date,
+        paiementData.description || ''
+      );
+    } else {
+      const newPaiement = {
+        id: generateId(),
+        fournisseurId: paiementData.fournisseurId,
+        montant: parseFloat(paiementData.montant),
+        date: paiementData.date,
+        description: paiementData.description || ''
+      };
+      dispatch({ type: ActionTypes.ADD_PAIEMENT, payload: newPaiement });
+    }
 
     // Auto-mark entries as paid if full payment
     const totalDue = calculateTotalDue(paiementData.fournisseurId);
     const newAmount = parseFloat(paiementData.montant);
     const totalPaye = calculateTotalPaye(paiementData.fournisseurId);
     
-    if (totalPaye + newAmount >= totalDue) {
+    if (!USE_SUPABASE && totalPaye + newAmount >= totalDue) {
       state.entrees.forEach(entree => {
         if (entree.fournisseurId === paiementData.fournisseurId && !entree.paye) {
           dispatch({ type: ActionTypes.MARK_ENTREE_PAYEE, payload: entree.id });
