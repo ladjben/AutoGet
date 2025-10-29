@@ -1,7 +1,7 @@
 import { useData, ActionTypes } from '../context/UnifiedDataContext';
 import { USE_SUPABASE } from '../config';
 import { useAuth } from '../context/AuthContext';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 
 const Suppliers = () => {
   const dataCtx = useData();
@@ -20,6 +20,8 @@ const Suppliers = () => {
   const [showModal, setShowModal] = useState(false);
   const [showPaiementModal, setShowPaiementModal] = useState(false);
   const [selectedFournisseur, setSelectedFournisseur] = useState(null);
+  const [entreesDetails, setEntreesDetails] = useState({}); // { entreeId: lignes[] }
+  const [loadingDetails, setLoadingDetails] = useState({});
   const [filters, setFilters] = useState({
     fournisseurId: '',
     dateStart: '',
@@ -39,35 +41,11 @@ const Suppliers = () => {
 
   const calculateTotalDue = (fournisseurId) => {
     let total = 0;
-    let filteredEntrees = state.entrees || [];
+    const entrees = getFournisseurEntrees(fournisseurId);
     
-    // Filtrer par fournisseur si sélectionné
-    if (filters.fournisseurId) {
-      filteredEntrees = filteredEntrees.filter(e => {
-        const fId = e.fournisseur_id ?? e.fournisseurId;
-        return fId === filters.fournisseurId;
-      });
-    }
-    
-    // Filtrer par date si sélectionné
-    if (filters.dateStart && filters.dateEnd) {
-      filteredEntrees = filteredEntrees.filter(e => {
-        const entreeDate = e.date;
-        return entreeDate >= filters.dateStart && entreeDate <= filters.dateEnd;
-      });
-    }
-    
-    filteredEntrees.forEach(entree => {
-      const fId = entree.fournisseur_id ?? entree.fournisseurId;
-      if (fId === fournisseurId && !entree.paye) {
-        let entreeValue = 0;
-        entree.lignes?.forEach(ligne => {
-          const produit = (state.produits || []).find(p => p.id === ligne.produitId);
-          if (produit) {
-            entreeValue += ligne.quantite * (produit.prix_achat ?? produit.prixAchat ?? 0);
-          }
-        });
-        total += entreeValue;
+    entrees.forEach(entree => {
+      if (!entree.paye) {
+        total += calculateEntreeValue(entree);
       }
     });
     return total;
@@ -121,6 +99,22 @@ const Suppliers = () => {
     if (!filters.fournisseurId) return state.fournisseurs || [];
     return (state.fournisseurs || []).filter(f => f.id === filters.fournisseurId);
   }, [state.fournisseurs, filters.fournisseurId]);
+
+  // Charger automatiquement les détails des entrées non payées pour le calcul
+  useEffect(() => {
+    if (USE_SUPABASE && dataCtx?.fetchEntreeDetails) {
+      // Charger les détails de toutes les entrées non payées une par une
+      const loadAll = async () => {
+        for (const entree of (state.entrees || [])) {
+          if (!entree.paye && !entreesDetails[entree.id] && !loadingDetails[entree.id]) {
+            await loadEntreeDetails(entree.id);
+          }
+        }
+      };
+      loadAll();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.entrees]);
 
   const handleAddFournisseur = async () => {
     if (!formData.nom) {
@@ -191,6 +185,77 @@ const Suppliers = () => {
   const getFournisseurName = (fournisseurId) => {
     const fournisseur = (state.fournisseurs || []).find(f => f.id === fournisseurId);
     return fournisseur ? fournisseur.nom : 'Inconnu';
+  };
+
+  const getProduitName = (produitId) => {
+    const produit = (state.produits || []).find(p => p.id === produitId);
+    return produit ? produit.nom : 'Produit inconnu';
+  };
+
+  const getProduitPrixAchat = (produitId) => {
+    const produit = (state.produits || []).find(p => p.id === produitId);
+    return produit ? (produit.prix_achat ?? produit.prixAchat ?? 0) : 0;
+  };
+
+  // Récupérer toutes les entrées d'un fournisseur avec leurs détails
+  const getFournisseurEntrees = (fournisseurId) => {
+    let filteredEntrees = (state.entrees || []).filter(e => {
+      const fId = e.fournisseur_id ?? e.fournisseurId;
+      return fId === fournisseurId;
+    });
+
+    // Appliquer les filtres de date si présents
+    if (filters.dateStart && filters.dateEnd) {
+      filteredEntrees = filteredEntrees.filter(e => {
+        const entreeDate = e.date;
+        return entreeDate >= filters.dateStart && entreeDate <= filters.dateEnd;
+      });
+    }
+
+    return filteredEntrees;
+  };
+
+  // Charger les détails d'une entrée (Supabase)
+  const loadEntreeDetails = async (entreeId) => {
+    if (!USE_SUPABASE || loadingDetails[entreeId] || entreesDetails[entreeId]) return;
+    
+    setLoadingDetails(prev => ({ ...prev, [entreeId]: true }));
+    try {
+      const details = await dataCtx?.fetchEntreeDetails?.(entreeId);
+      setEntreesDetails(prev => ({ ...prev, [entreeId]: details || [] }));
+    } catch (e) {
+      console.error('Erreur chargement détails entrée:', e);
+    } finally {
+      setLoadingDetails(prev => ({ ...prev, [entreeId]: false }));
+    }
+  };
+
+  // Calculer la valeur d'une entrée
+  const calculateEntreeValue = (entree) => {
+    if (!USE_SUPABASE && entree.lignes) {
+      // Mode local : lignes déjà incluses
+      return entree.lignes.reduce((sum, ligne) => {
+        return sum + (ligne.quantite || 0) * getProduitPrixAchat(ligne.produitId);
+      }, 0);
+    }
+    
+    // Mode Supabase : utiliser les détails chargés
+    if (USE_SUPABASE && entreesDetails[entree.id]) {
+      return entreesDetails[entree.id].reduce((sum, ligne) => {
+        const prix = ligne.produit_id?.prix_achat ?? 0;
+        return sum + (ligne.quantite || 0) * prix;
+      }, 0);
+    }
+    
+    return 0;
+  };
+
+  // Obtenir les lignes d'une entrée
+  const getEntreeLignes = (entree) => {
+    if (!USE_SUPABASE && entree.lignes) {
+      return entree.lignes;
+    }
+    return entreesDetails[entree.id] || [];
   };
 
   // Filtrer les paiements pour un fournisseur avec filtres de date
@@ -384,6 +449,121 @@ const Suppliers = () => {
                       <span>🗑️</span>
                       <span>Supprimer</span>
                     </button>
+                  )}
+                </div>
+
+                {/* Entrées de stock détaillées */}
+                <div className="mt-4 border-t border-gray-200 pt-4">
+                  <div className="flex justify-between items-center mb-3">
+                    <h4 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                      <span>📦</span>
+                      <span>Entrées de Stock ({getFournisseurEntrees(fournisseur.id).length})</span>
+                    </h4>
+                    {getFournisseurEntrees(fournisseur.id).length > 0 && (
+                      <div className="text-right">
+                        <p className="text-xs text-gray-500">Total marchandise reçue</p>
+                        <p className="text-base font-bold text-purple-700">
+                          {getFournisseurEntrees(fournisseur.id).reduce((sum, e) => sum + calculateEntreeValue(e), 0).toFixed(2)} DA
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                  {getFournisseurEntrees(fournisseur.id).length === 0 ? (
+                    <div className="bg-gray-50 rounded-lg p-4 text-center">
+                      <p className="text-sm text-gray-500">Aucune entrée enregistrée</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {getFournisseurEntrees(fournisseur.id).map((entree) => {
+                        const entreeValue = calculateEntreeValue(entree);
+                        const lignes = getEntreeLignes(entree);
+                        const needsLoad = USE_SUPABASE && !entreesDetails[entree.id] && !loadingDetails[entree.id];
+                        
+                        return (
+                          <div key={entree.id} className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                            <div className="flex justify-between items-start mb-3">
+                              <div>
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-lg">📥</span>
+                                  <h5 className="font-semibold text-gray-900">
+                                    Entrée du {entree.date}
+                                  </h5>
+                                  <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                    entree.paye
+                                      ? 'bg-green-100 text-green-800'
+                                      : 'bg-red-100 text-red-800'
+                                  }`}>
+                                    {entree.paye ? '✓ Payé' : 'Non Payé'}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-gray-600">ID: {entree.id.slice(0, 8)}</p>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-xs text-gray-500 mb-1">Montant total</p>
+                                <p className="text-lg font-bold text-blue-700">
+                                  {entreeValue.toFixed(2)} DA
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Produits dans cette entrée */}
+                            {needsLoad && (
+                              <button
+                                onClick={() => loadEntreeDetails(entree.id)}
+                                className="w-full text-sm text-blue-600 hover:text-blue-800 underline mb-2"
+                              >
+                                ▶ Charger les détails produits
+                              </button>
+                            )}
+
+                            {loadingDetails[entree.id] && (
+                              <p className="text-sm text-gray-500 text-center py-2">Chargement...</p>
+                            )}
+
+                            {lignes.length > 0 && (
+                              <div className="mt-3 border-t border-blue-300 pt-3">
+                                <p className="text-xs font-semibold text-gray-700 mb-2">Produits ({lignes.length}):</p>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                  {lignes.map((ligne, idx) => {
+                                    const produitNom = !USE_SUPABASE
+                                      ? getProduitName(ligne.produitId)
+                                      : ligne.produit_id?.nom || 'Produit inconnu';
+                                    const quantite = ligne.quantite || 0;
+                                    const prixUnitaire = !USE_SUPABASE
+                                      ? getProduitPrixAchat(ligne.produitId)
+                                      : ligne.produit_id?.prix_achat ?? 0;
+                                    const ligneTotal = quantite * prixUnitaire;
+
+                                    return (
+                                      <div key={idx} className="bg-white rounded p-2 border border-blue-100">
+                                        <div className="flex justify-between items-start">
+                                          <div className="flex-1">
+                                            <p className="text-sm font-medium text-gray-900">{produitNom}</p>
+                                            <div className="flex gap-3 mt-1 text-xs">
+                                              <span className="text-blue-600">Qté: {quantite}</span>
+                                              <span className="text-gray-600">Prix: {prixUnitaire.toFixed(2)} DA</span>
+                                            </div>
+                                          </div>
+                                          <p className="text-sm font-bold text-green-600">{ligneTotal.toFixed(2)} DA</p>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                                <div className="mt-2 pt-2 border-t border-blue-200 flex justify-between items-center">
+                                  <p className="text-xs font-semibold text-gray-700">Total de l'entrée:</p>
+                                  <p className="text-base font-bold text-blue-700">{entreeValue.toFixed(2)} DA</p>
+                                </div>
+                              </div>
+                            )}
+
+                            {!needsLoad && lignes.length === 0 && (
+                              <p className="text-sm text-gray-500 text-center py-2">Aucun produit dans cette entrée</p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   )}
                 </div>
 
