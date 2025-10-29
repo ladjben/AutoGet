@@ -1,7 +1,7 @@
 import { useData, ActionTypes } from '../context/UnifiedDataContext';
 import { USE_SUPABASE } from '../config';
 import { useAuth } from '../context/AuthContext';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 
 const Suppliers = () => {
   const dataCtx = useData();
@@ -40,19 +40,14 @@ const Suppliers = () => {
     description: ''
   });
 
-  // Helper functions - déclarer en premier
-  const getProduitName = (produitId) => {
-    const produit = (state.produits || []).find(p => p.id === produitId);
-    return produit ? produit.nom : 'Produit inconnu';
-  };
-
-  const getProduitPrixAchat = (produitId) => {
+  // Helper functions - déclarer en premier avec useCallback pour stabilité
+  const getProduitPrixAchat = useCallback((produitId) => {
     const produit = (state.produits || []).find(p => p.id === produitId);
     return produit ? (produit.prix_achat ?? produit.prixAchat ?? 0) : 0;
-  };
+  }, [state.produits]);
 
   // Récupérer toutes les entrées d'un fournisseur avec leurs détails
-  const getFournisseurEntrees = (fournisseurId) => {
+  const getFournisseurEntrees = useCallback((fournisseurId) => {
     let filteredEntrees = (state.entrees || []).filter(e => {
       const fId = e.fournisseur_id ?? e.fournisseurId;
       return fId === fournisseurId;
@@ -67,10 +62,18 @@ const Suppliers = () => {
     }
 
     return filteredEntrees;
-  };
+  }, [state.entrees, filters.dateStart, filters.dateEnd]);
+
+  // Obtenir les lignes d'une entrée - DOIT être déclaré tôt car utilisé dans globalTotals
+  const getEntreeLignes = useCallback((entree) => {
+    if (!USE_SUPABASE && entree.lignes) {
+      return entree.lignes;
+    }
+    return entreesDetails[entree.id] || [];
+  }, [entreesDetails]);
 
   // Calculer la valeur d'une entrée
-  const calculateEntreeValue = (entree) => {
+  const calculateEntreeValue = useCallback((entree) => {
     if (!USE_SUPABASE && entree.lignes) {
       // Mode local : lignes déjà incluses
       return entree.lignes.reduce((sum, ligne) => {
@@ -87,9 +90,9 @@ const Suppliers = () => {
     }
     
     return 0;
-  };
+  }, [getProduitPrixAchat, entreesDetails]);
 
-  const calculateTotalDue = (fournisseurId) => {
+  const calculateTotalDue = useCallback((fournisseurId) => {
     let total = 0;
     const entrees = getFournisseurEntrees(fournisseurId);
     
@@ -99,9 +102,9 @@ const Suppliers = () => {
       }
     });
     return total;
-  };
+  }, [getFournisseurEntrees, calculateEntreeValue]);
 
-  const calculateTotalPaye = (fournisseurId) => {
+  const calculateTotalPaye = useCallback((fournisseurId) => {
     let total = 0;
     let filteredPaiements = state.paiements || [];
     
@@ -129,13 +132,36 @@ const Suppliers = () => {
       }
     });
     return total;
-  };
+  }, [state.paiements, filters.fournisseurId, filters.dateStart, filters.dateEnd]);
+
+  const getProduitName = useCallback((produitId) => {
+    const produit = (state.produits || []).find(p => p.id === produitId);
+    return produit ? produit.nom : 'Produit inconnu';
+  }, [state.produits]);
 
   // Filtrer les fournisseurs - DOIT être déclaré avant globalTotals
   const filteredFournisseurs = useMemo(() => {
     if (!filters.fournisseurId) return state.fournisseurs || [];
     return (state.fournisseurs || []).filter(f => f.id === filters.fournisseurId);
   }, [state.fournisseurs, filters.fournisseurId]);
+
+  // Filtrer les paiements pour un fournisseur avec filtres de date - DOIT être déclaré avant globalTotals
+  const getFilteredPaiements = (fournisseurId) => {
+    let paiements = (state.paiements || []).filter(p => {
+      // Mode Supabase: fournisseur_id, Mode Local: fournisseurId
+      const fId = p.fournisseur_id ?? p.fournisseurId;
+      return fId === fournisseurId;
+    });
+
+    if (filters.dateStart && filters.dateEnd) {
+      paiements = paiements.filter(p => {
+        const paiementDate = p.date;
+        return paiementDate >= filters.dateStart && paiementDate <= filters.dateEnd;
+      });
+    }
+
+    return paiements.reverse();
+  };
 
   // Calculer tous les totaux globaux
   const globalTotals = useMemo(() => {
@@ -207,7 +233,19 @@ const Suppliers = () => {
       moyennePayeParFournisseur,
       tauxPaiement
     };
-  }, [state.fournisseurs, state.entrees, state.paiements, filters, filteredFournisseurs]);
+  }, [
+    state.fournisseurs,
+    state.entrees,
+    state.paiements,
+    filters,
+    filteredFournisseurs,
+    entreesDetails,
+    calculateTotalDue,
+    calculateTotalPaye,
+    getFournisseurEntrees,
+    calculateEntreeValue,
+    getEntreeLignes
+  ]);
 
   // Charger automatiquement les détails des entrées non payées pour le calcul
   useEffect(() => {
@@ -349,31 +387,6 @@ const Suppliers = () => {
     }
   };
 
-  // Obtenir les lignes d'une entrée
-  const getEntreeLignes = (entree) => {
-    if (!USE_SUPABASE && entree.lignes) {
-      return entree.lignes;
-    }
-    return entreesDetails[entree.id] || [];
-  };
-
-  // Filtrer les paiements pour un fournisseur avec filtres de date
-  const getFilteredPaiements = (fournisseurId) => {
-    let paiements = (state.paiements || []).filter(p => {
-      // Mode Supabase: fournisseur_id, Mode Local: fournisseurId
-      const fId = p.fournisseur_id ?? p.fournisseurId;
-      return fId === fournisseurId;
-    });
-
-    if (filters.dateStart && filters.dateEnd) {
-      paiements = paiements.filter(p => {
-        const paiementDate = p.date;
-        return paiementDate >= filters.dateStart && paiementDate <= filters.dateEnd;
-      });
-    }
-
-    return paiements.reverse();
-  };
 
   return (
     <div className="space-y-6">
