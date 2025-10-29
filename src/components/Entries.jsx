@@ -431,8 +431,8 @@ const Entries = () => {
                   </div>
                 )}
               </div>
-              )
-            })
+            )
+          })
           )}
         </div>
       </div>
