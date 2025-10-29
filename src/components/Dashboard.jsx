@@ -409,7 +409,8 @@ const Dashboard = () => {
       </Card>
       )}
 
-      {/* Statistiques par Période - Visible pour tous */}
+      {/* Statistiques par Période - Admin seulement */}
+      {isAdmin() && (
       <Card>
         <CardHeader>
           <CardTitle>Statistiques par Période</CardTitle>
@@ -494,14 +495,17 @@ const Dashboard = () => {
           </div>
         </CardContent>
       </Card>
+      )}
 
-      {/* Produits - Visible pour tous */}
+      {/* Produits */}
       <Card>
         <CardHeader>
           <CardTitle>Produits</CardTitle>
           <CardDescription>{allStats.totalProduits} produit(s) enregistré(s)</CardDescription>
         </CardHeader>
         <CardContent>
+          {/* Résumé Global - Admin seulement */}
+          {isAdmin() && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <Card>
               <CardContent className="pt-6">
@@ -522,6 +526,7 @@ const Dashboard = () => {
               </CardContent>
             </Card>
           </div>
+          )}
           {(state.produits || []).length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               Aucun produit enregistré
