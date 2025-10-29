@@ -18,6 +18,11 @@ const Entries = () => {
   const [currentLigne, setCurrentLigne] = useState({ produitId: '', quantite: '' })
   const [detail, setDetail] = useState({ openFor: null, rows: [] })
   const [creating, setCreating] = useState(false)
+  const [filters, setFilters] = useState({
+    fournisseurId: '',
+    dateStart: '',
+    dateEnd: ''
+  })
 
   // ----- SELECTION DES DONNÉES SELON LE MODE -----
   const fournisseurs = useMemo(() => {
@@ -142,23 +147,26 @@ const Entries = () => {
     }
   }
 
-  const handleMarkPaye = async (entreeId) => {
-    if (!window.confirm('Marquer cette entrée comme payée ?')) return
-    if (USE_SUPABASE) {
-      // simple update côté BDD
-      const { error } = await dataCtx?.supabase
-        ?.from('entrees')
-        .update({ paye: true })
-        .eq('id', entreeId)
-      if (error) {
-        alert('Erreur: ' + error.message)
-      } else {
-        await dataCtx?.fetchEntrees?.()
-      }
-    } else {
-      dataCtx?.dispatch?.({ type: dataCtx?.ActionTypes?.MARK_ENTREE_PAYEE ?? ActionTypes.MARK_ENTREE_PAYEE, payload: entreeId })
+  // Filtrer les entrées selon les filtres
+  const filteredEntrees = useMemo(() => {
+    let filtered = entrees || []
+    
+    if (filters.fournisseurId) {
+      filtered = filtered.filter(e => {
+        const fId = e.fournisseur_id ?? e.fournisseurId
+        return fId === filters.fournisseurId
+      })
     }
-  }
+    
+    if (filters.dateStart && filters.dateEnd) {
+      filtered = filtered.filter(e => {
+        const entreeDate = e.date
+        return entreeDate >= filters.dateStart && entreeDate <= filters.dateEnd
+      })
+    }
+    
+    return filtered
+  }, [entrees, filters])
 
   const handleDeleteEntree = async (entreeId) => {
     if (!window.confirm('Êtes-vous sûr de vouloir supprimer cette entrée ?')) return
@@ -186,22 +194,73 @@ const Entries = () => {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900">Entrées de Stock</h1>
+        <h1 className="text-3xl font-bold text-gray-900">📥 Entrées de Stock</h1>
         <button
           onClick={() => setShowModal(true)}
-          className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+          className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-sm transition-colors flex items-center gap-2"
         >
-          + Nouvelle Entrée
+          <span>+</span>
+          <span>Nouvelle Entrée</span>
         </button>
       </div>
 
+      {/* Filtres */}
+      <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
+        <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+          <span>🔍</span>
+          <span>Filtres</span>
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Fournisseur</label>
+            <select
+              value={filters.fournisseurId}
+              onChange={(e) => setFilters({ ...filters, fournisseurId: e.target.value })}
+              className="w-full border border-gray-300 rounded-md py-2 px-3 text-sm"
+            >
+              <option value="">Tous les fournisseurs</option>
+              {fournisseurs.map((f) => (
+                <option key={f.id} value={f.id}>{f.nom}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Date début</label>
+            <input
+              type="date"
+              value={filters.dateStart}
+              onChange={(e) => setFilters({ ...filters, dateStart: e.target.value })}
+              className="w-full border border-gray-300 rounded-md py-2 px-3 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Date fin</label>
+            <input
+              type="date"
+              value={filters.dateEnd}
+              onChange={(e) => setFilters({ ...filters, dateEnd: e.target.value })}
+              className="w-full border border-gray-300 rounded-md py-2 px-3 text-sm"
+            />
+          </div>
+        </div>
+        {(filters.fournisseurId || filters.dateStart || filters.dateEnd) && (
+          <button
+            onClick={() => setFilters({ fournisseurId: '', dateStart: '', dateEnd: '' })}
+            className="mt-3 text-sm text-red-600 hover:text-red-800 underline"
+          >
+            Réinitialiser les filtres
+          </button>
+        )}
+      </div>
+
       {/* Liste des entrées */}
-      <div className="bg-white shadow overflow-hidden sm:rounded-md">
-        <div className="divide-y divide-gray-200">
-          {(!entrees || entrees.length === 0) ? (
-            <div className="p-6 text-center text-gray-500">Aucune entrée enregistrée</div>
-          ) : (
-            entrees.map((entree) => {
+      <div className="space-y-4">
+        {(!filteredEntrees || filteredEntrees.length === 0) ? (
+          <div className="bg-white rounded-lg border border-gray-200 p-8 text-center text-gray-500">
+            <p className="text-lg">Aucune entrée trouvée</p>
+          </div>
+        ) : (
+          filteredEntrees.map((entree) => {
               // MODE LOCAL : calcul à partir des lignes stockées
               const entreeValueLocal = USE_SUPABASE ? null : calculateEntreeValueLocal(entree)
               // Champs différents selon la source
@@ -269,16 +328,6 @@ const Entries = () => {
 
                       {/* Groupe de boutons d'action */}
                       <div className="flex flex-col gap-2 w-full">
-                        {!paye && isAdmin() && (
-                          <button
-                            onClick={() => handleMarkPaye(id)}
-                            className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
-                          >
-                            <span>✓</span>
-                            <span>Marquer Payé</span>
-                          </button>
-                        )}
-
                         {USE_SUPABASE && (
                           <button
                             onClick={() => showDetails(id)}
