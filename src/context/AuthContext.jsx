@@ -2,23 +2,8 @@ import { createContext, useContext, useState, useEffect } from 'react';
 
 const AuthContext = createContext();
 
-// Comptes par défaut
-const DEFAULT_ACCOUNTS = [
-  {
-    id: 'admin1',
-    username: 'admin',
-    password: 'admin123',
-    role: 'admin',
-    name: 'Administrateur'
-  },
-  {
-    id: 'user1',
-    username: 'user',
-    password: 'user123',
-    role: 'user',
-    name: 'Utilisateur'
-  }
-];
+// Comptes par défaut - REMOVED pour ne pas afficher de comptes de démonstration
+const DEFAULT_ACCOUNTS = [];
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -53,7 +38,7 @@ export const AuthProvider = ({ children }) => {
     return { success: false, error: 'Nom d\'utilisateur ou mot de passe incorrect' };
   };
 
-  const signup = async ({ username, password, nom, role = 'user' }) => {
+  const signup = async ({ username, password, name, role = 'user' }) => {
     try {
       // Load existing accounts
       let accounts = JSON.parse(localStorage.getItem('auth_accounts')) || DEFAULT_ACCOUNTS;
@@ -68,8 +53,8 @@ export const AuthProvider = ({ children }) => {
         id: `user_${Date.now()}`,
         username,
         password,
-        role, // Always 'user' for new signups
-        name: nom
+        role, // 'user' or 'admin' depending on selection
+        name: name || username
       };
       
       // Add to accounts
