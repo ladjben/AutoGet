@@ -6,6 +6,7 @@ const Navigation = ({ activeView, setActiveView, user, logout, isAdmin, isUser }
     { id: 'suppliers', label: 'Fournisseurs', icon: '🏢' },
     { id: 'depenses', label: 'Dépenses', icon: '💰' },
     { id: 'colis', label: 'Colis Envoyés', icon: '📦' },
+    { id: 'salaries', label: 'Salariés', icon: '👥' },
   ];
 
   return (

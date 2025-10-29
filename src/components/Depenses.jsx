@@ -3,6 +3,15 @@ import { USE_SUPABASE } from '../config';
 import { useAuth } from '../context/AuthContext';
 import { useState, useMemo, useEffect } from 'react';
 import { filterByPeriod } from '../utils/dateUtils';
+import { useToast } from '@/hooks/use-toast';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { Plus, ShoppingCart, Calendar, Edit, Trash2, TrendingUp, List, X } from 'lucide-react';
 
 const Depenses = () => {
   const dataCtx = useData();
@@ -22,20 +31,19 @@ const Depenses = () => {
   const addDepenseCategory = dataCtx?.addDepenseCategory;
   const deleteDepenseCategory = dataCtx?.deleteDepenseCategory;
   const { isAdmin } = useAuth();
+  const { toast } = useToast();
 
-  // Récupérer les catégories selon le mode
   const depenseCategories = USE_SUPABASE 
     ? (dataCtx?.depenseCategories ?? [])
     : (state.depenseCategories ?? []);
   const [showModal, setShowModal] = useState(false);
   const [editingDepense, setEditingDepense] = useState(null);
-  const [searchType, setSearchType] = useState('all'); // 'all', 'single', 'range'
+  const [searchType, setSearchType] = useState('all');
   const [singleDate, setSingleDate] = useState('');
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
   const [showCategoriesModal, setShowCategoriesModal] = useState(false);
   const [newCategory, setNewCategory] = useState('');
 
-  // Charger les catégories au démarrage (mode Supabase)
   useEffect(() => {
     if (USE_SUPABASE && fetchDepenseCategories) {
       fetchDepenseCategories();
@@ -43,13 +51,10 @@ const Depenses = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   
-  // Utiliser les catégories depuis la table (mode Supabase) ou extraire depuis dépenses (mode local)
   const categoriesExistantes = useMemo(() => {
     if (USE_SUPABASE) {
-      // Mode Supabase : utiliser les catégories de la table
       return depenseCategories.map(cat => cat.nom).sort();
     } else {
-      // Mode local : extraire depuis les dépenses
       if (!state.depenses || !Array.isArray(state.depenses)) return [];
       const noms = new Set();
       state.depenses.forEach(d => {
@@ -68,7 +73,6 @@ const Depenses = () => {
     date: new Date().toISOString().split('T')[0]
   });
 
-  // Filter depenses based on search
   const getFilteredDepenses = () => {
     if (!state.depenses || !Array.isArray(state.depenses)) {
       return [];
@@ -88,16 +92,14 @@ const Depenses = () => {
 
   const filteredDepenses = getFilteredDepenses();
 
-  // Calculate total
   const calculateTotal = () => {
     return filteredDepenses.reduce((sum, d) => sum + (d.montant || 0), 0);
   };
 
-  // Grouper les dépenses par nom et calculer les totaux
   const depensesParNom = useMemo(() => {
     const groupes = {};
     filteredDepenses.forEach(depense => {
-      const nom = depense.nom || depense.description || 'Sans nom';
+      const nom = depense.depense_categories?.nom || depense.nom || 'Sans nom';
       if (!groupes[nom]) {
         groupes[nom] = {
           nom,
@@ -111,35 +113,54 @@ const Depenses = () => {
       groupes[nom].depenses.push(depense);
     });
     
-    // Trier par total décroissant
     return Object.values(groupes).sort((a, b) => b.total - a.total);
   }, [filteredDepenses]);
 
   const handleAddDepense = async () => {
     if (!formData.nom || !formData.montant || !formData.date) {
-      alert('Veuillez remplir le nom, le montant et la date');
+      toast({
+        variant: "destructive",
+        title: "Erreur",
+        description: "Veuillez remplir le nom, le montant et la date",
+      });
       return;
     }
 
-    if (USE_SUPABASE) {
-      await addDepense(formData.nom, parseFloat(formData.montant), formData.description || '', formData.date);
-    } else {
-      const newDepense = {
-        id: generateId(),
-        nom: formData.nom,
-        montant: parseFloat(formData.montant),
-        description: formData.description,
-        date: formData.date
-      };
-      dispatch({ type: ActionTypes.ADD_DEPENSE, payload: newDepense });
+    try {
+      if (USE_SUPABASE) {
+        await addDepense(formData.nom, parseFloat(formData.montant), formData.description || '', formData.date);
+      } else {
+        const newDepense = {
+          id: generateId(),
+          nom: formData.nom,
+          montant: parseFloat(formData.montant),
+          description: formData.description,
+          date: formData.date
+        };
+        dispatch({ type: ActionTypes.ADD_DEPENSE, payload: newDepense });
+      }
+      resetForm();
+      setShowModal(false);
+      toast({
+        title: "Succès",
+        description: "Dépense ajoutée avec succès",
+      });
+    } catch (e) {
+      toast({
+        variant: "destructive",
+        title: "Erreur",
+        description: e?.message || 'Erreur inconnue',
+      });
     }
-    resetForm();
-    setShowModal(false);
   };
 
   const handleUpdateDepense = async () => {
     if (!formData.nom || !formData.montant || !formData.date) {
-      alert('Veuillez remplir tous les champs obligatoires');
+      toast({
+        variant: "destructive",
+        title: "Erreur",
+        description: "Veuillez remplir tous les champs obligatoires",
+      });
       return;
     }
 
@@ -164,8 +185,16 @@ const Depenses = () => {
       resetForm();
       setShowModal(false);
       setEditingDepense(null);
+      toast({
+        title: "Succès",
+        description: "Dépense mise à jour avec succès",
+      });
     } catch (e) {
-      alert('Erreur lors de la mise à jour: ' + (e?.message || 'inconnue'));
+      toast({
+        variant: "destructive",
+        title: "Erreur",
+        description: e?.message || 'Erreur inconnue',
+      });
       console.error('Erreur updateDepense:', e);
     }
   };
@@ -181,15 +210,22 @@ const Depenses = () => {
       } else {
         dispatch({ type: ActionTypes.DELETE_DEPENSE, payload: id });
       }
+      toast({
+        title: "Succès",
+        description: "Dépense supprimée avec succès",
+      });
     } catch (e) {
-      alert('Erreur lors de la suppression: ' + (e?.message || 'inconnue'));
+      toast({
+        variant: "destructive",
+        title: "Erreur",
+        description: e?.message || 'Erreur inconnue',
+      });
       console.error('Erreur deleteDepense:', e);
     }
   };
 
   const openEditModal = (depense) => {
     setEditingDepense(depense);
-    // Utiliser le nom de la catégorie si disponible (Supabase), sinon le nom direct
     const nomDepense = depense.depense_categories?.nom || depense.nom || '';
     setFormData({
       nom: nomDepense,
@@ -204,10 +240,13 @@ const Depenses = () => {
     setFormData({ nom: '', montant: '', description: '', date: new Date().toISOString().split('T')[0] });
   };
 
-  // Gérer les catégories
   const handleAddCategory = async () => {
     if (!newCategory.trim()) {
-      alert('Veuillez entrer un nom de catégorie');
+      toast({
+        variant: "destructive",
+        title: "Erreur",
+        description: "Veuillez entrer un nom de catégorie",
+      });
       return;
     }
 
@@ -215,13 +254,23 @@ const Depenses = () => {
       if (USE_SUPABASE && addDepenseCategory) {
         await addDepenseCategory(newCategory.trim());
         setNewCategory('');
+        toast({
+          title: "Succès",
+          description: "Catégorie créée avec succès",
+        });
       } else {
-        // Mode local : la catégorie sera créée quand on crée une dépense avec ce nom
-        alert('En mode local, créez une dépense avec ce nom pour créer la catégorie');
+        toast({
+          title: "Information",
+          description: "En mode local, créez une dépense avec ce nom pour créer la catégorie",
+        });
         setNewCategory('');
       }
     } catch (e) {
-      alert('Erreur lors de la création de la catégorie: ' + (e?.message || 'inconnue'));
+      toast({
+        variant: "destructive",
+        title: "Erreur",
+        description: e?.message || 'Erreur inconnue',
+      });
       console.error('Erreur addDepenseCategory:', e);
     }
   };
@@ -234,550 +283,617 @@ const Depenses = () => {
     try {
       if (USE_SUPABASE && deleteDepenseCategory) {
         await deleteDepenseCategory(id);
+        toast({
+          title: "Succès",
+          description: "Catégorie supprimée avec succès",
+        });
       } else {
-        alert('Suppression de catégorie non disponible en mode local');
+        toast({
+          title: "Information",
+          description: "Suppression de catégorie non disponible en mode local",
+        });
       }
     } catch (e) {
-      alert('Erreur lors de la suppression: ' + (e?.message || 'inconnue'));
+      toast({
+        variant: "destructive",
+        title: "Erreur",
+        description: e?.message || 'Erreur inconnue',
+      });
       console.error('Erreur deleteDepenseCategory:', e);
     }
   };
 
+  // Statistiques par période
+  const periodStats = useMemo(() => {
+    const today = filterByPeriod(state.depenses || [], 'date', 'today');
+    const week = filterByPeriod(state.depenses || [], 'date', 'week');
+    const month = filterByPeriod(state.depenses || [], 'date', 'month');
+    
+    const calcStats = (items) => {
+      const total = items.reduce((sum, d) => sum + (d.montant || 0), 0);
+      const count = items.length;
+      const moyenne = count > 0 ? total / count : 0;
+      const categories = new Set(items.map(d => d.depense_categories?.nom || d.nom || 'Sans nom').filter(Boolean));
+      return { total, count, moyenne, categories: categories.size };
+    };
+    
+    return {
+      today: calcStats(today),
+      week: calcStats(week),
+      month: calcStats(month)
+    };
+  }, [state.depenses]);
+
+  // Statistiques globales
+  const globalStats = useMemo(() => {
+    const depenses = state.depenses || [];
+    const total = depenses.reduce((sum, d) => sum + (d.montant || 0), 0);
+    const count = depenses.length;
+    const moyenne = count > 0 ? total / count : 0;
+    const categories = new Set(depenses.map(d => d.depense_categories?.nom || d.nom || 'Sans nom').filter(Boolean));
+    
+    return {
+      total,
+      count,
+      moyenne,
+      nombreCategories: categories.size
+    };
+  }, [state.depenses]);
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900">Dépenses</h1>
+        <h1 className="text-3xl font-bold text-foreground">Dépenses</h1>
         <div className="flex gap-3">
-          <button
-            onClick={() => setShowCategoriesModal(true)}
-            className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg shadow-sm transition-colors flex items-center gap-2"
-          >
-            <span>📋</span>
-            <span>Gérer les Catégories</span>
-          </button>
-          <button
-            onClick={() => {
+          <Dialog open={showCategoriesModal} onOpenChange={setShowCategoriesModal}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <List className="h-4 w-4 mr-2" />
+                Gérer les Catégories
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Gérer les Catégories de Dépenses</DialogTitle>
+                <DialogDescription>
+                  Créez et gérez vos catégories de dépenses
+                </DialogDescription>
+              </DialogHeader>
+              
+              <div className="space-y-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Créer une nouvelle catégorie</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex gap-2">
+                      <Input
+                        type="text"
+                        value={newCategory}
+                        onChange={(e) => setNewCategory(e.target.value)}
+                        placeholder="Ex: Transport, Loyer, Nourriture..."
+                        onKeyPress={(e) => e.key === 'Enter' && handleAddCategory()}
+                      />
+                      <Button onClick={handleAddCategory}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Ajouter
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      {USE_SUPABASE 
+                        ? 'La catégorie sera créée immédiatement dans la base de données.'
+                        : 'En mode local, créez une dépense avec ce nom pour créer la catégorie.'
+                      }
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <div>
+                  <h4 className="text-sm font-semibold mb-3">
+                    Catégories existantes ({depenseCategories.length})
+                  </h4>
+                  {depenseCategories.length === 0 ? (
+                    <Card>
+                      <CardContent className="pt-6">
+                        <div className="text-center text-muted-foreground py-4">
+                          <p className="text-sm">Aucune catégorie créée encore</p>
+                          <p className="text-xs mt-1">Créez votre première dépense pour voir la catégorie apparaître ici</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                      {depenseCategories.map((cat) => {
+                        const count = (state.depenses || []).filter(d => 
+                          USE_SUPABASE 
+                            ? (d.categorie_id === cat.id || d.depense_categories?.id === cat.id)
+                            : d.nom === cat.nom
+                        ).length;
+                        const total = (state.depenses || []).filter(d => 
+                          USE_SUPABASE 
+                            ? (d.categorie_id === cat.id || d.depense_categories?.id === cat.id)
+                            : d.nom === cat.nom
+                        ).reduce((sum, d) => sum + (d.montant || 0), 0);
+                        return (
+                          <Card key={cat.id || cat.nom}>
+                            <CardContent className="pt-6">
+                              <div className="flex items-center justify-between mb-2">
+                                <h5 className="font-semibold text-sm">{cat.nom}</h5>
+                                {USE_SUPABASE && isAdmin() && (
+                                  <Button
+                                    onClick={() => handleDeleteCategory(cat.id)}
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 w-6 p-0"
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </Button>
+                                )}
+                              </div>
+                              <p className="text-xs text-muted-foreground mb-1">{count} {count === 1 ? 'dépense' : 'dépenses'}</p>
+                              <p className="text-sm font-semibold">{total.toFixed(2)} DA</p>
+                            </CardContent>
+                          </Card>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={showModal} onOpenChange={(open) => {
+            setShowModal(open);
+            if (!open) {
               setEditingDepense(null);
               resetForm();
-              setShowModal(true);
-            }}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-sm transition-colors flex items-center gap-2"
-          >
-            <span>+</span>
-            <span>Nouvelle Dépense</span>
-          </button>
+            }
+          }}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Nouvelle Dépense
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{editingDepense ? 'Modifier la Dépense' : 'Nouvelle Dépense'}</DialogTitle>
+                <DialogDescription>
+                  {editingDepense ? 'Modifiez les informations de la dépense' : 'Ajoutez une nouvelle dépense'}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium mb-2 block">
+                    Nom de la dépense (Catégorie) *
+                  </label>
+                  <div className="relative">
+                    <Input
+                      type="text"
+                      list="categories-list"
+                      value={formData.nom}
+                      onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
+                      placeholder="Tapez un nom ou sélectionnez une catégorie existante..."
+                      required
+                    />
+                    {categoriesExistantes.length > 0 && (
+                      <datalist id="categories-list">
+                        {categoriesExistantes.map((cat) => (
+                          <option key={cat} value={cat} />
+                        ))}
+                      </datalist>
+                    )}
+                  </div>
+                  <div className="mt-2 flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="link"
+                      size="sm"
+                      onClick={() => {
+                        setShowModal(false);
+                        setShowCategoriesModal(true);
+                      }}
+                      className="h-auto p-0 text-xs"
+                    >
+                      <List className="h-3 w-3 mr-1" />
+                      Gérer les catégories
+                    </Button>
+                    {categoriesExistantes.length > 0 && (
+                      <span className="text-xs text-muted-foreground">
+                        {categoriesExistantes.length} {categoriesExistantes.length === 1 ? 'catégorie' : 'catégories'} disponible{categoriesExistantes.length > 1 ? 's' : ''}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Montant (DA) *</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={formData.montant}
+                    onChange={(e) => setFormData({ ...formData, montant: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Date *</label>
+                  <Input
+                    type="date"
+                    value={formData.date}
+                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Description/Commentaire</label>
+                  <Textarea
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    rows={3}
+                    placeholder="Détails supplémentaires de la dépense..."
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowModal(false);
+                    setEditingDepense(null);
+                    resetForm();
+                  }}
+                >
+                  Annuler
+                </Button>
+                <Button onClick={editingDepense ? handleUpdateDepense : handleAddDepense}>
+                  {editingDepense ? 'Modifier' : 'Ajouter'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
-
-      {/* Modal Gestion des Catégories */}
-      {showCategoriesModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-lg bg-white">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold text-gray-900">📋 Gérer les Catégories de Dépenses</h3>
-              <button
-                onClick={() => {
-                  setShowCategoriesModal(false);
-                  setNewCategory('');
-                }}
-                className="text-gray-500 hover:text-gray-700 text-2xl"
-              >
-                ×
-              </button>
-            </div>
-            
-            {/* Créer une nouvelle catégorie */}
-            <div className="mb-6 p-4 bg-purple-50 rounded-lg border-2 border-purple-200">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Créer une nouvelle catégorie</label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={newCategory}
-                  onChange={(e) => setNewCategory(e.target.value)}
-                  placeholder="Ex: Transport, Loyer, Nourriture..."
-                  className="flex-1 border border-gray-300 rounded-md shadow-sm py-2 px-3"
-                  onKeyPress={(e) => e.key === 'Enter' && handleAddCategory()}
-                />
-                <button
-                  onClick={handleAddCategory}
-                  className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg"
-                >
-                  ➕ Ajouter
-                </button>
-              </div>
-              <p className="text-xs text-gray-500 mt-2">
-                {USE_SUPABASE 
-                  ? '💡 La catégorie sera créée immédiatement dans la base de données.'
-                  : '💡 En mode local, créez une dépense avec ce nom pour créer la catégorie.'
-                }
-              </p>
-            </div>
-
-            {/* Liste des catégories existantes */}
-            <div>
-              <h4 className="text-sm font-semibold text-gray-700 mb-3">
-                Catégories existantes ({depenseCategories.length})
-              </h4>
-              {depenseCategories.length === 0 ? (
-                <div className="bg-gray-50 rounded-lg p-4 text-center">
-                  <p className="text-sm text-gray-500">Aucune catégorie créée encore</p>
-                  <p className="text-xs text-gray-400 mt-1">Créez votre première dépense pour voir la catégorie apparaître ici</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                  {depenseCategories.map((cat) => {
-                    const count = (state.depenses || []).filter(d => 
-                      USE_SUPABASE 
-                        ? (d.categorie_id === cat.id || d.depense_categories?.id === cat.id)
-                        : d.nom === cat.nom
-                    ).length;
-                    const total = (state.depenses || []).filter(d => 
-                      USE_SUPABASE 
-                        ? (d.categorie_id === cat.id || d.depense_categories?.id === cat.id)
-                        : d.nom === cat.nom
-                    ).reduce((sum, d) => sum + (d.montant || 0), 0);
-                    return (
-                      <div key={cat.id || cat.nom} className="bg-white border-2 border-purple-200 rounded-lg p-3 hover:shadow-md transition-shadow">
-                        <div className="flex items-center justify-between mb-2">
-                          <h5 className="font-bold text-gray-900 text-sm">{cat.nom}</h5>
-                          {USE_SUPABASE && isAdmin() && (
-                            <button
-                              onClick={() => handleDeleteCategory(cat.id)}
-                              className="text-red-600 hover:text-red-800 text-xs px-2 py-1 rounded hover:bg-red-50 transition-colors"
-                              title="Supprimer la catégorie"
-                            >
-                              🗑️
-                            </button>
-                          )}
-                        </div>
-                        <p className="text-xs text-gray-600 mb-1">{count} {count === 1 ? 'dépense' : 'dépenses'}</p>
-                        <p className="text-sm font-semibold text-purple-700">{total.toFixed(2)} DA</p>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            <div className="mt-6 flex justify-end">
-              <button
-                onClick={() => {
-                  setShowCategoriesModal(false);
-                  setNewCategory('');
-                }}
-                className="px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400"
-              >
-                Fermer
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Search Section */}
-      <div className="bg-gradient-to-br from-gray-50 to-white rounded-xl border-3 border-gray-300 shadow-lg p-5">
-        <h2 className="text-base font-extrabold text-gray-800 mb-4 flex items-center gap-2">
-          <span className="bg-blue-500 text-white p-2 rounded-lg">🔍</span>
-          <span>Recherche par Date</span>
-        </h2>
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Search Type Selector */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Type de recherche</label>
-            <select
-              value={searchType}
-              onChange={(e) => {
-                setSearchType(e.target.value);
-                setSingleDate('');
-                setDateRange({ start: '', end: '' });
-              }}
-              className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3"
-            >
-              <option value="all">Toutes les dépenses</option>
-              <option value="single">Date unique</option>
-              <option value="range">Période (Du...au...)</option>
-            </select>
-          </div>
-
-          {/* Single Date */}
-          {searchType === 'single' && (
+      <Card>
+        <CardHeader>
+          <CardTitle>Recherche par Date</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Date</label>
-              <input
-                type="date"
-                value={singleDate}
-                onChange={(e) => setSingleDate(e.target.value)}
-                className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3"
-              />
+              <label className="text-sm font-medium mb-2 block">Type de recherche</label>
+              <select
+                value={searchType}
+                onChange={(e) => {
+                  setSearchType(e.target.value);
+                  setSingleDate('');
+                  setDateRange({ start: '', end: '' });
+                }}
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="all">Toutes les dépenses</option>
+                <option value="single">Date unique</option>
+                <option value="range">Période (Du...au...)</option>
+              </select>
             </div>
-          )}
 
-          {/* Date Range */}
-          {searchType === 'range' && (
-            <>
+            {searchType === 'single' && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Date début</label>
-                <input
+                <label className="text-sm font-medium mb-2 block">Date</label>
+                <Input
                   type="date"
-                  value={dateRange.start}
-                  onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
-                  className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3"
+                  value={singleDate}
+                  onChange={(e) => setSingleDate(e.target.value)}
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Date fin</label>
-                <input
-                  type="date"
-                  value={dateRange.end}
-                  onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
-                  className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3"
-                />
-              </div>
-            </>
-          )}
-        </div>
+            )}
 
-        {/* Total Général */}
-        {filteredDepenses.length > 0 && (
-          <div className="mt-4 p-5 bg-gradient-to-r from-blue-100 to-indigo-100 border-3 border-blue-400 rounded-xl shadow-lg">
-            <div className="flex justify-between items-center">
-              <span className="text-lg font-extrabold text-gray-800 flex items-center gap-2">
-                <span>📊</span>
-                <span>Total dépenses ({filteredDepenses.length}):</span>
-              </span>
-              <span className="text-3xl font-extrabold text-blue-800">
-                {calculateTotal().toFixed(2)} DA
-              </span>
-            </div>
+            {searchType === 'range' && (
+              <>
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Date début</label>
+                  <Input
+                    type="date"
+                    value={dateRange.start}
+                    onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Date fin</label>
+                  <Input
+                    type="date"
+                    value={dateRange.end}
+                    onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
+                  />
+                </div>
+              </>
+            )}
           </div>
-        )}
-      </div>
 
-      {/* Statistiques par Période */}
-      {(() => {
-        const today = filterByPeriod(state.depenses || [], 'date', 'today');
-        const week = filterByPeriod(state.depenses || [], 'date', 'week');
-        const month = filterByPeriod(state.depenses || [], 'date', 'month');
-        
-        const calcStats = (items) => {
-          const total = items.reduce((sum, d) => sum + (d.montant || 0), 0);
-          const count = items.length;
-          const moyenne = count > 0 ? total / count : 0;
-          const categories = new Set(items.map(d => d.depense_categories?.nom || d.nom || 'Sans nom').filter(Boolean));
-          return { total, count, moyenne, categories: categories.size };
-        };
-        
-        const statsToday = calcStats(today);
-        const statsWeek = calcStats(week);
-        const statsMonth = calcStats(month);
-        
-        return (
-          <div className="bg-gradient-to-br from-gray-50 via-gray-100 to-gray-200 rounded-2xl p-6 border-4 border-gray-300 shadow-xl">
-            <h2 className="text-xl font-bold text-gray-800 mb-5 flex items-center gap-2">
-              <span className="bg-white p-2 rounded-lg shadow-sm text-lg">📅</span>
-              <span>Statistiques par Période</span>
-            </h2>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* Journalier */}
-              <div className="bg-gradient-to-br from-blue-100 to-blue-200 border-3 border-blue-400 rounded-xl p-5 shadow-lg">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="bg-blue-500 text-white p-2 rounded-lg text-xl">📆</span>
-                  <span className="text-xs text-blue-700 font-bold bg-blue-300 px-3 py-1 rounded-full">Aujourd'hui</span>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-blue-700 font-medium">Nombre:</span>
-                    <span className="text-sm font-bold text-blue-900">{statsToday.count}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-blue-700 font-medium">Total:</span>
-                    <span className="text-sm font-bold text-blue-900">{statsToday.total.toFixed(2)} DA</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-blue-700 font-medium">Moyenne:</span>
-                    <span className="text-sm font-bold text-blue-900">{statsToday.moyenne.toFixed(2)} DA</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-blue-700 font-medium">Catégories:</span>
-                    <span className="text-sm font-bold text-blue-900">{statsToday.categories}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Hebdomadaire */}
-              <div className="bg-gradient-to-br from-green-100 to-green-200 border-3 border-green-400 rounded-xl p-5 shadow-lg">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="bg-green-500 text-white p-2 rounded-lg text-xl">📅</span>
-                  <span className="text-xs text-green-700 font-bold bg-green-300 px-3 py-1 rounded-full">Cette Semaine</span>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-green-700 font-medium">Nombre:</span>
-                    <span className="text-sm font-bold text-green-900">{statsWeek.count}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-green-700 font-medium">Total:</span>
-                    <span className="text-sm font-bold text-green-900">{statsWeek.total.toFixed(2)} DA</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-green-700 font-medium">Moyenne:</span>
-                    <span className="text-sm font-bold text-green-900">{statsWeek.moyenne.toFixed(2)} DA</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-green-700 font-medium">Catégories:</span>
-                    <span className="text-sm font-bold text-green-900">{statsWeek.categories}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Mensuel */}
-              <div className="bg-gradient-to-br from-purple-100 to-purple-200 border-3 border-purple-400 rounded-xl p-5 shadow-lg">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="bg-purple-500 text-white p-2 rounded-lg text-xl">📊</span>
-                  <span className="text-xs text-purple-700 font-bold bg-purple-300 px-3 py-1 rounded-full">Ce Mois</span>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-purple-700 font-medium">Nombre:</span>
-                    <span className="text-sm font-bold text-purple-900">{statsMonth.count}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-purple-700 font-medium">Total:</span>
-                    <span className="text-sm font-bold text-purple-900">{statsMonth.total.toFixed(2)} DA</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-purple-700 font-medium">Moyenne:</span>
-                    <span className="text-sm font-bold text-purple-900">{statsMonth.moyenne.toFixed(2)} DA</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-purple-700 font-medium">Catégories:</span>
-                    <span className="text-sm font-bold text-purple-900">{statsMonth.categories}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* Résumé par nom de dépense */}
-      {depensesParNom.length > 0 && (
-        <div className="bg-white shadow rounded-lg p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">📊 Résumé par Catégorie</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {depensesParNom.map((groupe) => (
-              <div key={groupe.nom} className="bg-gradient-to-r from-purple-50 to-indigo-50 border-2 border-purple-200 rounded-lg p-4 shadow-sm">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-bold text-gray-900 text-sm">{groupe.nom}</h3>
-                  <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded-full">
-                    {groupe.count} {groupe.count === 1 ? 'fois' : 'fois'}
+          {filteredDepenses.length > 0 && (
+            <Card className="mt-4">
+              <CardContent className="pt-6">
+                <div className="flex justify-between items-center">
+                  <span className="text-lg font-semibold flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5" />
+                    Total dépenses ({filteredDepenses.length}):
+                  </span>
+                  <span className="text-2xl font-bold">
+                    {calculateTotal().toFixed(2)} DA
                   </span>
                 </div>
-                <p className="text-2xl font-bold text-purple-700">
-                  {groupe.total.toFixed(2)} DA
-                </p>
-                <div className="mt-2 pt-2 border-t border-purple-200">
-                  <p className="text-xs text-gray-600">
-                    Moyenne: {(groupe.total / groupe.count).toFixed(2)} DA
-                  </p>
+              </CardContent>
+            </Card>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Résumé Global */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Vue d'Ensemble Globale</CardTitle>
+          <CardDescription>Statistiques sur toutes vos dépenses</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Total Dépenses</p>
+                    <p className="text-3xl font-bold">{globalStats.total.toFixed(2)} DA</p>
+                    <p className="text-xs text-muted-foreground mt-1">{globalStats.count} dépense(s)</p>
+                  </div>
+                  <ShoppingCart className="h-8 w-8 text-primary" />
                 </div>
-              </div>
-            ))}
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Nombre de Catégories</p>
+                    <p className="text-3xl font-bold">{globalStats.nombreCategories}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Catégories actives</p>
+                  </div>
+                  <List className="h-8 w-8 text-purple-500" />
+                </div>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Dépense Moyenne</p>
+                    <p className="text-3xl font-bold">{globalStats.moyenne.toFixed(2)} DA</p>
+                    <p className="text-xs text-muted-foreground mt-1">Par dépense</p>
+                  </div>
+                  <TrendingUp className="h-8 w-8 text-green-600" />
+                </div>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Total Entrées</p>
+                    <p className="text-3xl font-bold">{globalStats.count}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Dépenses enregistrées</p>
+                  </div>
+                  <Calendar className="h-8 w-8 text-blue-500" />
+                </div>
+              </CardContent>
+            </Card>
           </div>
-        </div>
+        </CardContent>
+      </Card>
+
+      {/* Statistiques par Période */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Statistiques par Période</CardTitle>
+          <CardDescription>Vue détaillée par jour, semaine et mois</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Aujourd'hui</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Nombre:</span>
+                  <span className="text-sm font-semibold">{periodStats.today.count}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Total:</span>
+                  <span className="text-sm font-semibold">{periodStats.today.total.toFixed(2)} DA</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Moyenne:</span>
+                  <span className="text-sm font-semibold">{periodStats.today.moyenne.toFixed(2)} DA</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Catégories:</span>
+                  <span className="text-sm font-semibold">{periodStats.today.categories}</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Cette Semaine</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Nombre:</span>
+                  <span className="text-sm font-semibold">{periodStats.week.count}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Total:</span>
+                  <span className="text-sm font-semibold">{periodStats.week.total.toFixed(2)} DA</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Moyenne:</span>
+                  <span className="text-sm font-semibold">{periodStats.week.moyenne.toFixed(2)} DA</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Catégories:</span>
+                  <span className="text-sm font-semibold">{periodStats.week.categories}</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Ce Mois</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Nombre:</span>
+                  <span className="text-sm font-semibold">{periodStats.month.count}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Total:</span>
+                  <span className="text-sm font-semibold">{periodStats.month.total.toFixed(2)} DA</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Moyenne:</span>
+                  <span className="text-sm font-semibold">{periodStats.month.moyenne.toFixed(2)} DA</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Catégories:</span>
+                  <span className="text-sm font-semibold">{periodStats.month.categories}</span>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Résumé par Catégorie */}
+      {depensesParNom.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Résumé par Catégorie</CardTitle>
+            <CardDescription>Répartition des dépenses par catégorie</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {depensesParNom.map((groupe) => (
+                <Card key={groupe.nom}>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="font-semibold text-sm">{groupe.nom}</h3>
+                      <Badge variant="outline">
+                        {groupe.count} {groupe.count === 1 ? 'fois' : 'fois'}
+                      </Badge>
+                    </div>
+                    <p className="text-2xl font-bold">{groupe.total.toFixed(2)} DA</p>
+                    <Separator className="my-2" />
+                    <p className="text-xs text-muted-foreground">
+                      Moyenne: {(groupe.total / groupe.count).toFixed(2)} DA
+                    </p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Depenses List */}
       <div className="space-y-4">
         {(!state.depenses || state.depenses.length === 0) ? (
-          <div className="bg-white rounded-lg border border-gray-200 p-8 text-center text-gray-500">
-            <p className="text-lg">Aucune dépense enregistrée</p>
-          </div>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="text-center py-8 text-muted-foreground">
+                <p className="text-lg">Aucune dépense enregistrée</p>
+              </div>
+            </CardContent>
+          </Card>
         ) : filteredDepenses.length === 0 ? (
-          <div className="bg-white rounded-lg border border-gray-200 p-8 text-center text-gray-500">
-            <p className="text-lg">Aucune dépense trouvée pour les critères sélectionnés</p>
-          </div>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="text-center py-8 text-muted-foreground">
+                <p className="text-lg">Aucune dépense trouvée pour les critères sélectionnés</p>
+              </div>
+            </CardContent>
+          </Card>
         ) : (
           filteredDepenses.map((depense) => (
-            <div key={depense.id} className="bg-gradient-to-br from-white to-gray-50 rounded-2xl border-4 border-gray-300 shadow-xl hover:shadow-2xl transition-all duration-300 p-6">
-              <div className="flex justify-between items-start">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="bg-purple-500 text-white p-3 rounded-xl shadow-lg">
-                      <span className="text-2xl">💰</span>
+            <Card key={depense.id}>
+              <CardHeader>
+                <div className="flex justify-between items-start">
+                  <div className="flex items-center gap-3">
+                    <div className="bg-primary/10 p-3 rounded-lg">
+                      <ShoppingCart className="h-5 w-5 text-primary" />
                     </div>
                     <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="text-xl font-extrabold text-gray-900">
-                          {depense.montant.toFixed(2)} DA
-                        </h3>
-                        {(depense.nom || depense.depense_categories?.nom) && (
-                          <span className="px-3 py-1 bg-gradient-to-r from-purple-100 to-indigo-100 text-purple-800 text-xs font-bold rounded-full border-2 border-purple-300">
-                            {depense.depense_categories?.nom || depense.nom}
-                          </span>
-                        )}
-                      </div>
-                      {depense.description && (
-                        <p className="text-sm text-gray-600 mt-1">
-                          {depense.description}
-                        </p>
+                      <CardTitle className="text-xl">{depense.montant.toFixed(2)} DA</CardTitle>
+                      {(depense.nom || depense.depense_categories?.nom) && (
+                        <Badge variant="secondary" className="mt-1">
+                          {depense.depense_categories?.nom || depense.nom}
+                        </Badge>
                       )}
                     </div>
                   </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
-                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-300 rounded-xl p-4 shadow-sm">
-                      <p className="text-xs text-blue-600 mb-1 font-semibold flex items-center gap-1">
-                        <span>📅</span>
-                        <span>Date</span>
-                      </p>
-                      <p className="text-base font-bold text-blue-900">{depense.date}</p>
+                  {isAdmin() && (
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={() => openEditModal(depense)}
+                        variant="outline"
+                        size="sm"
+                      >
+                        <Edit className="h-4 w-4 mr-2" />
+                        Éditer
+                      </Button>
+                      <Button
+                        onClick={() => handleDeleteDepense(depense.id)}
+                        variant="destructive"
+                        size="sm"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Supprimer
+                      </Button>
                     </div>
-                    {depense.description && (
-                      <div className="bg-gradient-to-br from-gray-50 to-gray-100 border-2 border-gray-300 rounded-xl p-4 shadow-sm">
-                        <p className="text-xs text-gray-600 mb-1 font-semibold flex items-center gap-1">
-                          <span>📝</span>
-                          <span>Description</span>
-                        </p>
-                        <p className="text-sm font-medium text-gray-800">{depense.description}</p>
-                      </div>
-                    )}
-                  </div>
+                  )}
                 </div>
-
-                {isAdmin() && (
-                  <div className="flex flex-col gap-2 ml-6">
-                    <button
-                      onClick={() => openEditModal(depense)}
-                      className="px-4 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white text-sm font-bold rounded-xl transition-all shadow-md hover:shadow-xl flex items-center justify-center gap-2"
-                    >
-                      <span>✏️</span>
-                      <span>Éditer</span>
-                    </button>
-                    <button
-                      onClick={() => handleDeleteDepense(depense.id)}
-                      className="px-4 py-2.5 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white text-sm font-bold rounded-xl transition-all shadow-md hover:shadow-xl flex items-center justify-center gap-2"
-                    >
-                      <span>🗑️</span>
-                      <span>Supprimer</span>
-                    </button>
-                  </div>
+              </CardHeader>
+              <CardContent>
+                {depense.description && (
+                  <p className="text-sm text-muted-foreground mb-4">{depense.description}</p>
                 )}
-              </div>
-            </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                      <Calendar className="h-3 w-3" />
+                      Date
+                    </p>
+                    <p className="font-semibold">{depense.date}</p>
+                  </div>
+                  {depense.description && (
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1">Description</p>
+                      <p className="text-sm">{depense.description}</p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           ))
         )}
       </div>
-
-      {/* Add/Edit Modal */}
-      {showModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-            <h3 className="text-lg font-bold text-gray-900 mb-4">
-              {editingDepense ? 'Modifier la Dépense' : 'Nouvelle Dépense'}
-            </h3>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Nom de la dépense (Catégorie) *
-                </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    list="categories-list"
-                    value={formData.nom}
-                    onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
-                    placeholder="Tapez un nom ou sélectionnez une catégorie existante..."
-                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3"
-                    required
-                  />
-                  {categoriesExistantes.length > 0 && (
-                    <datalist id="categories-list">
-                      {categoriesExistantes.map((cat) => (
-                        <option key={cat} value={cat} />
-                      ))}
-                    </datalist>
-                  )}
-                </div>
-                <div className="mt-2 flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowCategoriesModal(true)}
-                    className="text-xs text-purple-600 hover:text-purple-800 underline flex items-center gap-1"
-                  >
-                    <span>📋</span>
-                    <span>Gérer les catégories</span>
-                  </button>
-                  {categoriesExistantes.length > 0 && (
-                    <span className="text-xs text-gray-500">
-                      {categoriesExistantes.length} {categoriesExistantes.length === 1 ? 'catégorie' : 'catégories'} disponible{categoriesExistantes.length > 1 ? 's' : ''}
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Montant (DA) *</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={formData.montant}
-                  onChange={(e) => setFormData({ ...formData, montant: e.target.value })}
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Date *</label>
-                <input
-                  type="date"
-                  value={formData.date}
-                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Description/Commentaire</label>
-                <textarea
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  rows="3"
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3"
-                  placeholder="Détails supplémentaires de la dépense..."
-                />
-              </div>
-            </div>
-
-            <div className="mt-6 flex justify-end space-x-3">
-              <button
-                onClick={() => {
-                  setShowModal(false);
-                  setEditingDepense(null);
-                  resetForm();
-                }}
-                className="px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400"
-              >
-                Annuler
-              </button>
-              <button
-                onClick={editingDepense ? handleUpdateDepense : handleAddDepense}
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-              >
-                {editingDepense ? 'Modifier' : 'Ajouter'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
 
 export default Depenses;
-

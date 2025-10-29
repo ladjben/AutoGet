@@ -7,7 +7,9 @@ const initialState = {
   entrees: [],
   paiements: [],
   depenses: [],
-  colis: []
+  colis: [],
+  salaries: [],
+  acomptes: []
 };
 
 // Storage key
@@ -69,6 +71,15 @@ const ActionTypes = {
   ADD_COLIS: 'ADD_COLIS',
   UPDATE_COLIS: 'UPDATE_COLIS',
   DELETE_COLIS: 'DELETE_COLIS',
+  
+  // Salaries
+  ADD_SALARY: 'ADD_SALARY',
+  UPDATE_SALARY: 'UPDATE_SALARY',
+  DELETE_SALARY: 'DELETE_SALARY',
+  
+  // Acomptes
+  ADD_ACOMPTE: 'ADD_ACOMPTE',
+  DELETE_ACOMPTE: 'DELETE_ACOMPTE',
 };
 
 // Reducer
@@ -84,7 +95,9 @@ const dataReducer = (state, action) => {
         entrees: action.payload.entrees || [],
         paiements: action.payload.paiements || [],
         depenses: action.payload.depenses || [],
-        colis: action.payload.colis || []
+        colis: action.payload.colis || [],
+        salaries: action.payload.salaries || [],
+        acomptes: action.payload.acomptes || []
       };
       
     case ActionTypes.ADD_PRODUIT:
@@ -291,6 +304,48 @@ const dataReducer = (state, action) => {
       newState = {
         ...state,
         colis: (state.colis || []).filter(c => c.id !== action.payload)
+      };
+      saveData(newState);
+      return newState;
+      
+    case ActionTypes.ADD_SALARY:
+      newState = {
+        ...state,
+        salaries: [...(state.salaries || []), action.payload]
+      };
+      saveData(newState);
+      return newState;
+      
+    case ActionTypes.UPDATE_SALARY:
+      newState = {
+        ...state,
+        salaries: (state.salaries || []).map(s =>
+          s.id === action.payload.id ? action.payload : s
+        )
+      };
+      saveData(newState);
+      return newState;
+      
+    case ActionTypes.DELETE_SALARY:
+      newState = {
+        ...state,
+        salaries: (state.salaries || []).filter(s => s.id !== action.payload)
+      };
+      saveData(newState);
+      return newState;
+      
+    case ActionTypes.ADD_ACOMPTE:
+      newState = {
+        ...state,
+        acomptes: [...(state.acomptes || []), action.payload]
+      };
+      saveData(newState);
+      return newState;
+      
+    case ActionTypes.DELETE_ACOMPTE:
+      newState = {
+        ...state,
+        acomptes: (state.acomptes || []).filter(a => a.id !== action.payload)
       };
       saveData(newState);
       return newState;

@@ -12,6 +12,8 @@ export const DataProvider = ({ children }) => {
   const [depenses, setDepenses] = useState([])
   const [depenseCategories, setDepenseCategories] = useState([])
   const [colis, setColis] = useState([])
+  const [salaries, setSalaries] = useState([])
+  const [acomptes, setAcomptes] = useState([])
 
   useEffect(() => {
     fetchAll()
@@ -25,7 +27,9 @@ export const DataProvider = ({ children }) => {
       fetchPaiements(),
       fetchDepenses(),
       fetchDepenseCategories(),
-      fetchColis()
+      fetchColis(),
+      fetchSalaries(),
+      fetchAcomptes()
     ])
   }
 
@@ -298,6 +302,113 @@ export const DataProvider = ({ children }) => {
     }
   }
 
+  // ========== SALARIES ==========
+  async function fetchSalaries() {
+    try {
+      const { data, error } = await supabase
+        .from('salaries')
+        .select('*')
+        .order('created_at', { ascending: false })
+      if (error) throw error
+      setSalaries(data || [])
+    } catch (e) {
+      console.error('❌ Erreur fetchSalaries:', e?.message || e)
+    }
+  }
+
+  async function addSalary(nom, salaire_mensuel, contact, poste) {
+    try {
+      const { error } = await supabase
+        .from('salaries')
+        .insert([{ nom, salaire_mensuel: parseFloat(salaire_mensuel), contact: contact || '', poste: poste || '' }])
+      if (error) throw error
+      await fetchSalaries()
+      return { success: true }
+    } catch (e) {
+      console.error('❌ Erreur addSalary:', e?.message || e)
+      throw e
+    }
+  }
+
+  async function updateSalary(id, { nom, salaire_mensuel, contact, poste }) {
+    try {
+      const { error } = await supabase
+        .from('salaries')
+        .update({ nom, salaire_mensuel: parseFloat(salaire_mensuel), contact: contact || '', poste: poste || '' })
+        .eq('id', id)
+      if (error) throw error
+      await fetchSalaries()
+      return { success: true }
+    } catch (e) {
+      console.error('❌ Erreur updateSalary:', e?.message || e)
+      throw e
+    }
+  }
+
+  async function deleteSalary(id) {
+    try {
+      const { error } = await supabase
+        .from('salaries')
+        .delete()
+        .eq('id', id)
+      if (error) throw error
+      await fetchSalaries()
+      return { success: true }
+    } catch (e) {
+      console.error('❌ Erreur deleteSalary:', e?.message || e)
+      throw e
+    }
+  }
+
+  // ========== ACOMPTES ==========
+  async function fetchAcomptes() {
+    try {
+      const { data, error } = await supabase
+        .from('acomptes')
+        .select('*')
+        .order('date', { ascending: false })
+      if (error) throw error
+      setAcomptes(data || [])
+    } catch (e) {
+      console.error('❌ Erreur fetchAcomptes:', e?.message || e)
+    }
+  }
+
+  async function addAcompte(salary_id, montant, date, description) {
+    try {
+      const dateFormatted = date ? date.split('T')[0] : new Date().toISOString().split('T')[0]
+      const { error } = await supabase
+        .from('acomptes')
+        .insert([{
+          salary_id,
+          montant: parseFloat(montant),
+          date: dateFormatted,
+          description: description || ''
+        }])
+      if (error) throw error
+      await fetchAcomptes()
+      return { success: true }
+    } catch (e) {
+      console.error('❌ Erreur addAcompte:', e?.message || e)
+      throw e
+    }
+  }
+
+  async function deleteAcompte(id) {
+    try {
+      const { error } = await supabase
+        .from('acomptes')
+        .delete()
+        .eq('id', id)
+      if (error) throw error
+      await fetchAcomptes()
+      return { success: true }
+    } catch (e) {
+      console.error('❌ Erreur deleteAcompte:', e?.message || e)
+      throw e
+    }
+  }
+
   // Mise à jour produit
   async function updateProduit(id, { nom, reference, prix_achat }) {
     try {
@@ -416,9 +527,9 @@ export const DataProvider = ({ children }) => {
     <DataContext.Provider
       value={{
         // states
-        produits, fournisseurs, entrees, paiements, depenses, depenseCategories, colis,
+        produits, fournisseurs, entrees, paiements, depenses, depenseCategories, colis, salaries, acomptes,
         // reads
-        fetchAll, fetchProduits, fetchFournisseurs, fetchEntrees, fetchPaiements, fetchDepenses, fetchDepenseCategories, fetchEntreeDetails, fetchColis,
+        fetchAll, fetchProduits, fetchFournisseurs, fetchEntrees, fetchPaiements, fetchDepenses, fetchDepenseCategories, fetchEntreeDetails, fetchColis, fetchSalaries, fetchAcomptes,
         // writes
         addProduit, updateProduit, deleteProduit, addFournisseur,
         addPaiement, deletePaiement,
@@ -426,6 +537,8 @@ export const DataProvider = ({ children }) => {
         addDepenseCategory, deleteDepenseCategory,
         addEntreeWithLines,
         addColis, updateColis, deleteColis,
+        addSalary, updateSalary, deleteSalary,
+        addAcompte, deleteAcompte,
       }}
     >
       {children}

@@ -14,6 +14,7 @@ import Entries from './components/Entries'
 import Suppliers from './components/Suppliers'
 import Depenses from './components/Depenses'
 import Colis from './components/Colis'
+import Salaries from './components/Salaries'
 
 // Le pont unifié choisit le provider selon USE_SUPABASE
 
@@ -78,6 +79,8 @@ const AppContent = () => {
         return <Depenses />
       case 'colis':
         return <Colis />
+      case 'salaries':
+        return <Salaries />
       default:
         return <Dashboard />
     }
