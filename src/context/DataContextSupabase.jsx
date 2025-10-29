@@ -11,6 +11,7 @@ export const DataProvider = ({ children }) => {
   const [paiements, setPaiements] = useState([])
   const [depenses, setDepenses] = useState([])
   const [depenseCategories, setDepenseCategories] = useState([])
+  const [colis, setColis] = useState([])
 
   useEffect(() => {
     fetchAll()
