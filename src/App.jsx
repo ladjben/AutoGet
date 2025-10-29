@@ -1,13 +1,11 @@
-import React, { useEffect, useState } from 'react'
-import { supabase } from './config/supabaseClient'
-import { USE_SUPABASE } from './config'
+import React, { useState } from 'react'
 import { DataProvider } from './context/UnifiedDataContext'
 
 // DataProvider est désormais fourni par le pont unifié
 import { AuthProvider, useAuth } from './context/AuthContext'
 
 import Login from './components/Login'
-import Navigation from './components/Navigation'
+import AppHeader from './components/AppHeader'
 import Dashboard from './components/Dashboard'
 import Products from './components/Products'
 import Entries from './components/Entries'
@@ -17,49 +15,6 @@ import Colis from './components/Colis'
 import Salaries from './components/Salaries'
 
 // Le pont unifié choisit le provider selon USE_SUPABASE
-
-// Petit composant bandeau pour afficher l’état de la connexion Supabase
-function SupabaseHealthBar() {
-  const [status, setStatus] = useState({ ok: true, msg: '' })
-
-  useEffect(() => {
-    let cancelled = false
-
-    const check = async () => {
-      if (!USE_SUPABASE) {
-        // Pas de Supabase => rien à tester
-        return
-      }
-      try {
-        const { data, error } = await supabase.from('produits').select('id').limit(1)
-        if (error) throw error
-        if (!cancelled) setStatus({ ok: true, msg: `Connexion OK — produitsCount: ${data?.length ?? 0}` })
-      } catch (e) {
-        if (!cancelled) setStatus({ ok: false, msg: e?.message || 'Erreur inconnue' })
-        // Log console utile en debug
-        // eslint-disable-next-line no-console
-        console.error('Supabase error:', e)
-      }
-    }
-
-    check()
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  if (!USE_SUPABASE) return null
-
-  return (
-    <div
-      className={`w-full px-4 py-2 text-sm ${
-        status.ok ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-      }`}
-    >
-      {status.ok ? '✅ ' : '❌ '}Supabase: {status.msg}
-    </div>
-  )
-}
 
 const AppContent = () => {
   const [activeView, setActiveView] = useState('dashboard')
@@ -90,7 +45,6 @@ const AppContent = () => {
   if (!user) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <SupabaseHealthBar />
         <main className="p-6">
           <Login />
         </main>
@@ -100,8 +54,7 @@ const AppContent = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <SupabaseHealthBar />
-      <Navigation
+      <AppHeader
         activeView={activeView}
         setActiveView={setActiveView}
         user={user}
