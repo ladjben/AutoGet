@@ -87,7 +87,7 @@ const Products = () => {
     setFormData({
       nom: produit.nom,
       reference: produit.reference || '',
-      prixAchat: produit.prixAchat
+      prixAchat: produit.prix_achat ?? produit.prixAchat ?? ''
     });
     setShowModal(true);
   };
@@ -128,7 +128,7 @@ const Products = () => {
                     <div className="mt-2 text-sm text-gray-500">
                       <span>Référence: {produit.reference || 'N/A'}</span>
                       <span className="ml-4 text-blue-600 font-semibold">
-                        Prix d'achat: {produit.prixAchat} DA
+                        Prix d'achat: {produit.prix_achat ?? produit.prixAchat ?? 0} DA
                       </span>
                     </div>
                   </div>
