@@ -36,7 +36,7 @@ const Dashboard = () => {
       entree.lignes?.forEach(ligne => {
         const produit = (state.produits || []).find(p => p.id === ligne.produitId);
         if (produit) {
-          entreeValue += ligne.quantite * produit.prixAchat;
+          entreeValue += ligne.quantite * (produit.prix_achat ?? produit.prixAchat ?? 0);
         }
       });
 
@@ -172,7 +172,7 @@ const Dashboard = () => {
                   <div>
                     <h3 className="text-lg font-medium text-gray-900">{produit.nom}</h3>
                     <p className="text-sm text-gray-500">
-                      Prix d'achat: {produit.prixAchat} DA
+                      Prix d'achat: {produit.prix_achat ?? produit.prixAchat ?? 0} DA
                       {produit.reference && ` | Référence: ${produit.reference}`}
                     </p>
                   </div>
