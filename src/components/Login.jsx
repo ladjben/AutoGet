@@ -1,5 +1,9 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
 import Signup from './Signup';
 
 const Login = () => {
@@ -22,116 +26,87 @@ const Login = () => {
     if (!result.success) {
       setError(result.error);
     }
-    // Si succès, le contexte AuthContext redirigera automatiquement
   };
 
   // Show signup if requested
   if (showSignup) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-        <Signup onCancel={() => setShowSignup(false)} />
-      </div>
-    );
+    return <Signup onCancel={() => setShowSignup(false)} />;
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-8">
-        {/* Logo/Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            👟 Gestion Chaussures
-          </h1>
-          <p className="text-gray-600">Connectez-vous pour continuer</p>
-        </div>
+      <Card className="w-full max-w-md">
+        <CardHeader className="space-y-1">
+          <CardTitle className="text-3xl font-bold text-center">
+            COSMOS ALGÉRIE
+          </CardTitle>
+          <CardDescription className="text-center">
+            Connectez-vous pour continuer
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Error Message */}
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+                {error}
+              </div>
+            )}
 
-        {/* Login Form */}
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Error Message */}
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-              {error}
+            {/* Username Input */}
+            <div className="space-y-2">
+              <Label htmlFor="username">Nom d'utilisateur</Label>
+              <Input
+                id="username"
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="Entrez votre nom d'utilisateur"
+                required
+              />
             </div>
-          )}
 
-          {/* Username Input */}
-          <div>
-            <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-2">
-              Nom d'utilisateur
-            </label>
-            <input
-              id="username"
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
-              placeholder="Entrez votre nom d'utilisateur"
-              required
-            />
-          </div>
-
-          {/* Password Input */}
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-              Mot de passe
-            </label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
-              placeholder="Entrez votre mot de passe"
-              required
-            />
-          </div>
-
-          {/* Submit Button */}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? 'Connexion...' : 'Se connecter'}
-          </button>
-        </form>
-
-        {/* Demo Accounts */}
-        <div className="mt-8 pt-6 border-t border-gray-200">
-          <p className="text-sm text-gray-600 text-center mb-4">
-            Comptes de démonstration:
-          </p>
-          <div className="space-y-2 text-sm">
-            <div className="bg-gray-50 p-3 rounded-lg">
-              <div className="font-semibold text-gray-700">👨‍💼 Administrateur</div>
-              <div className="text-gray-600">Nom: admin | Pass: admin123</div>
-              <div className="text-xs text-gray-500 mt-1">Peut tout faire</div>
+            {/* Password Input */}
+            <div className="space-y-2">
+              <Label htmlFor="password">Mot de passe</Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Entrez votre mot de passe"
+                required
+              />
             </div>
-            <div className="bg-gray-50 p-3 rounded-lg">
-              <div className="font-semibold text-gray-700">👤 Utilisateur</div>
-              <div className="text-gray-600">Nom: user | Pass: user123</div>
-              <div className="text-xs text-gray-500 mt-1">Peut ajouter uniquement</div>
-            </div>
-          </div>
-        </div>
 
-        {/* Signup Button */}
-        <div className="mt-6 text-center">
-          <p className="text-sm text-gray-600 mb-2">
-            Vous n'avez pas de compte ?
-          </p>
-          <button
-            type="button"
-            onClick={() => setShowSignup(true)}
-            className="text-blue-600 hover:text-blue-800 font-semibold"
-          >
-            Créer un nouveau compte
-          </button>
-        </div>
-      </div>
+            {/* Submit Button */}
+            <Button
+              type="submit"
+              disabled={loading}
+              className="w-full"
+            >
+              {loading ? 'Connexion...' : 'Se connecter'}
+            </Button>
+          </form>
+
+          {/* Signup Button */}
+          <div className="mt-6 text-center">
+            <p className="text-sm text-muted-foreground mb-2">
+              Vous n'avez pas de compte ?
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowSignup(true)}
+              className="w-full"
+            >
+              Créer un nouveau compte
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };
 
 export default Login;
-
