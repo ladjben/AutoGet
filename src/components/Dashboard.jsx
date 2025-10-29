@@ -298,6 +298,7 @@ const Dashboard = () => {
               </CardContent>
             </Card>
             
+            {isAdmin() && (
             <Card>
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
@@ -312,6 +313,7 @@ const Dashboard = () => {
                 </div>
               </CardContent>
             </Card>
+            )}
             
             <Card>
               <CardContent className="pt-6">
@@ -364,10 +366,12 @@ const Dashboard = () => {
               <p className="text-sm text-muted-foreground">Entrées Non Payées</p>
               <p className="text-xl font-bold text-destructive">{allStats.totalEntreesNonPayees}</p>
             </div>
+            {isAdmin() && (
             <div className="text-center">
               <p className="text-sm text-muted-foreground">Total Fournisseurs</p>
               <p className="text-xl font-bold">{allStats.totalFournisseurs}</p>
             </div>
+            )}
             <div className="text-center">
               <p className="text-sm text-muted-foreground">Taux Paiement</p>
               <p className="text-xl font-bold">{allStats.tauxPaiementEntrees.toFixed(1)}%</p>
@@ -570,9 +574,11 @@ const Dashboard = () => {
                     <div className="flex justify-between items-start">
                       <div>
                         <p className="font-semibold">Date: {entree.date}</p>
+                        {isAdmin() && (
                         <p className="text-sm text-muted-foreground">
                           Fournisseur: {getFournisseurName(entree)}
                         </p>
+                        )}
                         {!USE_SUPABASE && entree.lignes && (
                           <p className="text-xs text-muted-foreground mt-1">
                             {entree.lignes.length} ligne(s) de produit
@@ -612,9 +618,11 @@ const Dashboard = () => {
                         <p className="font-semibold">
                           {parseFloat(paiement.montant || 0).toFixed(2)} DA
                         </p>
+                        {isAdmin() && (
                         <p className="text-sm text-muted-foreground">
                           Fournisseur: {getFournisseurName(paiement.fournisseur_id ?? paiement.fournisseurId)}
                         </p>
+                        )}
                         <p className="text-xs text-muted-foreground mt-1">Date: {paiement.date}</p>
                         {paiement.description && (
                           <p className="text-xs text-muted-foreground mt-1">{paiement.description}</p>
