@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './config/supabaseClient'
+import { USE_SUPABASE } from './config'
 import { DataProvider } from './context/UnifiedDataContext'
 
 // DataProvider est désormais fourni par le pont unifié
