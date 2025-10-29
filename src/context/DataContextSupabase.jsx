@@ -78,6 +78,24 @@ export const DataProvider = ({ children }) => {
     }
   }
 
+  // Suppression produit
+  async function deleteProduit(id) {
+    try {
+      console.log('🗑️ Suppression produit:', id)
+      const { error } = await supabase
+        .from('produits')
+        .delete()
+        .eq('id', id)
+      if (error) throw error
+      console.log('✅ Produit supprimé:', id)
+      await fetchProduits()
+      return { success: true }
+    } catch (e) {
+      console.error('❌ Erreur deleteProduit:', e?.message || e)
+      throw e
+    }
+  }
+
   // === NOUVEAU : lire les lignes d’une entrée ===
   async function fetchEntreeDetails(entreeId) {
     const { data, error } = await supabase
@@ -166,7 +184,7 @@ export const DataProvider = ({ children }) => {
         // reads
         fetchAll, fetchProduits, fetchFournisseurs, fetchEntrees, fetchDepenses, fetchEntreeDetails,
         // writes
-        addProduit, updateProduit, addFournisseur, addDepense,
+        addProduit, updateProduit, deleteProduit, addFournisseur, addDepense,
         addEntreeWithLines, // ⬅️ NOUVEAU
       }}
     >

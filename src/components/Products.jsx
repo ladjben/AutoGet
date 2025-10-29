@@ -16,6 +16,8 @@ const Products = () => {
   const dispatch = dataCtx?.dispatch;
   const generateId = dataCtx?.generateId;
   const addProduit = dataCtx?.addProduit;
+  const updateProduit = dataCtx?.updateProduit;
+  const deleteProduit = dataCtx?.deleteProduit;
   const { isAdmin } = useAuth();
   const [showModal, setShowModal] = useState(false);
   const [editingProduit, setEditingProduit] = useState(null);
@@ -76,9 +78,20 @@ const Products = () => {
     }
   };
 
-  const handleDeleteProduit = (id) => {
-    if (window.confirm('Êtes-vous sûr de vouloir supprimer ce produit ?')) {
-      dispatch({ type: ActionTypes.DELETE_PRODUIT, payload: id });
+  const handleDeleteProduit = async (id) => {
+    if (!window.confirm('Êtes-vous sûr de vouloir supprimer ce produit ?')) {
+      return;
+    }
+
+    try {
+      if (USE_SUPABASE) {
+        await deleteProduit?.(id);
+      } else {
+        dispatch?.({ type: ActionTypes.DELETE_PRODUIT, payload: id });
+      }
+    } catch (e) {
+      alert('Erreur lors de la suppression: ' + (e?.message || 'inconnue'));
+      console.error('Erreur deleteProduit:', e);
     }
   };
 
