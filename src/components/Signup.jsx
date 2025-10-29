@@ -70,11 +70,12 @@ const Signup = ({ onCancel }) => {
         role: selectedRole,
       });
 
-      if (!result.success) {
-        setError(result.error);
+      if (result && !result.success) {
+        setError(result.error || 'Erreur lors de la création du compte');
       }
       // Si succès, le contexte AuthContext redirigera automatiquement
     } catch (err) {
+      console.error('Erreur signup:', err);
       setError('Une erreur est survenue lors de la création du compte');
     } finally {
       setLoading(false);

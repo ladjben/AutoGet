@@ -61,8 +61,14 @@ export const AuthProvider = ({ children }) => {
       accounts.push(newAccount);
       localStorage.setItem('auth_accounts', JSON.stringify(accounts));
       
+      // Auto login after signup
+      const { password: _, ...userWithoutPassword } = newAccount;
+      setUser(userWithoutPassword);
+      localStorage.setItem('auth_user', JSON.stringify(userWithoutPassword));
+      
       return { success: true };
     } catch (error) {
+      console.error('Erreur signup:', error);
       return { success: false, error: 'Erreur lors de la création du compte' };
     }
   };
