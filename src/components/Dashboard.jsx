@@ -1,6 +1,6 @@
 import { useData, ActionTypes } from '../context/UnifiedDataContext';
 import { USE_SUPABASE } from '../config';
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { filterByPeriod } from '../utils/dateUtils';
 
 const Dashboard = () => {
@@ -12,6 +12,29 @@ const Dashboard = () => {
     paiements: dataCtx?.paiements ?? [],
     depenses: dataCtx?.depenses ?? []
   };
+
+  // État pour stocker les détails des entrées (lignes) en mode Supabase
+  const [entreesDetails, setEntreesDetails] = useState({});
+
+  // Charger les détails de toutes les entrées en mode Supabase
+  useEffect(() => {
+    if (USE_SUPABASE && dataCtx?.fetchEntreeDetails && state.entrees?.length > 0) {
+      const loadAllEntreesDetails = async () => {
+        const details = {};
+        for (const entree of state.entrees) {
+          try {
+            const lignes = await dataCtx.fetchEntreeDetails(entree.id);
+            details[entree.id] = lignes || [];
+          } catch (e) {
+            console.error(`Erreur chargement détails entrée ${entree.id}:`, e);
+            details[entree.id] = [];
+          }
+        }
+        setEntreesDetails(details);
+      };
+      loadAllEntreesDetails();
+    }
+  }, [USE_SUPABASE, state.entrees, dataCtx?.fetchEntreeDetails]);
 
   const handleExport = () => {
     const dataStr = JSON.stringify(state, null, 2);
@@ -75,6 +98,13 @@ const Dashboard = () => {
             entreeValue += ligne.quantite * prix;
             produitsCount += ligne.quantite || 0;
           }
+        });
+      } else if (USE_SUPABASE && entreesDetails[entree.id]) {
+        // Mode Supabase : utiliser les détails chargés
+        entreesDetails[entree.id].forEach(ligne => {
+          const prix = ligne.produit_id?.prix_achat ?? 0;
+          entreeValue += (ligne.quantite || 0) * prix;
+          produitsCount += ligne.quantite || 0;
         });
       }
       
@@ -164,7 +194,7 @@ const Dashboard = () => {
       paiementsRecent,
       depensesRecent
     };
-  }, [state]);
+  }, [state, entreesDetails]);
 
   return (
     <div className="space-y-6">
