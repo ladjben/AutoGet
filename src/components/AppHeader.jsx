@@ -49,6 +49,9 @@ const navItems = [
 ];
 
 const AppHeader = ({ activeView, setActiveView, user, logout, isAdmin, isUser }) => {
+  // Debug
+  console.log('🚀 AppHeader chargé - version moderne avec shadcn/ui');
+  
   const isMobile = useIsMobile();
   const [supabaseStatus, setSupabaseStatus] = useState({ ok: true, msg: '', count: 0 });
   const [sheetOpen, setSheetOpen] = useState(false);
