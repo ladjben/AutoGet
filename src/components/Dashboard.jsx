@@ -409,7 +409,7 @@ const Dashboard = () => {
       </Card>
       )}
 
-      {/* Statistiques par Période */}
+      {/* Statistiques par Période - Visible pour tous */}
       <Card>
         <CardHeader>
           <CardTitle>Statistiques par Période</CardTitle>
@@ -494,9 +494,8 @@ const Dashboard = () => {
           </div>
         </CardContent>
       </Card>
-      )}
 
-      {/* Produits */}
+      {/* Produits - Visible pour tous */}
       <Card>
         <CardHeader>
           <CardTitle>Produits</CardTitle>
