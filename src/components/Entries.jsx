@@ -433,8 +433,7 @@ const Entries = () => {
               </div>
             )
           })
-          )}
-        </div>
+        )}
       </div>
 
       {/* Modal d'ajout */}
