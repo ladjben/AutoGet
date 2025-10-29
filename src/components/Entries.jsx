@@ -210,96 +210,175 @@ const Entries = () => {
               const fournisseurId = entree.fournisseur_id ?? entree.fournisseurId
               const paye = Boolean(entree.paye)
 
-              return (
-                <div key={id} className="p-6">
-                  <div className="flex justify-between items-start mb-4">
-                    <div>
-                      <h3 className="text-lg font-medium text-gray-900">Date: {date}</h3>
-                      <p className="text-sm text-gray-600">Fournisseur: {getFournisseurName(fournisseurId)}</p>
+              // Calculer le total pour Supabase aussi si les lignes sont ouvertes
+              let entreeValueTotal = entreeValueLocal
+              if (USE_SUPABASE && detail.openFor === id && detail.rows.length > 0) {
+                entreeValueTotal = detail.rows.reduce((sum, l) => {
+                  const prix = l.produit_id?.prix_achat ?? 0
+                  return sum + (l.quantite * prix)
+                }, 0)
+              }
 
-                      {/* Montant total : seulement dispo en mode local (car lignes incluses). 
-                          En Supabase, on pourrait calculer côté SQL ou via fetchEntreeDetails si tu veux. */}
-                      {!USE_SUPABASE && (
-                        <p className="text-sm font-semibold text-blue-600 mt-1">
-                          Montant total: {entreeValueLocal.toFixed(2)} DA
-                        </p>
+              return (
+                <div key={id} className="bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow p-5 mb-4">
+                  {/* En-tête de l'entrée */}
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-2xl">📦</span>
+                          <div>
+                            <h3 className="text-lg font-bold text-gray-900">
+                              Entrée #{id.slice(0, 8)}
+                            </h3>
+                            <p className="text-xs text-gray-500 mt-0.5">ID: {id}</p>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+                        <div className="bg-gray-50 rounded-lg p-3">
+                          <p className="text-xs text-gray-500 mb-1">📅 Date</p>
+                          <p className="text-sm font-semibold text-gray-900">{date}</p>
+                        </div>
+                        <div className="bg-gray-50 rounded-lg p-3">
+                          <p className="text-xs text-gray-500 mb-1">🏢 Fournisseur</p>
+                          <p className="text-sm font-semibold text-gray-900">{getFournisseurName(fournisseurId)}</p>
+                        </div>
+                      </div>
+
+                      {(entreeValueTotal !== null && entreeValueTotal > 0) && (
+                        <div className="mt-3 bg-blue-50 rounded-lg p-3 border border-blue-200">
+                          <p className="text-xs text-blue-600 mb-1">💰 Montant total</p>
+                          <p className="text-lg font-bold text-blue-700">{entreeValueTotal.toFixed(2)} DA</p>
+                        </div>
                       )}
                     </div>
-                    <div className="flex flex-col items-end space-y-2">
+
+                    {/* Badge de statut et actions */}
+                    <div className="flex flex-col items-end gap-3 ml-4">
                       <span
-                        className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                          paye ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                        className={`px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap ${
+                          paye 
+                            ? 'bg-green-100 text-green-800 border border-green-300' 
+                            : 'bg-red-100 text-red-800 border border-red-300'
                         }`}
                       >
-                        {paye ? '✓ Payé' : 'Non Payé'}
+                        {paye ? '✅ Payé' : '⏳ Non Payé'}
                       </span>
 
-                      {!paye && isAdmin() && (
-                        <button
-                          onClick={() => handleMarkPaye(id)}
-                          className="text-sm text-green-600 hover:text-green-800"
-                        >
-                          Marquer Payé
-                        </button>
-                      )}
+                      {/* Groupe de boutons d'action */}
+                      <div className="flex flex-col gap-2 w-full">
+                        {!paye && isAdmin() && (
+                          <button
+                            onClick={() => handleMarkPaye(id)}
+                            className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+                          >
+                            <span>✓</span>
+                            <span>Marquer Payé</span>
+                          </button>
+                        )}
 
-                      {isAdmin() && (
-                        <button
-                          onClick={() => handleDeleteEntree(id)}
-                          className="text-sm text-red-600 hover:text-red-800"
-                        >
-                          🗑️ Supprimer
-                        </button>
-                      )}
+                        {USE_SUPABASE && (
+                          <button
+                            onClick={() => showDetails(id)}
+                            className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2 ${
+                              detail.openFor === id
+                                ? 'bg-blue-600 text-white hover:bg-blue-700'
+                                : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                            }`}
+                          >
+                            <span>{detail.openFor === id ? '▼' : '▶'}</span>
+                            <span>{detail.openFor === id ? 'Masquer' : 'Voir'} lignes</span>
+                          </button>
+                        )}
 
-                      {USE_SUPABASE && (
-                        <button
-                          onClick={() => showDetails(id)}
-                          className="text-sm text-blue-600 hover:text-blue-800 underline"
-                        >
-                          Voir lignes
-                        </button>
-                      )}
+                        {isAdmin() && (
+                          <button
+                            onClick={() => handleDeleteEntree(id)}
+                            className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+                          >
+                            <span>🗑️</span>
+                            <span>Supprimer</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
 
-                  {/* Lignes (mode local) */}
-                  {!USE_SUPABASE && (
-                    <div className="ml-4 space-y-2">
-                      {entree.lignes?.map((ligne, idx) => {
-                        const produitNom = getProduitName(ligne.produitId)
-                        const ligneValue = ligne.quantite * getProduitPrixAchat(ligne.produitId)
-                        return (
-                          <div key={idx} className="bg-gray-50 p-3 rounded text-sm">
-                            <span className="font-medium">{produitNom}</span>
-                            <span className="ml-3 text-blue-600">Qté: {ligne.quantite}</span>
-                            <span className="ml-3 text-green-600">Valeur: {ligneValue.toFixed(2)} DA</span>
-                          </div>
-                        )
-                      })}
+                  {/* Lignes de produits */}
+                  {((!USE_SUPABASE && entree.lignes?.length > 0) || (USE_SUPABASE && detail.openFor === id && detail.rows.length > 0)) && (
+                    <div className="mt-4 border-t border-gray-200 pt-4">
+                      <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                        <span>📋</span>
+                        <span>Produits ({!USE_SUPABASE ? entree.lignes?.length : detail.rows.length})</span>
+                      </h4>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {!USE_SUPABASE && entree.lignes?.map((ligne, idx) => {
+                          const produitNom = getProduitName(ligne.produitId)
+                          const prixUnitaire = getProduitPrixAchat(ligne.produitId)
+                          const ligneValue = ligne.quantite * prixUnitaire
+                          return (
+                            <div key={idx} className="bg-gradient-to-r from-gray-50 to-gray-100 border border-gray-200 rounded-lg p-4">
+                              <div className="flex justify-between items-start mb-2">
+                                <h5 className="font-semibold text-gray-900">{produitNom}</h5>
+                                <span className="text-xs text-gray-500">#{idx + 1}</span>
+                              </div>
+                              <div className="grid grid-cols-3 gap-2 text-sm mt-2">
+                                <div>
+                                  <p className="text-xs text-gray-500">Quantité</p>
+                                  <p className="font-semibold text-blue-600">{ligne.quantite}</p>
+                                </div>
+                                <div>
+                                  <p className="text-xs text-gray-500">Prix unitaire</p>
+                                  <p className="font-semibold text-gray-700">{prixUnitaire.toFixed(2)} DA</p>
+                                </div>
+                                <div>
+                                  <p className="text-xs text-gray-500">Total</p>
+                                  <p className="font-semibold text-green-600">{ligneValue.toFixed(2)} DA</p>
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })}
+
+                        {USE_SUPABASE && detail.rows.map((l) => {
+                          const label = l.produit_id?.nom || (l.variante_id ? `${l.variante_id.modele || ''} ${l.variante_id.taille || ''} ${l.variante_id.couleur || ''}`.trim() : '—')
+                          const prixUnitaire = l.produit_id?.prix_achat ?? 0
+                          const ligneValue = l.quantite * prixUnitaire
+                          return (
+                            <div key={l.id} className="bg-gradient-to-r from-gray-50 to-gray-100 border border-gray-200 rounded-lg p-4">
+                              <div className="flex justify-between items-start mb-2">
+                                <h5 className="font-semibold text-gray-900">{label}</h5>
+                                <span className="text-xs text-gray-500">#{l.id.slice(0, 6)}</span>
+                              </div>
+                              <div className="grid grid-cols-3 gap-2 text-sm mt-2">
+                                <div>
+                                  <p className="text-xs text-gray-500">Quantité</p>
+                                  <p className="font-semibold text-blue-600">{l.quantite}</p>
+                                </div>
+                                <div>
+                                  <p className="text-xs text-gray-500">Prix unitaire</p>
+                                  <p className="font-semibold text-gray-700">{prixUnitaire.toFixed(2)} DA</p>
+                                </div>
+                                <div>
+                                  <p className="text-xs text-gray-500">Total</p>
+                                  <p className="font-semibold text-green-600">{ligneValue.toFixed(2)} DA</p>
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
                     </div>
                   )}
 
-                  {/* Lignes (mode Supabase, via fetchEntreeDetails) */}
-                  {USE_SUPABASE && detail.openFor === id && (
-                    <div className="ml-4 space-y-2">
-                      {detail.rows.length === 0 ? (
-                        <div className="text-sm text-gray-500">Aucune ligne</div>
-                      ) : (
-                        detail.rows.map((l) => {
-                          const label =
-                            l.produit_id?.nom ||
-                            (l.variante_id
-                              ? `${l.variante_id.modele || ''} ${l.variante_id.taille || ''} ${l.variante_id.couleur || ''}`.trim()
-                              : '—')
-                          return (
-                            <div key={l.id} className="bg-gray-50 p-3 rounded text-sm">
-                              <span className="font-medium">{label}</span>
-                              <span className="ml-3 text-blue-600">Qté: {l.quantite}</span>
-                            </div>
-                          )
-                        })
-                      )}
+                  {USE_SUPABASE && detail.openFor === id && detail.rows.length === 0 && (
+                    <div className="mt-4 border-t border-gray-200 pt-4">
+                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-center">
+                        <p className="text-sm text-yellow-700">⚠️ Aucune ligne de produit enregistrée pour cette entrée</p>
+                      </div>
                     </div>
                   )}
                 </div>
