@@ -168,6 +168,61 @@ const Entries = () => {
     return filtered
   }, [entrees, filters])
 
+  // Calculer les statistiques globales
+  const globalStats = useMemo(() => {
+    let totalEntrees = filteredEntrees.length
+    let totalPayees = 0
+    let totalNonPayees = 0
+    let totalValue = 0
+    let totalValuePayees = 0
+    let totalValueNonPayees = 0
+    let totalProduits = 0
+    
+    filteredEntrees.forEach(entree => {
+      const paye = Boolean(entree.paye)
+      let entreeValue = 0
+      
+      if (!USE_SUPABASE && entree.lignes) {
+        entreeValue = calculateEntreeValueLocal(entree)
+        totalProduits += entree.lignes.reduce((sum, l) => sum + (l.quantite || 0), 0)
+      } else {
+        // Pour Supabase, on essaie d'estimer en utilisant les produits connus si possible
+        // Mais on ne peut pas vraiment calculer sans charger les détails
+        // Donc on compte seulement les entrées où les détails sont déjà chargés
+        if (detail.openFor === entree.id && detail.rows.length > 0) {
+          entreeValue = detail.rows.reduce((sum, l) => {
+            const prix = l.produit_id?.prix_achat ?? 0
+            return sum + (l.quantite * prix)
+          }, 0)
+          totalProduits += detail.rows.reduce((sum, l) => sum + (l.quantite || 0), 0)
+        }
+      }
+      
+      totalValue += entreeValue
+      
+      if (paye) {
+        totalPayees++
+        totalValuePayees += entreeValue
+      } else {
+        totalNonPayees++
+        totalValueNonPayees += entreeValue
+      }
+    })
+    
+    const tauxPaye = totalEntrees > 0 ? (totalPayees / totalEntrees) * 100 : 0
+    
+    return {
+      totalEntrees,
+      totalPayees,
+      totalNonPayees,
+      totalValue,
+      totalValuePayees,
+      totalValueNonPayees,
+      totalProduits,
+      tauxPaye
+    }
+  }, [filteredEntrees, detail, calculateEntreeValueLocal])
+
   const handleDeleteEntree = async (entreeId) => {
     if (!window.confirm('Êtes-vous sûr de vouloir supprimer cette entrée ?')) return
     if (USE_SUPABASE) {
@@ -205,18 +260,21 @@ const Entries = () => {
       </div>
 
       {/* Filtres */}
-      <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
-        <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-          <span>🔍</span>
-          <span>Filtres</span>
+      <div className="bg-gradient-to-br from-gray-50 to-white rounded-xl border-3 border-gray-300 shadow-lg p-5">
+        <h3 className="text-base font-extrabold text-gray-800 mb-4 flex items-center gap-2">
+          <span className="bg-blue-500 text-white p-2 rounded-lg">🔍</span>
+          <span>Filtres de Recherche</span>
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Fournisseur</label>
+          <div className="bg-white/80 rounded-lg p-3 border-2 border-gray-200 shadow-sm">
+            <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-1">
+              <span>🏢</span>
+              <span>Fournisseur</span>
+            </label>
             <select
               value={filters.fournisseurId}
               onChange={(e) => setFilters({ ...filters, fournisseurId: e.target.value })}
-              className="w-full border border-gray-300 rounded-md py-2 px-3 text-sm"
+              className="w-full border-2 border-gray-300 rounded-lg py-2.5 px-3 text-sm font-medium focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
             >
               <option value="">Tous les fournisseurs</option>
               {fournisseurs.map((f) => (
@@ -224,33 +282,109 @@ const Entries = () => {
               ))}
             </select>
           </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Date début</label>
+          <div className="bg-white/80 rounded-lg p-3 border-2 border-gray-200 shadow-sm">
+            <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-1">
+              <span>📅</span>
+              <span>Date début</span>
+            </label>
             <input
               type="date"
               value={filters.dateStart}
               onChange={(e) => setFilters({ ...filters, dateStart: e.target.value })}
-              className="w-full border border-gray-300 rounded-md py-2 px-3 text-sm"
+              className="w-full border-2 border-gray-300 rounded-lg py-2.5 px-3 text-sm font-medium focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
             />
           </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Date fin</label>
+          <div className="bg-white/80 rounded-lg p-3 border-2 border-gray-200 shadow-sm">
+            <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-1">
+              <span>📅</span>
+              <span>Date fin</span>
+            </label>
             <input
               type="date"
               value={filters.dateEnd}
               onChange={(e) => setFilters({ ...filters, dateEnd: e.target.value })}
-              className="w-full border border-gray-300 rounded-md py-2 px-3 text-sm"
+              className="w-full border-2 border-gray-300 rounded-lg py-2.5 px-3 text-sm font-medium focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
             />
           </div>
         </div>
         {(filters.fournisseurId || filters.dateStart || filters.dateEnd) && (
           <button
             onClick={() => setFilters({ fournisseurId: '', dateStart: '', dateEnd: '' })}
-            className="mt-3 text-sm text-red-600 hover:text-red-800 underline"
+            className="mt-4 px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white text-sm font-bold rounded-lg shadow-md hover:shadow-lg transition-all flex items-center gap-2"
           >
-            Réinitialiser les filtres
+            <span>🔄</span>
+            <span>Réinitialiser les filtres</span>
           </button>
         )}
+      </div>
+
+      {/* Résumé Global */}
+      <div className="bg-gradient-to-br from-gray-50 via-gray-100 to-gray-200 rounded-2xl p-6 border-4 border-gray-300 shadow-xl">
+        <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+          <span className="bg-white p-2 rounded-lg shadow-sm">📊</span>
+          <span>Résumé Global</span>
+        </h2>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          <div className="bg-gradient-to-br from-blue-100 to-blue-200 border-3 border-blue-400 rounded-xl p-5 shadow-lg">
+            <div className="flex items-center justify-between mb-2">
+              <span className="bg-blue-500 text-white p-2 rounded-lg text-xl">📦</span>
+              <span className="text-xs text-blue-700 font-semibold bg-blue-300 px-2 py-1 rounded-full">
+                Total Entrées
+              </span>
+            </div>
+            <p className="text-3xl font-extrabold text-blue-800 mb-1">{globalStats.totalEntrees}</p>
+            <p className="text-xs text-blue-600 mt-2">
+              {globalStats.totalPayees} payées / {globalStats.totalNonPayees} non payées
+            </p>
+          </div>
+          
+          <div className="bg-gradient-to-br from-green-100 to-green-200 border-3 border-green-400 rounded-xl p-5 shadow-lg">
+            <div className="flex items-center justify-between mb-2">
+              <span className="bg-green-500 text-white p-2 rounded-lg text-xl">💰</span>
+              <span className="text-xs text-green-700 font-semibold bg-green-300 px-2 py-1 rounded-full">
+                Valeur Totale
+              </span>
+            </div>
+            <p className="text-3xl font-extrabold text-green-800 mb-1">{globalStats.totalValue.toFixed(2)} DA</p>
+            <p className="text-xs text-green-600 mt-2">
+              {globalStats.tauxPaye.toFixed(1)}% d'entrées payées
+            </p>
+          </div>
+          
+          <div className="bg-gradient-to-br from-purple-100 to-purple-200 border-3 border-purple-400 rounded-xl p-5 shadow-lg">
+            <div className="flex items-center justify-between mb-2">
+              <span className="bg-purple-500 text-white p-2 rounded-lg text-xl">📋</span>
+              <span className="text-xs text-purple-700 font-semibold bg-purple-300 px-2 py-1 rounded-full">
+                Produits Reçus
+              </span>
+            </div>
+            <p className="text-3xl font-extrabold text-purple-800 mb-1">{globalStats.totalProduits}</p>
+            <p className="text-xs text-purple-600 mt-2">
+              Unités totales reçues
+            </p>
+          </div>
+        </div>
+        
+        {/* Statistiques détaillées */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-4 border-t-2 border-gray-400">
+          <div className="bg-white/90 rounded-lg p-3 text-center border border-gray-300 shadow-sm">
+            <p className="text-xs text-gray-600 mb-1">Valeur Payée</p>
+            <p className="text-xl font-bold text-green-700">{globalStats.totalValuePayees.toFixed(2)} DA</p>
+          </div>
+          <div className="bg-white/90 rounded-lg p-3 text-center border border-gray-300 shadow-sm">
+            <p className="text-xs text-gray-600 mb-1">Valeur Non Payée</p>
+            <p className="text-xl font-bold text-red-700">{globalStats.totalValueNonPayees.toFixed(2)} DA</p>
+          </div>
+          <div className="bg-blue-50 rounded-lg p-3 text-center border-2 border-blue-300 shadow-sm">
+            <p className="text-xs text-blue-600 mb-1 font-medium">Entrées Payées</p>
+            <p className="text-xl font-bold text-blue-800">{globalStats.totalPayees}</p>
+          </div>
+          <div className="bg-orange-50 rounded-lg p-3 text-center border-2 border-orange-300 shadow-sm">
+            <p className="text-xs text-orange-600 mb-1 font-medium">Entrées Non Payées</p>
+            <p className="text-xl font-bold text-orange-800">{globalStats.totalNonPayees}</p>
+          </div>
+        </div>
       </div>
 
       {/* Liste des entrées */}
@@ -279,62 +413,70 @@ const Entries = () => {
             }
 
             return (
-              <div key={id} className="bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow p-5 mb-4">
+              <div key={id} className="bg-gradient-to-br from-white to-gray-50 rounded-2xl border-4 border-gray-300 shadow-xl hover:shadow-2xl transition-all duration-300 p-6 mb-6">
                 {/* En-tête de l'entrée */}
-                <div className="flex justify-between items-start mb-4">
+                <div className="flex justify-between items-start mb-4 pb-4 border-b-3 border-gray-300">
                   <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="bg-blue-500 text-white p-3 rounded-xl shadow-lg">
                         <span className="text-2xl">📦</span>
-                        <div>
-                          <h3 className="text-lg font-bold text-gray-900">
-                            Entrée #{id.slice(0, 8)}
-                          </h3>
-                          <p className="text-xs text-gray-500 mt-0.5">ID: {id}</p>
-                        </div>
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-extrabold text-gray-900">
+                          Entrée #{id.slice(0, 8)}
+                        </h3>
+                        <p className="text-xs text-gray-500 mt-1">ID: {id}</p>
                       </div>
                     </div>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
-                      <div className="bg-gray-50 rounded-lg p-3">
-                        <p className="text-xs text-gray-500 mb-1">📅 Date</p>
-                        <p className="text-sm font-semibold text-gray-900">{date}</p>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4">
+                      <div className="bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-300 rounded-xl p-4 shadow-sm">
+                        <p className="text-xs text-blue-600 mb-1 font-semibold flex items-center gap-1">
+                          <span>📅</span>
+                          <span>Date</span>
+                        </p>
+                        <p className="text-base font-bold text-blue-900">{date}</p>
                       </div>
-                      <div className="bg-gray-50 rounded-lg p-3">
-                        <p className="text-xs text-gray-500 mb-1">🏢 Fournisseur</p>
-                        <p className="text-sm font-semibold text-gray-900">{getFournisseurName(fournisseurId)}</p>
+                      <div className="bg-gradient-to-br from-purple-50 to-purple-100 border-2 border-purple-300 rounded-xl p-4 shadow-sm">
+                        <p className="text-xs text-purple-600 mb-1 font-semibold flex items-center gap-1">
+                          <span>🏢</span>
+                          <span>Fournisseur</span>
+                        </p>
+                        <p className="text-base font-bold text-purple-900">{getFournisseurName(fournisseurId)}</p>
                       </div>
+                      {(entreeValueTotal !== null && entreeValueTotal > 0) && (
+                        <div className="bg-gradient-to-br from-green-50 to-green-100 border-2 border-green-300 rounded-xl p-4 shadow-sm">
+                          <p className="text-xs text-green-600 mb-1 font-semibold flex items-center gap-1">
+                            <span>💰</span>
+                            <span>Montant total</span>
+                          </p>
+                          <p className="text-lg font-extrabold text-green-800">{entreeValueTotal.toFixed(2)} DA</p>
+                        </div>
+                      )}
                     </div>
-
-                    {(entreeValueTotal !== null && entreeValueTotal > 0) && (
-                      <div className="mt-3 bg-blue-50 rounded-lg p-3 border border-blue-200">
-                        <p className="text-xs text-blue-600 mb-1">💰 Montant total</p>
-                        <p className="text-lg font-bold text-blue-700">{entreeValueTotal.toFixed(2)} DA</p>
-                      </div>
-                    )}
                   </div>
 
                   {/* Badge de statut et actions */}
-                  <div className="flex flex-col items-end gap-3 ml-4">
+                  <div className="flex flex-col items-end gap-3 ml-6">
                     <span
-                      className={`px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap ${
+                      className={`px-5 py-3 rounded-xl text-sm font-extrabold whitespace-nowrap shadow-lg border-3 ${
                         paye 
-                          ? 'bg-green-100 text-green-800 border border-green-300' 
-                          : 'bg-red-100 text-red-800 border border-red-300'
+                          ? 'bg-gradient-to-br from-green-100 to-green-200 text-green-800 border-green-400' 
+                          : 'bg-gradient-to-br from-red-100 to-red-200 text-red-800 border-red-400'
                       }`}
                     >
                       {paye ? '✅ Payé' : '⏳ Non Payé'}
                     </span>
 
                     {/* Groupe de boutons d'action */}
-                    <div className="flex flex-col gap-2 w-full">
+                    <div className="flex flex-col gap-2 w-full min-w-[140px]">
                       {USE_SUPABASE && (
                         <button
                           onClick={() => showDetails(id)}
-                          className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2 ${
+                          className={`px-4 py-2.5 text-sm font-bold rounded-xl transition-all shadow-md hover:shadow-xl flex items-center justify-center gap-2 ${
                             detail.openFor === id
-                              ? 'bg-blue-600 text-white hover:bg-blue-700'
-                              : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                              ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:from-blue-700 hover:to-blue-800'
+                              : 'bg-gradient-to-r from-blue-100 to-blue-200 text-blue-800 border-2 border-blue-300 hover:from-blue-200 hover:to-blue-300'
                           }`}
                         >
                           <span>{detail.openFor === id ? '▼' : '▶'}</span>
@@ -345,7 +487,7 @@ const Entries = () => {
                       {isAdmin() && (
                         <button
                           onClick={() => handleDeleteEntree(id)}
-                          className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+                          className="px-4 py-2.5 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white text-sm font-bold rounded-xl transition-all shadow-md hover:shadow-xl flex items-center justify-center gap-2"
                         >
                           <span>🗑️</span>
                           <span>Supprimer</span>
@@ -357,35 +499,35 @@ const Entries = () => {
 
                 {/* Lignes de produits */}
                 {((!USE_SUPABASE && entree.lignes?.length > 0) || (USE_SUPABASE && detail.openFor === id && detail.rows.length > 0)) && (
-                  <div className="mt-4 border-t border-gray-200 pt-4">
-                    <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                      <span>📋</span>
+                  <div className="mt-5 pt-5 border-t-3 border-gray-300">
+                    <h4 className="text-base font-extrabold text-gray-800 mb-4 flex items-center gap-2 bg-white p-3 rounded-xl border-2 border-gray-300 shadow-sm">
+                      <span className="bg-blue-500 text-white p-2 rounded-lg">📋</span>
                       <span>Produits ({!USE_SUPABASE ? entree.lignes?.length : detail.rows.length})</span>
                     </h4>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {!USE_SUPABASE && entree.lignes?.map((ligne, idx) => {
                         const produitNom = getProduitName(ligne.produitId)
                         const prixUnitaire = getProduitPrixAchat(ligne.produitId)
                         const ligneValue = ligne.quantite * prixUnitaire
                         return (
-                          <div key={idx} className="bg-gradient-to-r from-gray-50 to-gray-100 border border-gray-200 rounded-lg p-4">
-                            <div className="flex justify-between items-start mb-2">
-                              <h5 className="font-semibold text-gray-900">{produitNom}</h5>
-                              <span className="text-xs text-gray-500">#{idx + 1}</span>
+                          <div key={idx} className="bg-gradient-to-br from-indigo-50 via-blue-50 to-purple-50 border-3 border-indigo-300 rounded-xl p-4 shadow-lg hover:shadow-xl transition-shadow">
+                            <div className="flex justify-between items-start mb-3 pb-2 border-b-2 border-indigo-200">
+                              <h5 className="font-extrabold text-gray-900 text-base">{produitNom}</h5>
+                              <span className="text-xs font-bold text-indigo-600 bg-indigo-200 px-2 py-1 rounded-full">#{idx + 1}</span>
                             </div>
-                            <div className="grid grid-cols-3 gap-2 text-sm mt-2">
-                              <div>
-                                <p className="text-xs text-gray-500">Quantité</p>
-                                <p className="font-semibold text-blue-600">{ligne.quantite}</p>
+                            <div className="grid grid-cols-3 gap-3 mt-3">
+                              <div className="bg-white/60 rounded-lg p-2 text-center">
+                                <p className="text-xs text-gray-500 mb-1 font-medium">Quantité</p>
+                                <p className="font-extrabold text-blue-700 text-base">{ligne.quantite}</p>
                               </div>
-                              <div>
-                                <p className="text-xs text-gray-500">Prix unitaire</p>
-                                <p className="font-semibold text-gray-700">{prixUnitaire.toFixed(2)} DA</p>
+                              <div className="bg-white/60 rounded-lg p-2 text-center">
+                                <p className="text-xs text-gray-500 mb-1 font-medium">Prix unitaire</p>
+                                <p className="font-extrabold text-gray-800 text-base">{prixUnitaire.toFixed(2)} DA</p>
                               </div>
-                              <div>
-                                <p className="text-xs text-gray-500">Total</p>
-                                <p className="font-semibold text-green-600">{ligneValue.toFixed(2)} DA</p>
+                              <div className="bg-white/60 rounded-lg p-2 text-center">
+                                <p className="text-xs text-gray-500 mb-1 font-medium">Total</p>
+                                <p className="font-extrabold text-green-700 text-base">{ligneValue.toFixed(2)} DA</p>
                               </div>
                             </div>
                           </div>
@@ -397,23 +539,23 @@ const Entries = () => {
                         const prixUnitaire = l.produit_id?.prix_achat ?? 0
                         const ligneValue = l.quantite * prixUnitaire
                         return (
-                          <div key={l.id} className="bg-gradient-to-r from-gray-50 to-gray-100 border border-gray-200 rounded-lg p-4">
-                            <div className="flex justify-between items-start mb-2">
-                              <h5 className="font-semibold text-gray-900">{label}</h5>
-                              <span className="text-xs text-gray-500">#{l.id.slice(0, 6)}</span>
+                          <div key={l.id} className="bg-gradient-to-br from-indigo-50 via-blue-50 to-purple-50 border-3 border-indigo-300 rounded-xl p-4 shadow-lg hover:shadow-xl transition-shadow">
+                            <div className="flex justify-between items-start mb-3 pb-2 border-b-2 border-indigo-200">
+                              <h5 className="font-extrabold text-gray-900 text-base">{label}</h5>
+                              <span className="text-xs font-bold text-indigo-600 bg-indigo-200 px-2 py-1 rounded-full">#{l.id.slice(0, 6)}</span>
                             </div>
-                            <div className="grid grid-cols-3 gap-2 text-sm mt-2">
-                              <div>
-                                <p className="text-xs text-gray-500">Quantité</p>
-                                <p className="font-semibold text-blue-600">{l.quantite}</p>
+                            <div className="grid grid-cols-3 gap-3 mt-3">
+                              <div className="bg-white/60 rounded-lg p-2 text-center">
+                                <p className="text-xs text-gray-500 mb-1 font-medium">Quantité</p>
+                                <p className="font-extrabold text-blue-700 text-base">{l.quantite}</p>
                               </div>
-                              <div>
-                                <p className="text-xs text-gray-500">Prix unitaire</p>
-                                <p className="font-semibold text-gray-700">{prixUnitaire.toFixed(2)} DA</p>
+                              <div className="bg-white/60 rounded-lg p-2 text-center">
+                                <p className="text-xs text-gray-500 mb-1 font-medium">Prix unitaire</p>
+                                <p className="font-extrabold text-gray-800 text-base">{prixUnitaire.toFixed(2)} DA</p>
                               </div>
-                              <div>
-                                <p className="text-xs text-gray-500">Total</p>
-                                <p className="font-semibold text-green-600">{ligneValue.toFixed(2)} DA</p>
+                              <div className="bg-white/60 rounded-lg p-2 text-center">
+                                <p className="text-xs text-gray-500 mb-1 font-medium">Total</p>
+                                <p className="font-extrabold text-green-700 text-base">{ligneValue.toFixed(2)} DA</p>
                               </div>
                             </div>
                           </div>
