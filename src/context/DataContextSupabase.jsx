@@ -56,8 +56,8 @@ export const DataProvider = ({ children }) => {
     if (error) return console.error(error)
     fetchFournisseurs()
   }
-  async function addDepense(montant, description, date) {
-    const { error } = await supabase.from('depenses').insert([{ montant, description, date }])
+  async function addDepense(nom, montant, description, date) {
+    const { error } = await supabase.from('depenses').insert([{ nom, montant, description: description || '', date }])
     if (error) return console.error(error)
     fetchDepenses()
   }

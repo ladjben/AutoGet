@@ -1,7 +1,7 @@
 import { useData, ActionTypes } from '../context/UnifiedDataContext';
 import { USE_SUPABASE } from '../config';
 import { useAuth } from '../context/AuthContext';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 
 const Depenses = () => {
   const dataCtx = useData();
@@ -22,7 +22,32 @@ const Depenses = () => {
   const [singleDate, setSingleDate] = useState('');
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
   
+  // Noms de dépenses prédéfinis
+  const nomsDepensesPred = [
+    'Transport',
+    'Loyer',
+    'Électricité',
+    'Eau',
+    'Gaz',
+    'Internet',
+    'Téléphone',
+    'Nourriture',
+    'Médicaments',
+    'Éducation',
+    'Vêtements',
+    'Divertissement',
+    'Matériel de bureau',
+    'Entretien',
+    'Réparations',
+    'Fournitures',
+    'Publicité',
+    'Assurance',
+    'Impôts',
+    'Autres'
+  ];
+
   const [formData, setFormData] = useState({
+    nom: '',
     montant: '',
     description: '',
     date: new Date().toISOString().split('T')[0]
@@ -53,17 +78,40 @@ const Depenses = () => {
     return filteredDepenses.reduce((sum, d) => sum + (d.montant || 0), 0);
   };
 
+  // Grouper les dépenses par nom et calculer les totaux
+  const depensesParNom = useMemo(() => {
+    const groupes = {};
+    filteredDepenses.forEach(depense => {
+      const nom = depense.nom || depense.description || 'Sans nom';
+      if (!groupes[nom]) {
+        groupes[nom] = {
+          nom,
+          total: 0,
+          count: 0,
+          depenses: []
+        };
+      }
+      groupes[nom].total += depense.montant || 0;
+      groupes[nom].count += 1;
+      groupes[nom].depenses.push(depense);
+    });
+    
+    // Trier par total décroissant
+    return Object.values(groupes).sort((a, b) => b.total - a.total);
+  }, [filteredDepenses]);
+
   const handleAddDepense = async () => {
-    if (!formData.montant || !formData.date) {
-      alert('Veuillez remplir le montant et la date');
+    if (!formData.nom || !formData.montant || !formData.date) {
+      alert('Veuillez remplir le nom, le montant et la date');
       return;
     }
 
     if (USE_SUPABASE) {
-      await addDepense(parseFloat(formData.montant), formData.description, formData.date);
+      await addDepense(formData.nom, parseFloat(formData.montant), formData.description || '', formData.date);
     } else {
       const newDepense = {
         id: generateId(),
+        nom: formData.nom,
         montant: parseFloat(formData.montant),
         description: formData.description,
         date: formData.date
@@ -75,13 +123,14 @@ const Depenses = () => {
   };
 
   const handleUpdateDepense = () => {
-    if (!formData.montant || !formData.date) {
+    if (!formData.nom || !formData.montant || !formData.date) {
       alert('Veuillez remplir tous les champs obligatoires');
       return;
     }
 
     const updatedDepense = {
       ...editingDepense,
+      nom: formData.nom,
       montant: parseFloat(formData.montant),
       description: formData.description,
       date: formData.date
@@ -102,6 +151,7 @@ const Depenses = () => {
   const openEditModal = (depense) => {
     setEditingDepense(depense);
     setFormData({
+      nom: depense.nom || depense.description || '',
       montant: depense.montant,
       description: depense.description || '',
       date: depense.date
@@ -110,7 +160,7 @@ const Depenses = () => {
   };
 
   const resetForm = () => {
-    setFormData({ montant: '', description: '', date: new Date().toISOString().split('T')[0] });
+    setFormData({ nom: '', montant: '', description: '', date: new Date().toISOString().split('T')[0] });
   };
 
   return (
@@ -190,7 +240,7 @@ const Depenses = () => {
           )}
         </div>
 
-        {/* Total */}
+        {/* Total Général */}
         {filteredDepenses.length > 0 && (
           <div className="mt-4 p-4 bg-blue-50 rounded-lg">
             <div className="flex justify-between items-center">
@@ -204,6 +254,33 @@ const Depenses = () => {
           </div>
         )}
       </div>
+
+      {/* Résumé par nom de dépense */}
+      {depensesParNom.length > 0 && (
+        <div className="bg-white shadow rounded-lg p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">📊 Résumé par Catégorie</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {depensesParNom.map((groupe) => (
+              <div key={groupe.nom} className="bg-gradient-to-r from-purple-50 to-indigo-50 border-2 border-purple-200 rounded-lg p-4 shadow-sm">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-bold text-gray-900 text-sm">{groupe.nom}</h3>
+                  <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded-full">
+                    {groupe.count} {groupe.count === 1 ? 'fois' : 'fois'}
+                  </span>
+                </div>
+                <p className="text-2xl font-bold text-purple-700">
+                  {groupe.total.toFixed(2)} DA
+                </p>
+                <div className="mt-2 pt-2 border-t border-purple-200">
+                  <p className="text-xs text-gray-600">
+                    Moyenne: {(groupe.total / groupe.count).toFixed(2)} DA
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Depenses List */}
       <div className="bg-white shadow overflow-hidden sm:rounded-md">
@@ -224,12 +301,21 @@ const Depenses = () => {
                     <div className="flex items-center space-x-4">
                       <div className="text-2xl">💰</div>
                       <div>
-                        <h3 className="text-lg font-medium text-gray-900">
-                          {depense.montant.toFixed(2)} DA
-                        </h3>
-                        <p className="text-sm text-gray-500 mt-1">
-                          {depense.description || 'Aucune description'}
-                        </p>
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-lg font-medium text-gray-900">
+                            {depense.montant.toFixed(2)} DA
+                          </h3>
+                          {depense.nom && (
+                            <span className="px-2 py-1 bg-purple-100 text-purple-800 text-xs font-semibold rounded-full">
+                              {depense.nom}
+                            </span>
+                          )}
+                        </div>
+                        {depense.description && (
+                          <p className="text-sm text-gray-500 mt-1">
+                            {depense.description}
+                          </p>
+                        )}
                         <p className="text-xs text-gray-400 mt-1">
                           📅 {depense.date}
                         </p>
@@ -270,6 +356,33 @@ const Depenses = () => {
             
             <div className="space-y-4">
               <div>
+                <label className="block text-sm font-medium text-gray-700">Nom de la dépense *</label>
+                <select
+                  value={formData.nom}
+                  onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
+                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3"
+                  required
+                >
+                  <option value="">Sélectionner un nom...</option>
+                  {nomsDepensesPred.map((nom) => (
+                    <option key={nom} value={nom}>{nom}</option>
+                  ))}
+                </select>
+                <input
+                  type="text"
+                  placeholder="Ou créer un nouveau nom..."
+                  value={!nomsDepensesPred.includes(formData.nom) && formData.nom ? formData.nom : ''}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value && !nomsDepensesPred.includes(value)) {
+                      setFormData({ ...formData, nom: value });
+                    }
+                  }}
+                  className="mt-2 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 text-sm"
+                />
+              </div>
+
+              <div>
                 <label className="block text-sm font-medium text-gray-700">Montant (DA) *</label>
                 <input
                   type="number"
@@ -277,6 +390,7 @@ const Depenses = () => {
                   value={formData.montant}
                   onChange={(e) => setFormData({ ...formData, montant: e.target.value })}
                   className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3"
+                  required
                 />
               </div>
 
@@ -287,6 +401,7 @@ const Depenses = () => {
                   value={formData.date}
                   onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                   className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3"
+                  required
                 />
               </div>
 
@@ -297,7 +412,7 @@ const Depenses = () => {
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   rows="3"
                   className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3"
-                  placeholder="Détails de la dépense..."
+                  placeholder="Détails supplémentaires de la dépense..."
                 />
               </div>
             </div>
