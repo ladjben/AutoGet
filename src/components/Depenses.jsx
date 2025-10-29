@@ -15,6 +15,8 @@ const Depenses = () => {
   const dispatch = dataCtx?.dispatch;
   const generateId = dataCtx?.generateId;
   const addDepense = dataCtx?.addDepense;
+  const updateDepense = dataCtx?.updateDepense;
+  const deleteDepense = dataCtx?.deleteDepense;
   const { isAdmin } = useAuth();
   const [showModal, setShowModal] = useState(false);
   const [editingDepense, setEditingDepense] = useState(null);
@@ -122,29 +124,53 @@ const Depenses = () => {
     setShowModal(false);
   };
 
-  const handleUpdateDepense = () => {
+  const handleUpdateDepense = async () => {
     if (!formData.nom || !formData.montant || !formData.date) {
       alert('Veuillez remplir tous les champs obligatoires');
       return;
     }
 
-    const updatedDepense = {
-      ...editingDepense,
-      nom: formData.nom,
-      montant: parseFloat(formData.montant),
-      description: formData.description,
-      date: formData.date
-    };
-
-    dispatch({ type: ActionTypes.UPDATE_DEPENSE, payload: updatedDepense });
-    resetForm();
-    setShowModal(false);
-    setEditingDepense(null);
+    try {
+      if (USE_SUPABASE) {
+        await updateDepense(editingDepense.id, {
+          nom: formData.nom,
+          montant: parseFloat(formData.montant),
+          description: formData.description,
+          date: formData.date
+        });
+      } else {
+        const updatedDepense = {
+          ...editingDepense,
+          nom: formData.nom,
+          montant: parseFloat(formData.montant),
+          description: formData.description,
+          date: formData.date
+        };
+        dispatch({ type: ActionTypes.UPDATE_DEPENSE, payload: updatedDepense });
+      }
+      resetForm();
+      setShowModal(false);
+      setEditingDepense(null);
+    } catch (e) {
+      alert('Erreur lors de la mise à jour: ' + (e?.message || 'inconnue'));
+      console.error('Erreur updateDepense:', e);
+    }
   };
 
-  const handleDeleteDepense = (id) => {
-    if (window.confirm('Êtes-vous sûr de vouloir supprimer cette dépense ?')) {
-      dispatch({ type: ActionTypes.DELETE_DEPENSE, payload: id });
+  const handleDeleteDepense = async (id) => {
+    if (!window.confirm('Êtes-vous sûr de vouloir supprimer cette dépense ?')) {
+      return;
+    }
+
+    try {
+      if (USE_SUPABASE) {
+        await deleteDepense(id);
+      } else {
+        dispatch({ type: ActionTypes.DELETE_DEPENSE, payload: id });
+      }
+    } catch (e) {
+      alert('Erreur lors de la suppression: ' + (e?.message || 'inconnue'));
+      console.error('Erreur deleteDepense:', e);
     }
   };
 

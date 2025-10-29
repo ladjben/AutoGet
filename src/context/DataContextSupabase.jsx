@@ -62,6 +62,40 @@ export const DataProvider = ({ children }) => {
     fetchDepenses()
   }
 
+  // Mise à jour dépense
+  async function updateDepense(id, { nom, montant, description, date }) {
+    try {
+      const { error } = await supabase
+        .from('depenses')
+        .update({ nom, montant, description: description || '', date })
+        .eq('id', id)
+      if (error) throw error
+      await fetchDepenses()
+      return { success: true }
+    } catch (e) {
+      console.error('updateDepense:', e)
+      throw e
+    }
+  }
+
+  // Suppression dépense
+  async function deleteDepense(id) {
+    try {
+      console.log('🗑️ Suppression dépense:', id)
+      const { error } = await supabase
+        .from('depenses')
+        .delete()
+        .eq('id', id)
+      if (error) throw error
+      console.log('✅ Dépense supprimée:', id)
+      await fetchDepenses()
+      return { success: true }
+    } catch (e) {
+      console.error('❌ Erreur deleteDepense:', e?.message || e)
+      throw e
+    }
+  }
+
   // Mise à jour produit
   async function updateProduit(id, { nom, reference, prix_achat }) {
     try {
@@ -184,7 +218,7 @@ export const DataProvider = ({ children }) => {
         // reads
         fetchAll, fetchProduits, fetchFournisseurs, fetchEntrees, fetchDepenses, fetchEntreeDetails,
         // writes
-        addProduit, updateProduit, deleteProduit, addFournisseur, addDepense,
+        addProduit, updateProduit, deleteProduit, addFournisseur, addDepense, updateDepense, deleteDepense,
         addEntreeWithLines, // ⬅️ NOUVEAU
       }}
     >
