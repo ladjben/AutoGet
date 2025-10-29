@@ -6,7 +6,8 @@ const initialState = {
   fournisseurs: [],
   entrees: [],
   paiements: [],
-  depenses: []
+  depenses: [],
+  colis: []
 };
 
 // Storage key
@@ -63,6 +64,11 @@ const ActionTypes = {
   ADD_DEPENSE: 'ADD_DEPENSE',
   UPDATE_DEPENSE: 'UPDATE_DEPENSE',
   DELETE_DEPENSE: 'DELETE_DEPENSE',
+  
+  // Colis
+  ADD_COLIS: 'ADD_COLIS',
+  UPDATE_COLIS: 'UPDATE_COLIS',
+  DELETE_COLIS: 'DELETE_COLIS',
 };
 
 // Reducer
@@ -77,7 +83,8 @@ const dataReducer = (state, action) => {
         fournisseurs: action.payload.fournisseurs || [],
         entrees: action.payload.entrees || [],
         paiements: action.payload.paiements || [],
-        depenses: action.payload.depenses || []
+        depenses: action.payload.depenses || [],
+        colis: action.payload.colis || []
       };
       
     case ActionTypes.ADD_PRODUIT:
@@ -258,6 +265,32 @@ const dataReducer = (state, action) => {
       newState = {
         ...state,
         depenses: state.depenses.filter(d => d.id !== action.payload)
+      };
+      saveData(newState);
+      return newState;
+      
+    case ActionTypes.ADD_COLIS:
+      newState = {
+        ...state,
+        colis: [...(state.colis || []), action.payload]
+      };
+      saveData(newState);
+      return newState;
+      
+    case ActionTypes.UPDATE_COLIS:
+      newState = {
+        ...state,
+        colis: (state.colis || []).map(c =>
+          c.id === action.payload.id ? action.payload : c
+        )
+      };
+      saveData(newState);
+      return newState;
+      
+    case ActionTypes.DELETE_COLIS:
+      newState = {
+        ...state,
+        colis: (state.colis || []).filter(c => c.id !== action.payload)
       };
       saveData(newState);
       return newState;

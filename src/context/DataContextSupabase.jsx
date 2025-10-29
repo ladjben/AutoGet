@@ -23,7 +23,8 @@ export const DataProvider = ({ children }) => {
       fetchEntrees(),
       fetchPaiements(),
       fetchDepenses(),
-      fetchDepenseCategories()
+      fetchDepenseCategories(),
+      fetchColis()
     ])
   }
 
@@ -238,6 +239,64 @@ export const DataProvider = ({ children }) => {
     }
   }
 
+  // ========== COLIS ==========
+  async function fetchColis() {
+    try {
+      const { data, error } = await supabase
+        .from('colis')
+        .select('*')
+        .order('date', { ascending: false })
+      if (error) throw error
+      setColis(data || [])
+    } catch (e) {
+      console.error('❌ Erreur fetchColis:', e?.message || e)
+    }
+  }
+
+  async function addColis(nombre, date, description) {
+    try {
+      const { error } = await supabase
+        .from('colis')
+        .insert([{ nombre, date, description: description || '' }])
+      if (error) throw error
+      await fetchColis()
+      return { success: true }
+    } catch (e) {
+      console.error('❌ Erreur addColis:', e?.message || e)
+      throw e
+    }
+  }
+
+  async function updateColis(id, { nombre, date, description }) {
+    try {
+      const { error } = await supabase
+        .from('colis')
+        .update({ nombre, date, description: description || '' })
+        .eq('id', id)
+      if (error) throw error
+      await fetchColis()
+      return { success: true }
+    } catch (e) {
+      console.error('❌ Erreur updateColis:', e?.message || e)
+      throw e
+    }
+  }
+
+  async function deleteColis(id) {
+    try {
+      const { error } = await supabase
+        .from('colis')
+        .delete()
+        .eq('id', id)
+      if (error) throw error
+      await fetchColis()
+      return { success: true }
+    } catch (e) {
+      console.error('❌ Erreur deleteColis:', e?.message || e)
+      throw e
+    }
+  }
+
   // Mise à jour produit
   async function updateProduit(id, { nom, reference, prix_achat }) {
     try {
@@ -356,15 +415,16 @@ export const DataProvider = ({ children }) => {
     <DataContext.Provider
       value={{
         // states
-        produits, fournisseurs, entrees, paiements, depenses, depenseCategories,
+        produits, fournisseurs, entrees, paiements, depenses, depenseCategories, colis,
         // reads
-        fetchAll, fetchProduits, fetchFournisseurs, fetchEntrees, fetchPaiements, fetchDepenses, fetchDepenseCategories, fetchEntreeDetails,
+        fetchAll, fetchProduits, fetchFournisseurs, fetchEntrees, fetchPaiements, fetchDepenses, fetchDepenseCategories, fetchEntreeDetails, fetchColis,
         // writes
         addProduit, updateProduit, deleteProduit, addFournisseur,
         addPaiement, deletePaiement,
         addDepense, updateDepense, deleteDepense,
         addDepenseCategory, deleteDepenseCategory,
-        addEntreeWithLines, // ⬅️ NOUVEAU
+        addEntreeWithLines,
+        addColis, updateColis, deleteColis,
       }}
     >
       {children}
