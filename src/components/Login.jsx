@@ -19,12 +19,18 @@ const Login = () => {
     setError('');
     setLoading(true);
 
-    const result = login(username, password);
-    
-    setLoading(false);
-    
-    if (!result.success) {
-      setError(result.error);
+    try {
+      const result = await login(username, password);
+      
+      if (!result.success) {
+        setError(result.error);
+      }
+      // Si succès, le contexte AuthContext redirigera automatiquement
+    } catch (err) {
+      console.error('Erreur login:', err);
+      setError('Une erreur est survenue lors de la connexion');
+    } finally {
+      setLoading(false);
     }
   };
 
