@@ -478,7 +478,8 @@ const Entries = () => {
         </CardContent>
       </Card>
 
-      {/* Résumé Global */}
+      {/* Résumé Global - Admin seulement */}
+      {isAdmin() && (
       <Card>
         <CardHeader>
           <CardTitle>Résumé Global</CardTitle>
@@ -554,8 +555,10 @@ const Entries = () => {
           </div>
         </CardContent>
       </Card>
+      )}
 
-      {/* Statistiques par Période */}
+      {/* Statistiques par Période - Admin seulement */}
+      {isAdmin() && (
       <Card>
         <CardHeader>
           <CardTitle>Statistiques par Période</CardTitle>
@@ -637,6 +640,7 @@ const Entries = () => {
           </div>
         </CardContent>
       </Card>
+      )}
 
       {/* Liste des entrées */}
       <div className="space-y-4">
