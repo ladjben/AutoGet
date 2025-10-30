@@ -49,7 +49,22 @@ const Signup = ({ onCancel }) => {
     e.preventDefault();
     setError('');
 
-    // Validation
+    // Validation des champs requis
+    if (!formData.name || !formData.name.trim()) {
+      setError('Le nom complet est requis');
+      return;
+    }
+
+    if (!formData.username || !formData.username.trim()) {
+      setError('Le nom d\'utilisateur est requis');
+      return;
+    }
+
+    if (!formData.password || !formData.password.trim()) {
+      setError('Le mot de passe est requis');
+      return;
+    }
+
     if (formData.password !== formData.confirmPassword) {
       setError('Les mots de passe ne correspondent pas');
       return;
@@ -60,24 +75,34 @@ const Signup = ({ onCancel }) => {
       return;
     }
 
+    if (!selectedRole) {
+      setError('Veuillez sélectionner un type de compte');
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const result = signup({
-        name: formData.name,
-        username: formData.username,
+      const result = await signup({
+        name: formData.name.trim(),
+        username: formData.username.trim(),
         password: formData.password,
-        role: selectedRole,
+        role: selectedRole || 'user',
       });
 
       if (result && !result.success) {
         setError(result.error || 'Erreur lors de la création du compte');
+        setLoading(false);
+      } else if (result && result.success) {
+        // Succès - le contexte AuthContext redirigera automatiquement
+        // On peut aussi appeler onCancel pour fermer le formulaire
+        setTimeout(() => {
+          onCancel?.();
+        }, 500);
       }
-      // Si succès, le contexte AuthContext redirigera automatiquement
     } catch (err) {
       console.error('Erreur signup:', err);
-      setError('Une erreur est survenue lors de la création du compte');
-    } finally {
+      setError(err?.message || 'Une erreur est survenue lors de la création du compte');
       setLoading(false);
     }
   };
