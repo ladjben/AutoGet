@@ -403,11 +403,12 @@ const Entries = () => {
                       onChange={(e) => setCurrentLigne({ ...currentLigne, quantite: e.target.value })}
                     />
                   </div>
-                </div>
+                  </div>
 
-                <Button onClick={handleAddLigne} variant="outline" className="mt-3">
-                  + Ajouter cette ligne
-                </Button>
+                  <Button onClick={handleAddLigne} variant="outline" className="mt-3">
+                    + Ajouter cette ligne
+                  </Button>
+                </div>
               </div>
 
               {formData.lignes.length > 0 && (
