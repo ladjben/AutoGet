@@ -526,6 +526,8 @@ export const DataProvider = ({ children }) => {
   return (
     <DataContext.Provider
       value={{
+        // supabase client
+        supabase,
         // states
         produits, fournisseurs, entrees, paiements, depenses, depenseCategories, colis, salaries, acomptes,
         // reads
