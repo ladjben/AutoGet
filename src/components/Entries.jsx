@@ -27,7 +27,6 @@ const Entries = () => {
   const [currentLigne, setCurrentLigne] = useState({ produitId: '', quantite: '' })
   const [detail, setDetail] = useState({ openFor: null, rows: [] })
   const [creating, setCreating] = useState(false)
-  const [productSearch, setProductSearch] = useState('')
   const [filters, setFilters] = useState({
     fournisseurId: '',
     dateStart: '',
@@ -44,15 +43,6 @@ const Entries = () => {
     if (USE_SUPABASE) return dataCtx?.produits ?? []
     return dataCtx?.state?.produits ?? []
   }, [dataCtx])
-
-  const filteredProduits = useMemo(() => {
-    if (!productSearch.trim()) return produits
-    const search = productSearch.toLowerCase()
-    return produits.filter(p => 
-      p.nom?.toLowerCase().includes(search) || 
-      p.reference?.toLowerCase().includes(search)
-    )
-  }, [produits, productSearch])
 
   const entrees = useMemo(() => {
     if (USE_SUPABASE) return dataCtx?.entrees ?? []
@@ -361,22 +351,6 @@ const Entries = () => {
               <div>
                 <h4 className="text-sm font-semibold mb-3">Ajouter une ligne</h4>
                 <div className="space-y-4">
-                  <div>
-                    <label className="text-sm font-medium mb-2 block">Rechercher un produit</label>
-                    <Input
-                      type="text"
-                      placeholder="Tapez le nom ou la référence du produit..."
-                      value={productSearch}
-                      onChange={(e) => setProductSearch(e.target.value)}
-                      className="w-full"
-                    />
-                    {productSearch && (
-                      <p className="text-xs text-muted-foreground mt-1.5">
-                        {filteredProduits.length} produit{filteredProduits.length > 1 ? 's' : ''} trouvé{filteredProduits.length > 1 ? 's' : ''}
-                      </p>
-                    )}
-                  </div>
-
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Produit</label>
@@ -385,20 +359,12 @@ const Entries = () => {
                         onChange={(e) => setCurrentLigne({ ...currentLigne, produitId: e.target.value })}
                         className="w-full h-10 rounded-lg border-2 border-input bg-background px-4 py-2 text-sm font-medium transition-all hover:border-ring focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        <option value="">
-                          {currentLigne.produitId ? "Changer de produit..." : "Sélectionner un produit..."}
-                        </option>
-                        {filteredProduits.length === 0 && productSearch ? (
-                          <option disabled className="text-muted-foreground italic">
-                            Aucun produit trouvé
+                        <option value="">Sélectionner un produit...</option>
+                        {produits.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.nom} • {(p.prix_achat ?? p.prixAchat ?? 0)} DA
                           </option>
-                        ) : (
-                          filteredProduits.map((p) => (
-                            <option key={p.id} value={p.id}>
-                              {p.nom} • {(p.prix_achat ?? p.prixAchat ?? 0)} DA
-                            </option>
-                          ))
-                        )}
+                        ))}
                       </select>
                     </div>
 
