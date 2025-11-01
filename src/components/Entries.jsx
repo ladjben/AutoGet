@@ -27,6 +27,7 @@ const Entries = () => {
   const [currentLigne, setCurrentLigne] = useState({ produitId: '', quantite: '' })
   const [detail, setDetail] = useState({ openFor: null, rows: [] })
   const [creating, setCreating] = useState(false)
+  const [productSearch, setProductSearch] = useState('')
   const [filters, setFilters] = useState({
     fournisseurId: '',
     dateStart: '',
@@ -43,6 +44,15 @@ const Entries = () => {
     if (USE_SUPABASE) return dataCtx?.produits ?? []
     return dataCtx?.state?.produits ?? []
   }, [dataCtx])
+
+  const filteredProduits = useMemo(() => {
+    if (!productSearch.trim()) return produits
+    const search = productSearch.toLowerCase()
+    return produits.filter(p => 
+      p.nom?.toLowerCase().includes(search) || 
+      p.reference?.toLowerCase().includes(search)
+    )
+  }, [produits, productSearch])
 
   const entrees = useMemo(() => {
     if (USE_SUPABASE) return dataCtx?.entrees ?? []
@@ -99,6 +109,7 @@ const Entries = () => {
     }
     setFormData((prev) => ({ ...prev, lignes: [...prev.lignes, ligne] }))
     setCurrentLigne({ produitId: '', quantite: '' })
+    setProductSearch('') // Réinitialiser la recherche
   }
 
   const handleDeleteLigne = (index) => {
@@ -350,22 +361,38 @@ const Entries = () => {
 
               <div>
                 <h4 className="text-sm font-semibold mb-3">Ajouter une ligne</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-3">
                   <div>
-                    <label className="text-sm font-medium mb-2 block">Produit</label>
-                    <select
-                      value={currentLigne.produitId}
-                      onChange={(e) => setCurrentLigne({ ...currentLigne, produitId: e.target.value })}
-                      className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      <option value="">Sélectionner</option>
-                      {produits.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.nom} — {(p.prix_achat ?? p.prixAchat ?? 0)} DA
-                        </option>
-                      ))}
-                    </select>
+                    <label className="text-sm font-medium mb-2 block">Rechercher un produit</label>
+                    <Input
+                      type="text"
+                      placeholder="Rechercher par nom ou référence..."
+                      value={productSearch}
+                      onChange={(e) => setProductSearch(e.target.value)}
+                      className="w-full"
+                    />
+                    {productSearch && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {filteredProduits.length} produit{filteredProduits.length > 1 ? 's' : ''} trouvé{filteredProduits.length > 1 ? 's' : ''}
+                      </p>
+                    )}
                   </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">Produit</label>
+                      <select
+                        value={currentLigne.produitId}
+                        onChange={(e) => setCurrentLigne({ ...currentLigne, produitId: e.target.value })}
+                        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <option value="">Sélectionner</option>
+                        {filteredProduits.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.nom} — {(p.prix_achat ?? p.prixAchat ?? 0)} DA
+                          </option>
+                        ))}
+                      </select>
+                    </div>
 
                   <div>
                     <label className="text-sm font-medium mb-2 block">Quantité</label>
