@@ -24,7 +24,7 @@ begin
   -- Envoi HTTP vers n8n (asynchrone)
   perform net.http_post(
     url := v_url,
-    headers := '{"Content-Type":"application/json"}'::jsonb,
+    headers := jsonb_build_object('Content-Type', 'application/json'),
     body := v_payload::text
   );
 
