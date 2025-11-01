@@ -372,9 +372,15 @@ const Entries = () => {
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-[400px] p-0" align="start">
-                        <Command shouldFilter={false}>
+                        <Command shouldFilter={false} loop>
                           <CommandInput placeholder="Rechercher un produit..." />
-                          <CommandList className="max-h-[300px]">
+                          <CommandList 
+                            className="max-h-[300px] overflow-y-auto overflow-x-hidden"
+                            style={{ 
+                              overscrollBehavior: 'contain',
+                              WebkitOverflowScrolling: 'touch'
+                            }}
+                          >
                             <CommandEmpty>Aucun produit trouvé.</CommandEmpty>
                             <CommandGroup>
                               {produits.map((p) => (
