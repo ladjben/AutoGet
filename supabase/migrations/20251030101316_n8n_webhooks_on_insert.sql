@@ -1,47 +1,58 @@
--- Active l’extension HTTP côté Supabase
-create extension if not exists "pg_net";
+-- Active l'extension HTTP côté Supabase
+CREATE EXTENSION IF NOT EXISTS pg_net WITH SCHEMA extensions;
+
+-- Supprimer toutes les anciennes fonctions et triggers
+DROP FUNCTION IF EXISTS public.notify_n8n() CASCADE;
+DROP FUNCTION IF EXISTS public.notify_n8n_entree_ligne() CASCADE;
+DROP FUNCTION IF EXISTS public.notify_n8n_on_insert() CASCADE;
+DROP FUNCTION IF EXISTS public.notify_n8n_on_entree_ligne() CASCADE;
+
+DROP TRIGGER IF EXISTS trg_depenses_n8n ON public.depenses CASCADE;
+DROP TRIGGER IF EXISTS trg_entrees_n8n ON public.entrees CASCADE;
 
 -- Fonction générique qui notifie n8n sur chaque INSERT
-create or replace function public.notify_n8n_on_insert()
-returns trigger
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  -- ⚠️ Mets ici l’URL **Production** de ton Webhook n8n
+CREATE FUNCTION public.notify_n8n_on_insert()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
   v_url text := 'https://n8n.ikleelcos.com/webhook/whatsapp-stock';
   v_payload jsonb;
-begin
+  v_request_id bigint;
+BEGIN
   -- Construire un payload propre
   v_payload := jsonb_build_object(
     'table', TG_TABLE_NAME,
-    'action', TG_OP,                     -- 'INSERT'
+    'action', TG_OP,
     'timestamp', now(),
     'row', to_jsonb(NEW)
   );
 
-  -- Envoi HTTP vers n8n (asynchrone)
-  perform net.http_post(
-    url := v_url,
-    headers := jsonb_build_object('Content-Type', 'application/json'),
-    body := v_payload::text
-  );
+  -- Envoi HTTP vers n8n (asynchrone) via pg_net
+  SELECT net.http_post(
+    v_url,
+    v_payload,
+    '{}'::jsonb,
+    '{"Content-Type": "application/json"}'::jsonb
+  ) INTO v_request_id;
 
-  return NEW;
-end;
+  RETURN NEW;
+EXCEPTION
+  WHEN OTHERS THEN
+    RETURN NEW;
+END;
 $$;
 
--- (Re)crée les triggers pour les 2 tables cibles
+-- Recréer les triggers pour les 2 tables cibles
 
 -- Dépenses
-drop trigger if exists trg_depenses_n8n on public.depenses;
-create trigger trg_depenses_n8n
-after insert on public.depenses
-for each row execute function public.notify_n8n_on_insert();
+CREATE TRIGGER trg_depenses_n8n
+  AFTER INSERT ON public.depenses
+  FOR EACH ROW EXECUTE FUNCTION public.notify_n8n_on_insert();
 
 -- Entrées de stock
-drop trigger if exists trg_entrees_n8n on public.entrees;
-create trigger trg_entrees_n8n
-after insert on public.entrees
-for each row execute function public.notify_n8n_on_insert();
+CREATE TRIGGER trg_entrees_n8n
+  AFTER INSERT ON public.entrees
+  FOR EACH ROW EXECUTE FUNCTION public.notify_n8n_on_insert();
