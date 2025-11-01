@@ -360,51 +360,82 @@ const Entries = () => {
 
               <div>
                 <h4 className="text-sm font-semibold mb-3">Ajouter une ligne</h4>
-                <div className="space-y-3">
+                <div className="space-y-4">
                   <div>
                     <label className="text-sm font-medium mb-2 block">Rechercher un produit</label>
                     <Input
                       type="text"
-                      placeholder="Tapez pour rechercher..."
+                      placeholder="Tapez le nom ou la référence du produit..."
                       value={productSearch}
                       onChange={(e) => setProductSearch(e.target.value)}
+                      className="w-full"
                     />
+                    {productSearch && (
+                      <p className="text-xs text-muted-foreground mt-1.5">
+                        {filteredProduits.length} produit{filteredProduits.length > 1 ? 's' : ''} trouvé{filteredProduits.length > 1 ? 's' : ''}
+                      </p>
+                    )}
                   </div>
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-sm font-medium mb-2 block">
-                        Produit {productSearch && `(${filteredProduits.length} trouvé${filteredProduits.length > 1 ? 's' : ''})`}
-                      </label>
-                      <select
-                        value={currentLigne.produitId}
-                        onChange={(e) => setCurrentLigne({ ...currentLigne, produitId: e.target.value })}
-                        size="8"
-                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                      >
-                        <option value="">Sélectionner</option>
-                        {filteredProduits.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.nom} — {(p.prix_achat ?? p.prixAchat ?? 0)} DA
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Produit</label>
+                      <div className="relative">
+                        <select
+                          value={currentLigne.produitId}
+                          onChange={(e) => setCurrentLigne({ ...currentLigne, produitId: e.target.value })}
+                          size="6"
+                          className="w-full rounded-lg border-2 border-input bg-background px-4 py-2.5 text-sm font-medium transition-all hover:border-ring focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-50 [&>option]:py-2 [&>option]:px-2 [&>option:checked]:bg-primary [&>option:checked]:text-primary-foreground"
+                          style={{
+                            scrollbarWidth: 'thin',
+                            scrollbarColor: 'hsl(var(--primary)) hsl(var(--muted))'
+                          }}
+                        >
+                          <option value="" disabled className="text-muted-foreground italic">
+                            -- Sélectionner un produit --
                           </option>
-                        ))}
-                      </select>
+                          {filteredProduits.length === 0 && productSearch ? (
+                            <option disabled className="text-muted-foreground italic">
+                              Aucun produit trouvé
+                            </option>
+                          ) : (
+                            filteredProduits.map((p) => (
+                              <option key={p.id} value={p.id} className="cursor-pointer">
+                                {p.nom} • {(p.prix_achat ?? p.prixAchat ?? 0)} DA
+                              </option>
+                            ))
+                          )}
+                        </select>
+                        {filteredProduits.length > 6 && (
+                          <div className="absolute bottom-2 right-2 bg-primary/90 text-primary-foreground text-xs px-2 py-0.5 rounded-full pointer-events-none">
+                            ↓ Scrollez
+                          </div>
+                        )}
+                      </div>
                     </div>
 
-                    <div>
-                      <label className="text-sm font-medium mb-2 block">Quantité</label>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Quantité</label>
                       <Input
                         type="number"
                         min="1"
+                        placeholder="Ex: 10"
                         value={currentLigne.quantite}
                         onChange={(e) => setCurrentLigne({ ...currentLigne, quantite: e.target.value })}
+                        className="text-base"
                       />
                     </div>
                   </div>
-                </div>
 
-                <Button onClick={handleAddLigne} variant="outline" className="mt-3">
-                  + Ajouter cette ligne
-                </Button>
+                  <Button 
+                    onClick={handleAddLigne} 
+                    className="w-full md:w-auto"
+                    size="lg"
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Ajouter cette ligne
+                  </Button>
+                </div>
               </div>
 
               {formData.lignes.length > 0 && (
