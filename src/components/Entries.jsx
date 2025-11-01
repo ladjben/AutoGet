@@ -374,7 +374,7 @@ const Entries = () => {
                       <PopoverContent className="w-[400px] p-0">
                         <Command>
                           <CommandInput placeholder="Rechercher un produit..." />
-                          <CommandList>
+                          <CommandList className="max-h-[300px] overflow-y-auto">
                             <CommandEmpty>Aucun produit trouvé.</CommandEmpty>
                             <CommandGroup>
                               {produits.map((p) => (
