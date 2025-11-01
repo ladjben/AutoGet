@@ -371,16 +371,16 @@ const Entries = () => {
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-[400px] p-0">
-                        <Command>
+                      <PopoverContent className="w-[400px] p-0" align="start">
+                        <Command shouldFilter={false}>
                           <CommandInput placeholder="Rechercher un produit..." />
-                          <CommandList className="max-h-[300px] overflow-y-auto">
+                          <CommandList className="max-h-[300px]">
                             <CommandEmpty>Aucun produit trouvé.</CommandEmpty>
                             <CommandGroup>
                               {produits.map((p) => (
                                 <CommandItem
                                   key={p.id}
-                                  value={`${p.nom} ${p.reference || ''}`}
+                                  value={p.nom.toLowerCase()}
                                   onSelect={() => {
                                     setCurrentLigne({ ...currentLigne, produitId: p.id })
                                     setOpenProductCombobox(false)
