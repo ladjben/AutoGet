@@ -267,7 +267,10 @@ const Entries = () => {
     if (!window.confirm('Êtes-vous sûr de vouloir supprimer cette entrée ?')) return
     try {
       if (USE_SUPABASE) {
-        const { error } = await dataCtx?.supabase?.from('entrees').delete().eq('id', entreeId)
+        if (!dataCtx?.supabase) {
+          throw new Error("Supabase client non initialisé")
+        }
+        const { error } = await dataCtx.supabase.from('entrees').delete().eq('id', entreeId)
         if (error) {
           throw error
         }
