@@ -10,10 +10,7 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/com
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Plus, Package, TrendingUp, TrendingDown, Calendar, Building2, Trash2, ChevronDown, ChevronRight, Check, ChevronsUpDown } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { Plus, Package, TrendingUp, TrendingDown, Calendar, Building2, Trash2, ChevronDown, ChevronRight } from 'lucide-react'
 
 const Entries = () => {
   const dataCtx = useData()
@@ -30,7 +27,7 @@ const Entries = () => {
   const [currentLigne, setCurrentLigne] = useState({ produitId: '', quantite: '' })
   const [detail, setDetail] = useState({ openFor: null, rows: [] })
   const [creating, setCreating] = useState(false)
-  const [openProductCombobox, setOpenProductCombobox] = useState(false)
+  const [productSearch, setProductSearch] = useState('')
   const [filters, setFilters] = useState({
     fournisseurId: '',
     dateStart: '',
@@ -47,6 +44,15 @@ const Entries = () => {
     if (USE_SUPABASE) return dataCtx?.produits ?? []
     return dataCtx?.state?.produits ?? []
   }, [dataCtx])
+
+  const filteredProduits = useMemo(() => {
+    if (!productSearch.trim()) return produits
+    const search = productSearch.toLowerCase()
+    return produits.filter(p => 
+      p.nom?.toLowerCase().includes(search) || 
+      p.reference?.toLowerCase().includes(search)
+    )
+  }, [produits, productSearch])
 
   const entrees = useMemo(() => {
     if (USE_SUPABASE) return dataCtx?.entrees ?? []
@@ -354,74 +360,45 @@ const Entries = () => {
 
               <div>
                 <h4 className="text-sm font-semibold mb-3">Ajouter une ligne</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-3">
                   <div>
-                    <label className="text-sm font-medium mb-2 block">Produit</label>
-                    <Popover open={openProductCombobox} onOpenChange={setOpenProductCombobox}>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          role="combobox"
-                          aria-expanded={openProductCombobox}
-                          className="w-full justify-between"
-                        >
-                          {currentLigne.produitId
-                            ? produits.find((p) => p.id === currentLigne.produitId)?.nom
-                            : "Sélectionner un produit..."}
-                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-[400px] p-0" align="start">
-                        <Command shouldFilter={false} loop>
-                          <CommandInput placeholder="Rechercher un produit..." />
-                          <CommandList 
-                            className="max-h-[300px] overflow-y-auto overflow-x-hidden"
-                            style={{ 
-                              overscrollBehavior: 'contain',
-                              WebkitOverflowScrolling: 'touch'
-                            }}
-                          >
-                            <CommandEmpty>Aucun produit trouvé.</CommandEmpty>
-                            <CommandGroup>
-                              {produits.map((p) => (
-                                <CommandItem
-                                  key={p.id}
-                                  value={p.nom.toLowerCase()}
-                                  onSelect={() => {
-                                    setCurrentLigne({ ...currentLigne, produitId: p.id })
-                                    setOpenProductCombobox(false)
-                                  }}
-                                >
-                                  <Check
-                                    className={cn(
-                                      "mr-2 h-4 w-4",
-                                      currentLigne.produitId === p.id ? "opacity-100" : "opacity-0"
-                                    )}
-                                  />
-                                  <div className="flex flex-col">
-                                    <span>{p.nom}</span>
-                                    <span className="text-xs text-muted-foreground">
-                                      {(p.prix_achat ?? p.prixAchat ?? 0)} DA
-                                      {p.reference && ` • ${p.reference}`}
-                                    </span>
-                                  </div>
-                                </CommandItem>
-                              ))}
-                            </CommandGroup>
-                          </CommandList>
-                        </Command>
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-medium mb-2 block">Quantité</label>
+                    <label className="text-sm font-medium mb-2 block">Rechercher un produit</label>
                     <Input
-                      type="number"
-                      min="1"
-                      value={currentLigne.quantite}
-                      onChange={(e) => setCurrentLigne({ ...currentLigne, quantite: e.target.value })}
+                      type="text"
+                      placeholder="Tapez pour rechercher..."
+                      value={productSearch}
+                      onChange={(e) => setProductSearch(e.target.value)}
                     />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">
+                        Produit {productSearch && `(${filteredProduits.length} trouvé${filteredProduits.length > 1 ? 's' : ''})`}
+                      </label>
+                      <select
+                        value={currentLigne.produitId}
+                        onChange={(e) => setCurrentLigne({ ...currentLigne, produitId: e.target.value })}
+                        size="8"
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      >
+                        <option value="">Sélectionner</option>
+                        {filteredProduits.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.nom} — {(p.prix_achat ?? p.prixAchat ?? 0)} DA
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">Quantité</label>
+                      <Input
+                        type="number"
+                        min="1"
+                        value={currentLigne.quantite}
+                        onChange={(e) => setCurrentLigne({ ...currentLigne, quantite: e.target.value })}
+                      />
+                    </div>
                   </div>
                 </div>
 
