@@ -350,7 +350,7 @@ const SalaryDetail = ({ salaryId, onBack }) => {
 
       {/* Modal Acompte */}
       <Dialog open={showAcompteModal} onOpenChange={setShowAcompteModal}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Enregistrer un Acompte</DialogTitle>
             <DialogDescription>

@@ -595,7 +595,7 @@ const SupplierDetail = ({ supplierId, onBack }) => {
 
       {/* Modal Paiement */}
       <Dialog open={showPaiementModal} onOpenChange={setShowPaiementModal}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Enregistrer un Paiement</DialogTitle>
             <DialogDescription>
