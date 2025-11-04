@@ -10,9 +10,22 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/com
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Plus, Building2, CreditCard, TrendingDown, TrendingUp, Package, DollarSign, Calendar, Trash2, Edit, Phone, MapPin } from 'lucide-react';
+import { Plus, Building2, CreditCard, TrendingDown, TrendingUp, Package, DollarSign, Calendar, Trash2, Edit, Phone, MapPin, ChevronRight } from 'lucide-react';
+import SupplierDetail from './SupplierDetail';
 
 const Suppliers = () => {
+  const [selectedSupplierId, setSelectedSupplierId] = useState(null);
+
+  // Si un fournisseur est sélectionné, afficher sa page de détail
+  if (selectedSupplierId) {
+    return <SupplierDetail supplierId={selectedSupplierId} onBack={() => setSelectedSupplierId(null)} />;
+  }
+
+  // Sinon, afficher la liste
+  return <SuppliersList onSelectSupplier={setSelectedSupplierId} />;
+};
+
+const SuppliersList = ({ onSelectSupplier }) => {
   const dataCtx = useData();
   const state = dataCtx?.state ?? {
     produits: dataCtx?.produits ?? [],
@@ -336,12 +349,29 @@ const Suppliers = () => {
       return;
     }
     try {
-      dispatch?.({ type: ActionTypes.DELETE_FOURNISSEUR, payload: id });
-      toast({
-        title: "Succès",
-        description: "Fournisseur supprimé avec succès",
-      });
+      if (USE_SUPABASE) {
+        if (!dataCtx?.supabase) {
+          throw new Error("Supabase client non initialisé");
+        }
+        const { error } = await dataCtx.supabase.from('fournisseurs').delete().eq('id', id);
+        if (error) throw error;
+        
+        // Recharger les fournisseurs
+        await dataCtx?.fetchFournisseurs?.();
+        
+        toast({
+          title: "Succès",
+          description: "Fournisseur supprimé avec succès",
+        });
+      } else {
+        dispatch?.({ type: ActionTypes.DELETE_FOURNISSEUR, payload: id });
+        toast({
+          title: "Succès",
+          description: "Fournisseur supprimé avec succès",
+        });
+      }
     } catch (e) {
+      console.error('Erreur suppression fournisseur:', e);
       toast({
         variant: "destructive",
         title: "Erreur",
@@ -867,280 +897,68 @@ const Suppliers = () => {
             const totalMarchandise = entrees.reduce((sum, e) => sum + calculateEntreeValue(e), 0);
             
             return (
-              <Card key={fournisseur.id} className="overflow-hidden">
-                <CardHeader className="bg-primary text-primary-foreground">
-                  <div className="flex justify-between items-start">
-                    <div className="flex items-center gap-3 flex-1">
-                      <Building2 className="h-8 w-8" />
-                      <div className="flex-1">
-                        <CardTitle className="text-2xl text-primary-foreground">{fournisseur.nom}</CardTitle>
-                        <CardDescription className="text-primary-foreground/80 mt-1">
-                          <div className="flex flex-col gap-1">
-                            {fournisseur.contact && (
-                              <div className="flex items-center gap-1">
-                                <Phone className="h-3 w-3" />
-                                {fournisseur.contact}
-                              </div>
-                            )}
-                            {fournisseur.adresse && (
-                              <div className="flex items-center gap-1">
-                                <MapPin className="h-3 w-3" />
-                                {fournisseur.adresse}
-                              </div>
-                            )}
-                          </div>
-                        </CardDescription>
+              <Card 
+                key={fournisseur.id} 
+                className="overflow-hidden cursor-pointer hover:shadow-xl transition-all border-2 hover:border-primary hover:scale-[1.02]"
+                onClick={() => onSelectSupplier(fournisseur.id)}
+              >
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4 flex-1">
+                      <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
+                        <Building2 className="h-8 w-8 text-primary" />
+                      </div>
+                      <div>
+                        <h3 className="text-2xl font-bold mb-1">{fournisseur.nom}</h3>
+                        <p className="text-sm text-muted-foreground">
+                          Cliquez pour voir les détails
+                        </p>
                       </div>
                     </div>
-                    {isAdmin() && (
-                      <Button
-                        onClick={() => handleDeleteFournisseur(fournisseur.id)}
-                        variant="destructive"
-                        size="sm"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                </CardHeader>
-
-                <CardContent className="space-y-4">
-                  {/* Statistiques rapides */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <Card>
-                      <CardContent className="pt-6">
-                        <p className="text-xs text-muted-foreground mb-1">Entrées totales</p>
-                        <p className="text-lg font-bold">{entrees.length}</p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {entreesPayees} payées / {entreesNonPayees} non payées
-                        </p>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="pt-6">
-                        <p className="text-xs text-muted-foreground mb-1">Paiements</p>
-                        <p className="text-lg font-bold">{paiements.length}</p>
-                        <p className="text-xs text-muted-foreground mt-1">Transactions</p>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="pt-6">
-                        <p className="text-xs text-muted-foreground mb-1">Marchandise totale</p>
-                        <p className="text-lg font-bold">{totalMarchandise.toFixed(2)} DA</p>
-                        <p className="text-xs text-muted-foreground mt-1">Valeur reçue</p>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="pt-6">
-                        <p className={`text-xs mb-1 ${reste > 0 ? 'text-orange-600' : 'text-blue-600'}`}>
-                          {reste > 0 ? 'À payer' : 'Crédit'}
-                        </p>
-                        <p className={`text-lg font-bold ${reste > 0 ? 'text-orange-700' : 'text-blue-700'}`}>
-                          {Math.abs(reste).toFixed(2)} DA
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {reste > 0 ? 'En attente' : 'Surpayé'}
-                        </p>
-                      </CardContent>
-                    </Card>
-                  </div>
-
-                  {/* Résumé financier principal */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-base">Résumé Financier</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-3 gap-3">
-                        <Card>
-                          <CardContent className="pt-6 text-center">
-                            <p className="text-xs text-muted-foreground mb-1">Total Dû</p>
-                            <p className="text-xl font-bold text-destructive">{totalDue.toFixed(2)} DA</p>
-                            <p className="text-xs text-muted-foreground mt-1">{entreesNonPayees} entrée{entreesNonPayees !== 1 ? 's' : ''} non payée{entreesNonPayees !== 1 ? 's' : ''}</p>
-                          </CardContent>
-                        </Card>
-                        <Card>
-                          <CardContent className="pt-6 text-center">
-                            <p className="text-xs text-muted-foreground mb-1">Total Payé</p>
-                            <p className="text-xl font-bold text-green-600">{totalPaye.toFixed(2)} DA</p>
-                            <p className="text-xs text-muted-foreground mt-1">{paiements.length} paiement{paiements.length !== 1 ? 's' : ''}</p>
-                          </CardContent>
-                        </Card>
-                        <Card>
-                          <CardContent className="pt-6 text-center">
-                            <p className={`text-xs mb-1 ${reste > 0 ? 'text-orange-600' : 'text-green-600'}`}>
-                              {reste > 0 ? 'Reste à Payer' : 'Solde Positif'}
-                            </p>
-                            <p className={`text-xl font-bold ${reste > 0 ? 'text-orange-800' : 'text-green-800'}`}>
-                              {Math.abs(reste).toFixed(2)} DA
-                            </p>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {reste > 0 ? 'En dette' : 'À jour'}
-                            </p>
-                          </CardContent>
-                        </Card>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Entrées de stock détaillées */}
-                  <div>
-                    <div className="flex justify-between items-center mb-3">
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <Package className="h-5 w-5" />
-                        Entrées de Stock ({entrees.length})
-                      </CardTitle>
-                      {entrees.length > 0 && (
-                        <Badge variant="secondary">
-                          {totalMarchandise.toFixed(2)} DA
-                        </Badge>
+                    <div className="flex items-center gap-3">
+                      {isAdmin() && (
+                        <Button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteFournisseur(fournisseur.id);
+                          }}
+                          variant="ghost"
+                          size="icon"
+                        >
+                          <Trash2 className="h-5 w-5 text-destructive" />
+                        </Button>
                       )}
+                      <ChevronRight className="h-8 w-8 text-muted-foreground" />
                     </div>
-                    {getFournisseurEntrees(fournisseur.id).length === 0 ? (
-                      <Card>
-                        <CardContent className="pt-6">
-                          <div className="text-center text-muted-foreground py-4">
-                            <p className="text-sm">Aucune entrée enregistrée</p>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ) : (
-                      <div className="space-y-3">
-                        {getFournisseurEntrees(fournisseur.id).map((entree) => {
-                          const entreeValue = calculateEntreeValue(entree);
-                          const lignes = getEntreeLignes(entree);
-                          const needsLoad = USE_SUPABASE && !entreesDetails[entree.id] && !loadingDetails[entree.id];
-                          
-                          return (
-                            <Card key={entree.id}>
-                              <CardHeader>
-                                <div className="flex justify-between items-start">
-                                  <div>
-                                    <CardTitle className="text-sm flex items-center gap-2">
-                                      Entrée du {entree.date}
-                                    </CardTitle>
-                                    <CardDescription className="mt-1">ID: {entree.id.slice(0, 8)}</CardDescription>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <Badge variant={entree.paye ? "default" : "destructive"}>
-                                      {entree.paye ? 'Payé' : 'Non Payé'}
-                                    </Badge>
-                                    <p className="text-lg font-bold">{entreeValue.toFixed(2)} DA</p>
-                                  </div>
-                                </div>
-                              </CardHeader>
-                              <CardContent>
-                                {needsLoad && (
-                                  <Button
-                                    onClick={() => loadEntreeDetails(entree.id)}
-                                    variant="outline"
-                                    size="sm"
-                                    className="w-full mb-3"
-                                  >
-                                    Charger les détails produits
-                                  </Button>
-                                )}
-
-                                {loadingDetails[entree.id] && (
-                                  <p className="text-sm text-muted-foreground text-center py-2">Chargement...</p>
-                                )}
-
-                                {lignes.length > 0 && (
-                                  <div className="space-y-3">
-                                    <p className="text-xs font-semibold">Produits ({lignes.length}):</p>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                                      {lignes.map((ligne, idx) => {
-                                        const produitNom = !USE_SUPABASE
-                                          ? getProduitName(ligne.produitId)
-                                          : ligne.produit_id?.nom || 'Produit inconnu';
-                                        const quantite = ligne.quantite || 0;
-                                        const prixUnitaire = !USE_SUPABASE
-                                          ? getProduitPrixAchat(ligne.produitId)
-                                          : ligne.produit_id?.prix_achat ?? 0;
-                                        const ligneTotal = quantite * prixUnitaire;
-
-                                        return (
-                                          <Card key={idx}>
-                                            <CardContent className="pt-6">
-                                              <div className="flex justify-between items-start">
-                                                <div className="flex-1">
-                                                  <p className="text-sm font-medium">{produitNom}</p>
-                                                  <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
-                                                    <span>Qté: {quantite}</span>
-                                                    <span>Prix: {prixUnitaire.toFixed(2)} DA</span>
-                                                  </div>
-                                                </div>
-                                                <p className="text-sm font-bold text-green-600">{ligneTotal.toFixed(2)} DA</p>
-                                              </div>
-                                            </CardContent>
-                                          </Card>
-                                        );
-                                      })}
-                                    </div>
-                                    <Separator />
-                                    <div className="flex justify-between items-center">
-                                      <p className="text-xs font-semibold">Total de l'entrée:</p>
-                                      <p className="text-base font-bold">{entreeValue.toFixed(2)} DA</p>
-                                    </div>
-                                  </div>
-                                )}
-
-                                {!needsLoad && lignes.length === 0 && (
-                                  <p className="text-sm text-muted-foreground text-center py-2">Aucun produit dans cette entrée</p>
-                                )}
-                              </CardContent>
-                            </Card>
-                          );
-                        })}
-                      </div>
-                    )}
                   </div>
-
-                  {/* Historique des paiements */}
-                  <div>
-                    <CardTitle className="text-base flex items-center gap-2 mb-3">
-                      <CreditCard className="h-5 w-5" />
-                      Historique des Paiements ({paiements.length})
-                    </CardTitle>
-                    {paiements.length === 0 ? (
-                      <Card>
-                        <CardContent className="pt-6">
-                          <div className="text-center text-muted-foreground py-4">
-                            <p className="text-sm">Aucun paiement enregistré</p>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ) : (
-                      <div className="space-y-2">
-                        {paiements.map((paiement) => (
-                          <Card key={paiement.id}>
-                            <CardContent className="pt-6">
-                              <div className="flex justify-between items-center">
-                                <div className="flex items-center gap-3">
-                                  <DollarSign className="h-5 w-5 text-green-600" />
-                                  <div>
-                                    <p className="font-medium">{paiement.date}</p>
-                                    <p className="text-sm font-semibold text-green-600">+{paiement.montant?.toFixed(2) || '0.00'} DA</p>
-                                    {paiement.description && (
-                                      <p className="text-xs text-muted-foreground mt-1">{paiement.description}</p>
-                                    )}
-                                  </div>
-                                </div>
-                                {isAdmin() && (
-                                  <Button
-                                    onClick={() => handleDeletePaiement(paiement.id)}
-                                    variant="ghost"
-                                    size="sm"
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                )}
-                              </div>
-                            </CardContent>
-                          </Card>
-                        ))}
-                      </div>
-                    )}
+                  
+                  <div className="mt-4 pt-4 border-t grid grid-cols-4 gap-4">
+                    <div className="text-center">
+                      <Package className="h-5 w-5 mx-auto mb-1 text-primary/50" />
+                      <p className="text-xl font-bold">{entrees.length}</p>
+                      <p className="text-xs text-muted-foreground">Entrées</p>
+                    </div>
+                    <div className="text-center">
+                      <CreditCard className="h-5 w-5 mx-auto mb-1 text-green-500/50" />
+                      <p className="text-xl font-bold">{paiements.length}</p>
+                      <p className="text-xs text-muted-foreground">Paiements</p>
+                    </div>
+                    <div className="text-center">
+                      <DollarSign className="h-5 w-5 mx-auto mb-1 text-blue-500/50" />
+                      <p className="text-xl font-bold">{totalMarchandise.toFixed(0)}</p>
+                      <p className="text-xs text-muted-foreground">DA Total</p>
+                    </div>
+                    <div className="text-center">
+                      {reste > 0 ? (
+                        <TrendingDown className="h-5 w-5 mx-auto mb-1 text-orange-500/50" />
+                      ) : (
+                        <TrendingUp className="h-5 w-5 mx-auto mb-1 text-blue-500/50" />
+                      )}
+                      <p className={`text-xl font-bold ${reste > 0 ? 'text-orange-700' : 'text-blue-700'}`}>
+                        {Math.abs(reste).toFixed(0)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">{reste > 0 ? 'À payer' : 'Crédit'}</p>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
