@@ -379,12 +379,16 @@ export const DataProvider = ({ children }) => {
   async function addAcompte(salary_id, montant, date, description) {
     try {
       const dateFormatted = date ? date.split('T')[0] : new Date().toISOString().split('T')[0]
+      // Calculer mois_annee au format YYYY-MM
+      const mois_annee = dateFormatted.substring(0, 7)
+      
       const { error } = await supabase
         .from('acomptes')
         .insert([{
           salary_id,
           montant: parseFloat(montant),
           date: dateFormatted,
+          mois_annee: mois_annee,
           description: description || ''
         }])
       if (error) throw error
