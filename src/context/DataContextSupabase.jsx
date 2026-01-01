@@ -361,6 +361,22 @@ export const DataProvider = ({ children }) => {
   }
 
   // ========== ACOMPTES ==========
+  // Helper pour obtenir le mois actuel (YYYY-MM)
+  function getCurrentMonth() {
+    const now = new Date()
+    const year = now.getFullYear()
+    const month = String(now.getMonth() + 1).padStart(2, '0')
+    return `${year}-${month}`
+  }
+
+  // Helper pour obtenir le mois d'une date (YYYY-MM)
+  function getMonthFromDate(dateString) {
+    const date = new Date(dateString)
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    return `${year}-${month}`
+  }
+
   async function fetchAcomptes() {
     try {
       const { data, error } = await supabase
@@ -368,7 +384,17 @@ export const DataProvider = ({ children }) => {
         .select('*')
         .order('date', { ascending: false })
       if (error) throw error
-      setAcomptes(data || [])
+      
+      // Si mois_annee n'est pas défini, le définir à partir de la date
+      const currentMonth = getCurrentMonth()
+      const updatedAcomptes = (data || []).map(acompte => {
+        if (!acompte.mois_annee && acompte.date) {
+          return { ...acompte, mois_annee: getMonthFromDate(acompte.date) }
+        }
+        return acompte
+      })
+      
+      setAcomptes(updatedAcomptes || [])
     } catch (e) {
       console.error('❌ Erreur fetchAcomptes:', e?.message || e)
     }
@@ -377,12 +403,15 @@ export const DataProvider = ({ children }) => {
   async function addAcompte(salary_id, montant, date, description) {
     try {
       const dateFormatted = date ? date.split('T')[0] : new Date().toISOString().split('T')[0]
+      const mois_annee = getMonthFromDate(dateFormatted)
+      
       const { error } = await supabase
         .from('acomptes')
         .insert([{
           salary_id,
           montant: parseFloat(montant),
           date: dateFormatted,
+          mois_annee: mois_annee,
           description: description || ''
         }])
       if (error) throw error
@@ -406,6 +435,112 @@ export const DataProvider = ({ children }) => {
     } catch (e) {
       console.error('❌ Erreur deleteAcompte:', e?.message || e)
       throw e
+    }
+  }
+
+  // ========== SALARY HISTORY ==========
+  async function resetMonthlySalaries() {
+    try {
+      const today = new Date()
+      const currentDay = today.getDate()
+      
+      // Vérifier si c'est le 1er du mois
+      if (currentDay !== 1) {
+        console.log('⚠️ Réinitialisation mensuelle: Ce n\'est pas le 1er du mois')
+        return { success: false, message: 'Ce n\'est pas le 1er du mois' }
+      }
+
+      // Obtenir le mois précédent
+      const previousMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1)
+      const previousMonthStr = `${previousMonth.getFullYear()}-${String(previousMonth.getMonth() + 1).padStart(2, '0')}`
+      
+      console.log('🔄 Réinitialisation mensuelle pour:', previousMonthStr)
+
+      // Récupérer tous les salaires
+      const { data: allSalaries, error: salariesError } = await supabase
+        .from('salaries')
+        .select('*')
+      
+      if (salariesError) throw salariesError
+
+      // Pour chaque salaire, calculer et enregistrer l'historique
+      for (const salary of allSalaries || []) {
+        // Récupérer les acomptes du mois précédent
+        const { data: previousAcomptes, error: acomptesError } = await supabase
+          .from('acomptes')
+          .select('montant')
+          .eq('salary_id', salary.id)
+          .eq('mois_annee', previousMonthStr)
+        
+        if (acomptesError) {
+          console.error(`❌ Erreur récupération acomptes pour ${salary.nom}:`, acomptesError)
+          continue
+        }
+
+        // Calculer le total des acomptes du mois précédent
+        const totalAcomptes = (previousAcomptes || []).reduce((sum, a) => sum + parseFloat(a.montant || 0), 0)
+        const soldeRestant = parseFloat(salary.salaire_mensuel || 0) - totalAcomptes
+
+        // Enregistrer dans l'historique (upsert pour éviter les doublons)
+        const { error: historyError } = await supabase
+          .from('salary_history')
+          .upsert([{
+            salary_id: salary.id,
+            mois_annee: previousMonthStr,
+            salaire_mensuel: parseFloat(salary.salaire_mensuel || 0),
+            total_acomptes: totalAcomptes,
+            solde_restant: soldeRestant,
+            nom: salary.nom
+          }], {
+            onConflict: 'salary_id,mois_annee'
+          })
+
+        if (historyError) {
+          console.error(`❌ Erreur enregistrement historique pour ${salary.nom}:`, historyError)
+          continue
+        }
+
+        // Supprimer les acomptes du mois précédent
+        const { error: deleteError } = await supabase
+          .from('acomptes')
+          .delete()
+          .eq('salary_id', salary.id)
+          .eq('mois_annee', previousMonthStr)
+
+        if (deleteError) {
+          console.error(`❌ Erreur suppression acomptes pour ${salary.nom}:`, deleteError)
+        } else {
+          console.log(`✅ Mois ${previousMonthStr} archivé pour ${salary.nom}`)
+        }
+      }
+
+      // Rafraîchir les acomptes
+      await fetchAcomptes()
+      
+      return { success: true, message: `Réinitialisation mensuelle effectuée pour ${previousMonthStr}` }
+    } catch (e) {
+      console.error('❌ Erreur resetMonthlySalaries:', e?.message || e)
+      throw e
+    }
+  }
+
+  async function fetchSalaryHistory(salaryId = null) {
+    try {
+      let query = supabase
+        .from('salary_history')
+        .select('*')
+        .order('mois_annee', { ascending: false })
+      
+      if (salaryId) {
+        query = query.eq('salary_id', salaryId)
+      }
+      
+      const { data, error } = await query
+      if (error) throw error
+      return data || []
+    } catch (e) {
+      console.error('❌ Erreur fetchSalaryHistory:', e?.message || e)
+      return []
     }
   }
 
@@ -541,6 +676,8 @@ export const DataProvider = ({ children }) => {
         addColis, updateColis, deleteColis,
         addSalary, updateSalary, deleteSalary,
         addAcompte, deleteAcompte,
+        // salary history
+        resetMonthlySalaries, fetchSalaryHistory, getCurrentMonth, getMonthFromDate,
       }}
     >
       {children}

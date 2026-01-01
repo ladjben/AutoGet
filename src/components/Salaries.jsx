@@ -76,11 +76,73 @@ const SalariesList = ({ onSelectSalary }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Vérifier et réinitialiser mensuellement le 1er du mois
+  useEffect(() => {
+    const checkMonthlyReset = async () => {
+      if (!USE_SUPABASE || !dataCtx?.resetMonthlySalaries) return;
+      
+      const today = new Date();
+      const currentDay = today.getDate();
+      const currentHour = today.getHours();
+      
+      // Vérifier si c'est le 1er du mois et si on n'a pas déjà fait la réinitialisation aujourd'hui
+      if (currentDay === 1 && currentHour >= 0) {
+        const lastReset = localStorage.getItem('last_monthly_reset');
+        const todayStr = today.toISOString().split('T')[0];
+        
+        // Si on n'a pas déjà fait la réinitialisation aujourd'hui
+        if (lastReset !== todayStr) {
+          try {
+            const result = await dataCtx.resetMonthlySalaries();
+            if (result?.success) {
+              localStorage.setItem('last_monthly_reset', todayStr);
+              toast({
+                title: "Réinitialisation mensuelle",
+                description: "Les acomptes ont été réinitialisés pour le nouveau mois",
+              });
+              // Rafraîchir les données
+              if (dataCtx?.fetchAcomptes) {
+                dataCtx.fetchAcomptes();
+              }
+            }
+          } catch (error) {
+            console.error('Erreur réinitialisation mensuelle:', error);
+          }
+        }
+      }
+    };
+
+    checkMonthlyReset();
+    // Vérifier toutes les heures pour s'assurer de capturer le 1er du mois
+    const interval = setInterval(checkMonthlyReset, 60 * 60 * 1000); // Toutes les heures
+    return () => clearInterval(interval);
+  }, [dataCtx, toast]);
+
+  // Helper pour obtenir le mois actuel
+  const getCurrentMonth = useCallback(() => {
+    if (dataCtx?.getCurrentMonth) {
+      return dataCtx.getCurrentMonth();
+    }
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}`;
+  }, [dataCtx]);
+
   // Helper functions
   const getSalaryAcomptes = useCallback((salaryId) => {
+    const currentMonth = getCurrentMonth();
     let filteredAcomptes = (state.acomptes || []).filter(a => {
       const sId = a.salary_id ?? a.salaryId;
-      return sId === salaryId;
+      if (sId !== salaryId) return false;
+      
+      // Filtrer par mois actuel par défaut (si pas de filtres de date)
+      if (!filters.dateStart && !filters.dateEnd) {
+        const acompteMonth = a.mois_annee || (a.date ? a.date.substring(0, 7) : null);
+        return acompteMonth === currentMonth;
+      }
+      
+      return true;
     });
 
     // Appliquer les filtres de date si présents
@@ -92,7 +154,7 @@ const SalariesList = ({ onSelectSalary }) => {
     }
 
     return filteredAcomptes.reverse();
-  }, [state.acomptes, filters.dateStart, filters.dateEnd]);
+  }, [state.acomptes, filters.dateStart, filters.dateEnd, getCurrentMonth]);
 
   const calculateTotalAcomptes = useCallback((salaryId) => {
     const acomptes = getSalaryAcomptes(salaryId);

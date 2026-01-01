@@ -50,13 +50,29 @@ const SalaryDetail = ({ salaryId, onBack }) => {
     );
   }
 
+  // Helper pour obtenir le mois actuel
+  const getCurrentMonth = useCallback(() => {
+    if (dataCtx?.getCurrentMonth) {
+      return dataCtx.getCurrentMonth();
+    }
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}`;
+  }, [dataCtx]);
+
   // Helper functions
   const getSalaryAcomptes = useCallback(() => {
+    const currentMonth = getCurrentMonth();
     return (state.acomptes || []).filter(a => {
       const sId = a.salary_id ?? a.salaryId;
-      return sId === salaryId;
+      if (sId !== salaryId) return false;
+      
+      // Filtrer par mois actuel
+      const acompteMonth = a.mois_annee || (a.date ? a.date.substring(0, 7) : null);
+      return acompteMonth === currentMonth;
     });
-  }, [state.acomptes, salaryId]);
+  }, [state.acomptes, salaryId, getCurrentMonth]);
 
   const calculateTotalAcomptes = useCallback(() => {
     const acomptes = getSalaryAcomptes();
@@ -80,15 +96,13 @@ const SalaryDetail = ({ salaryId, onBack }) => {
     }
 
     try {
-      const payload = {
-        salary_id: salaryId,
-        montant: parseFloat(acompteData.montant),
-        date: acompteData.date,
-        description: acompteData.description || ''
-      };
-
       if (USE_SUPABASE) {
-        await dataCtx?.addAcompte?.(payload);
+        await dataCtx?.addAcompte?.(
+          salaryId,
+          acompteData.montant,
+          acompteData.date,
+          acompteData.description || ''
+        );
         await dataCtx?.fetchAcomptes?.();
       }
 
