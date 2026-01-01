@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 
 // Provider unifié (local ou Supabase selon ta config)
 import { DataProvider } from './context/UnifiedDataContext'
@@ -8,7 +8,8 @@ import { AuthProvider, useAuth } from './context/AuthContext'
 
 // UI / Pages
 import Login from './components/Login'
-import AppHeader from './components/AppHeader'
+import Sidebar from './components/Sidebar'
+import TopHeader from './components/TopHeader'
 import Dashboard from './components/Dashboard'
 import Products from './components/Products'
 import Entries from './components/Entries'
@@ -50,7 +51,7 @@ const AppContent = () => {
   // Non connecté → page Login
   if (!user) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-background">
         <main className="p-6">
           <Login />
         </main>
@@ -62,28 +63,48 @@ const AppContent = () => {
   const produitsCount = 0
   const supabaseStatus = 'Connexion OK'
 
+  const [isMobile, setIsMobile] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      <AppHeader
-        /* ====== API moderne (shadcn) ====== */
-        brand={{ title: 'COSMOS ALGÉRIE', subtitle: 'Gestion & Suivi' }}
+    <div className="min-h-screen bg-background flex">
+      {/* Sidebar */}
+      <Sidebar
         activeView={activeView}
-        onNavigate={setActiveView}
-        user={user}
-        role={isAdmin?.() ? 'Administrateur' : 'Utilisateur'}
-        produitsCount={produitsCount}
-        supabaseStatus={supabaseStatus}
-        onLogout={logout}
-        /* ====== Compat héritée (ancien header) ====== */
         setActiveView={setActiveView}
+        user={user}
+        logout={logout}
         isAdmin={isAdmin}
         isUser={isUser}
-        logout={logout}
+        isMobile={isMobile}
+        sheetOpen={sidebarOpen}
+        setSheetOpen={setSidebarOpen}
       />
 
-      <main className="p-6">
-        {renderView()}
-      </main>
+      {/* Main content area */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Top Header */}
+        <TopHeader
+          user={user}
+          isAdmin={isAdmin?.()}
+          isMobile={isMobile}
+          onMenuClick={() => setSidebarOpen(true)}
+        />
+
+        {/* Content */}
+        <main className="flex-1 overflow-y-auto p-6 bg-background">
+          {renderView()}
+        </main>
+      </div>
     </div>
   )
 }

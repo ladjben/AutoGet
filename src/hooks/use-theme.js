@@ -1,16 +1,10 @@
 import { useEffect, useState } from 'react'
 
 export function useTheme() {
+  // Toujours utiliser dark par défaut pour le nouveau thème
   const [theme, setTheme] = useState(() => {
-    // Vérifier si un thème est stocké dans localStorage
     const stored = localStorage.getItem('theme')
-    if (stored) return stored
-    
-    // Sinon, utiliser la préférence système
-    if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      return 'dark'
-    }
-    return 'light'
+    return stored || 'dark'
   })
 
   useEffect(() => {
