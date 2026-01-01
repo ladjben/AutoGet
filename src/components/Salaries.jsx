@@ -129,20 +129,11 @@ const SalariesList = ({ onSelectSalary }) => {
     return `${year}-${month}`;
   }, [dataCtx]);
 
-  // Helper functions
+  // Helper functions - Récupérer TOUS les acomptes d'un salarié
   const getSalaryAcomptes = useCallback((salaryId) => {
-    const currentMonth = getCurrentMonth();
     let filteredAcomptes = (state.acomptes || []).filter(a => {
       const sId = a.salary_id ?? a.salaryId;
-      if (sId !== salaryId) return false;
-      
-      // Filtrer par mois actuel par défaut (si pas de filtres de date)
-      if (!filters.dateStart && !filters.dateEnd) {
-        const acompteMonth = a.mois_annee || (a.date ? a.date.substring(0, 7) : null);
-        return acompteMonth === currentMonth;
-      }
-      
-      return true;
+      return sId === salaryId;
     });
 
     // Appliquer les filtres de date si présents
@@ -154,7 +145,7 @@ const SalariesList = ({ onSelectSalary }) => {
     }
 
     return filteredAcomptes.reverse();
-  }, [state.acomptes, filters.dateStart, filters.dateEnd, getCurrentMonth]);
+  }, [state.acomptes, filters.dateStart, filters.dateEnd]);
 
   const calculateTotalAcomptes = useCallback((salaryId) => {
     const acomptes = getSalaryAcomptes(salaryId);

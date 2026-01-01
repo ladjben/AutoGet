@@ -70,18 +70,13 @@ const SalaryDetail = ({ salaryId, onBack }) => {
     return `${year}-${month}`;
   }, [dataCtx]);
 
-  // Helper functions
+  // Helper functions - Récupérer TOUS les acomptes du salarié
   const getSalaryAcomptes = useCallback(() => {
-    const currentMonth = getCurrentMonth();
     return (state.acomptes || []).filter(a => {
       const sId = a.salary_id ?? a.salaryId;
-      if (sId !== salaryId) return false;
-      
-      // Filtrer par mois actuel
-      const acompteMonth = a.mois_annee || (a.date ? a.date.substring(0, 7) : null);
-      return acompteMonth === currentMonth;
-    });
-  }, [state.acomptes, salaryId, getCurrentMonth]);
+      return sId === salaryId;
+    }).reverse(); // Trier du plus récent au plus ancien
+  }, [state.acomptes, salaryId]);
 
   const calculateTotalAcomptes = useCallback(() => {
     const acomptes = getSalaryAcomptes();
@@ -372,13 +367,13 @@ const SalaryDetail = ({ salaryId, onBack }) => {
         </Card>
       )}
 
-      {/* Historique des acomptes (mois actuel) */}
+      {/* Historique des acomptes (tous les acomptes) */}
       <Card>
         <CardHeader>
           <div className="flex justify-between items-center">
             <CardTitle className="flex items-center gap-2">
               <CreditCard className="h-5 w-5" />
-              Acomptes du Mois Actuel ({acomptes.length})
+              Tous les Acomptes ({acomptes.length})
             </CardTitle>
             {isAdmin() && (
               <Button onClick={() => setShowAcompteModal(true)}>
@@ -404,6 +399,11 @@ const SalaryDetail = ({ salaryId, onBack }) => {
                         <div className="flex items-center gap-2 mb-1">
                           <Calendar className="h-4 w-4 text-muted-foreground" />
                           <span className="font-medium">{acompte.date}</span>
+                          {acompte.mois_annee && (
+                            <Badge variant="outline" className="text-xs">
+                              {acompte.mois_annee}
+                            </Badge>
+                          )}
                         </div>
                         {acompte.description && (
                           <p className="text-sm text-muted-foreground">{acompte.description}</p>
