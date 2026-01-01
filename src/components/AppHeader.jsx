@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { LayoutDashboard, Package, ArrowDownLeft, Building2, PiggyBank, Boxes, Users, Menu, LogOut, ChevronDown } from 'lucide-react';
+import { LayoutDashboard, Package, ArrowDownLeft, Building2, PiggyBank, Boxes, Users, Menu, LogOut, ChevronDown, Moon, Sun } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { useTheme } from '@/hooks/use-theme';
 import {
   Sheet,
   SheetContent,
@@ -57,6 +58,7 @@ const AppHeader = ({ activeView, setActiveView, user, logout, isAdmin, isUser })
   const [supabaseStatus, setSupabaseStatus] = useState({ ok: true, msg: '', count: 0 });
   const [sheetOpen, setSheetOpen] = useState(false);
   const dataCtx = useData();
+  const { theme, toggleTheme } = useTheme();
   
   // Récupérer le count de produits depuis le contexte
   const produitsCount = USE_SUPABASE 
@@ -274,6 +276,21 @@ const AppHeader = ({ activeView, setActiveView, user, logout, isAdmin, isUser })
               <span className="truncate max-w-[120px]">{user?.name}</span>
             </div>
           )}
+
+          {/* Theme Toggle Button */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleTheme}
+            className="h-9 w-9"
+            aria-label="Basculer le thème"
+          >
+            {theme === 'dark' ? (
+              <Sun className="h-4 w-4" />
+            ) : (
+              <Moon className="h-4 w-4" />
+            )}
+          </Button>
 
           {/* Logout Button */}
           <Button
