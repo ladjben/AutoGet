@@ -1,18 +1,14 @@
 import React from 'react';
-import { Menu, Moon, Sun } from 'lucide-react';
+import { Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useTheme } from '@/hooks/use-theme';
 
 const TopHeader = ({ user, isAdmin, isMobile, onMenuClick }) => {
-  const { theme, toggleTheme } = useTheme();
-
   return (
     <header className="h-16 border-b border-border bg-card sticky top-0 z-40">
       <div className="h-full px-6 flex items-center justify-between">
@@ -38,23 +34,8 @@ const TopHeader = ({ user, isAdmin, isMobile, onMenuClick }) => {
           </div>
         </div>
 
-        {/* Right: Theme toggle + User */}
+        {/* Right: User */}
         <div className="flex items-center gap-3">
-          {/* Theme Toggle */}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={toggleTheme}
-            className="h-9 w-9"
-            aria-label="Basculer le thème"
-          >
-            {theme === 'dark' ? (
-              <Sun className="h-4 w-4" />
-            ) : (
-              <Moon className="h-4 w-4" />
-            )}
-          </Button>
-
           {/* User Dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

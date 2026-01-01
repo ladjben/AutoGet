@@ -4,13 +4,11 @@ import './index.css'
 import App from './App.jsx'
 import { Toaster } from './components/ui/toaster'
 
-// Initialiser le thème dark au démarrage
+// Forcer le thème dark (pas de toggle)
 const root = document.documentElement
-const stored = localStorage.getItem('theme')
-const theme = stored || 'dark'
 root.classList.remove('light', 'dark')
-root.classList.add(theme)
-localStorage.setItem('theme', theme)
+root.classList.add('dark')
+localStorage.setItem('theme', 'dark')
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
