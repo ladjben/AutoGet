@@ -1,7 +1,7 @@
 import { useData } from '../context/UnifiedDataContext';
 import { USE_SUPABASE } from '../config';
 import { useAuth } from '../context/AuthContext';
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,8 +16,17 @@ const SalaryDetail = ({ salaryId, onBack }) => {
     salaries: dataCtx?.salaries ?? [],
     acomptes: dataCtx?.acomptes ?? []
   };
+  const salaryHistory = dataCtx?.salaryHistory ?? [];
+  const fetchSalaryHistory = dataCtx?.fetchSalaryHistory;
   const { isAdmin } = useAuth();
   const { toast } = useToast();
+
+  // Charger l'historique au montage
+  useEffect(() => {
+    if (USE_SUPABASE && fetchSalaryHistory) {
+      fetchSalaryHistory(salaryId);
+    }
+  }, [salaryId, fetchSalaryHistory]);
 
   const [showAcompteModal, setShowAcompteModal] = useState(false);
   const [acompteData, setAcompteData] = useState({
@@ -302,13 +311,74 @@ const SalaryDetail = ({ salaryId, onBack }) => {
         </CardContent>
       </Card>
 
-      {/* Historique des acomptes */}
+      {/* Historique mensuel des salaires */}
+      {salaryHistory && salaryHistory.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              Historique Mensuel ({salaryHistory.length} mois)
+            </CardTitle>
+            <CardDescription>
+              Historique des salaires et acomptes par mois
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {salaryHistory.map((history) => (
+                <Card key={history.id} className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2">
+                  <CardContent className="p-4">
+                    <div className="flex justify-between items-start mb-3">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <Calendar className="h-4 w-4 text-primary" />
+                          <span className="text-lg font-bold text-primary">
+                            {history.mois_annee}
+                          </span>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          Nom: {history.nom}
+                        </p>
+                      </div>
+                      <Badge variant="outline" className="text-sm">
+                        {new Date(history.created_at).toLocaleDateString('fr-FR')}
+                      </Badge>
+                    </div>
+                    <div className="grid grid-cols-3 gap-3 mt-4">
+                      <div className="text-center p-2 bg-white rounded">
+                        <p className="text-xs text-muted-foreground mb-1">Salaire</p>
+                        <p className="text-lg font-bold text-blue-600">
+                          {parseFloat(history.salaire_mensuel).toFixed(2)} DA
+                        </p>
+                      </div>
+                      <div className="text-center p-2 bg-white rounded">
+                        <p className="text-xs text-muted-foreground mb-1">Acomptes</p>
+                        <p className="text-lg font-bold text-orange-600">
+                          {parseFloat(history.total_acomptes).toFixed(2)} DA
+                        </p>
+                      </div>
+                      <div className="text-center p-2 bg-white rounded">
+                        <p className="text-xs text-muted-foreground mb-1">Solde Restant</p>
+                        <p className={`text-lg font-bold ${history.solde_restant >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {parseFloat(history.solde_restant).toFixed(2)} DA
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Historique des acomptes (mois actuel) */}
       <Card>
         <CardHeader>
           <div className="flex justify-between items-center">
             <CardTitle className="flex items-center gap-2">
               <CreditCard className="h-5 w-5" />
-              Historique des Acomptes ({acomptes.length})
+              Acomptes du Mois Actuel ({acomptes.length})
             </CardTitle>
             {isAdmin() && (
               <Button onClick={() => setShowAcompteModal(true)}>
@@ -322,7 +392,7 @@ const SalaryDetail = ({ salaryId, onBack }) => {
           {acomptes.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <CreditCard className="h-12 w-12 mx-auto mb-2 opacity-30" />
-              <p>Aucun acompte enregistré</p>
+              <p>Aucun acompte enregistré ce mois</p>
             </div>
           ) : (
             <div className="space-y-2">

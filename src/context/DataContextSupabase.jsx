@@ -14,6 +14,7 @@ export const DataProvider = ({ children }) => {
   const [colis, setColis] = useState([])
   const [salaries, setSalaries] = useState([])
   const [acomptes, setAcomptes] = useState([])
+  const [salaryHistory, setSalaryHistory] = useState([])
 
   useEffect(() => {
     fetchAll()
@@ -29,7 +30,8 @@ export const DataProvider = ({ children }) => {
       fetchDepenseCategories(),
       fetchColis(),
       fetchSalaries(),
-      fetchAcomptes()
+      fetchAcomptes(),
+      fetchSalaryHistory()
     ])
   }
 
@@ -409,6 +411,29 @@ export const DataProvider = ({ children }) => {
     }
   }
 
+  // ========== SALARY HISTORY ==========
+  async function fetchSalaryHistory(salaryId = null) {
+    try {
+      let query = supabase
+        .from('salary_history')
+        .select('*')
+        .order('mois_annee', { ascending: false })
+      
+      if (salaryId) {
+        query = query.eq('salary_id', salaryId)
+      }
+      
+      const { data, error } = await query
+      if (error) throw error
+      setSalaryHistory(data || [])
+      return data || []
+    } catch (e) {
+      console.error('❌ Erreur fetchSalaryHistory:', e?.message || e)
+      setSalaryHistory([])
+      return []
+    }
+  }
+
   // Mise à jour produit
   async function updateProduit(id, { nom, reference, prix_achat }) {
     try {
@@ -529,9 +554,9 @@ export const DataProvider = ({ children }) => {
         // supabase client
         supabase,
         // states
-        produits, fournisseurs, entrees, paiements, depenses, depenseCategories, colis, salaries, acomptes,
+        produits, fournisseurs, entrees, paiements, depenses, depenseCategories, colis, salaries, acomptes, salaryHistory,
         // reads
-        fetchAll, fetchProduits, fetchFournisseurs, fetchEntrees, fetchPaiements, fetchDepenses, fetchDepenseCategories, fetchEntreeDetails, fetchColis, fetchSalaries, fetchAcomptes,
+        fetchAll, fetchProduits, fetchFournisseurs, fetchEntrees, fetchPaiements, fetchDepenses, fetchDepenseCategories, fetchEntreeDetails, fetchColis, fetchSalaries, fetchAcomptes, fetchSalaryHistory,
         // writes
         addProduit, updateProduit, deleteProduit, addFournisseur,
         addPaiement, deletePaiement,
