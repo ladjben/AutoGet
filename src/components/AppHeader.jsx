@@ -236,6 +236,26 @@ const AppHeader = ({ activeView, setActiveView, user, logout, isAdmin, isUser })
                 )}
               </div>
               <Separator className="my-4" />
+              
+              {/* Theme Toggle in Mobile Menu */}
+              <Button
+                variant="outline"
+                className="w-full gap-2 mb-2"
+                onClick={toggleTheme}
+              >
+                {theme === 'dark' ? (
+                  <>
+                    <Sun className="h-4 w-4" />
+                    Mode clair
+                  </>
+                ) : (
+                  <>
+                    <Moon className="h-4 w-4" />
+                    Mode sombre
+                  </>
+                )}
+              </Button>
+              
               <Button
                 variant="destructive"
                 className="w-full gap-2"
