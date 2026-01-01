@@ -100,3 +100,15 @@ code {
     @apply bg-background text-foreground;
   }
 }
+
+@layer utilities {
+  .bg-sidebar {
+    background-color: hsl(var(--sidebar));
+  }
+  .text-sidebar-foreground {
+    color: hsl(var(--sidebar-foreground));
+  }
+  .bg-sidebar-accent {
+    background-color: hsl(var(--sidebar-accent));
+  }
+}

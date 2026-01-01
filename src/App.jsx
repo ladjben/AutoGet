@@ -26,6 +26,18 @@ import Salaries from './components/Salaries'
 const AppContent = () => {
   const [activeView, setActiveView] = useState('dashboard')
   const { user, logout, isAdmin, isUser } = useAuth()
+  const [isMobile, setIsMobile] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Tous les hooks doivent être appelés avant tout return conditionnel
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   const renderView = () => {
     switch (activeView) {
@@ -58,22 +70,6 @@ const AppContent = () => {
       </div>
     )
   }
-
-  // Compteurs / Status (met un vrai produitsCount si tu as un state global)
-  const produitsCount = 0
-  const supabaseStatus = 'Connexion OK'
-
-  const [isMobile, setIsMobile] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
 
   return (
     <div className="min-h-screen bg-background flex">
