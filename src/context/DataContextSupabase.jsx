@@ -48,12 +48,40 @@ export const DataProvider = ({ children }) => {
   }
 
   async function fetchEntrees() {
-    const { data, error } = await supabase
-      .from('entrees')
-      .select('id, date, paye, fournisseur_id')
-      .order('date', { ascending: false })
-    if (error) console.error(error)
-    else setEntrees(data || [])
+    try {
+      // Récupérer toutes les entrées avec pagination pour gérer les grandes quantités
+      let allEntrees = []
+      let page = 0
+      const pageSize = 1000
+      let hasMore = true
+
+      while (hasMore) {
+        const { data, error, count } = await supabase
+          .from('entrees')
+          .select('id, date, paye, fournisseur_id', { count: 'exact' })
+          .order('date', { ascending: false })
+          .range(page * pageSize, (page + 1) * pageSize - 1)
+        
+        if (error) {
+          console.error('❌ Erreur fetchEntrees:', error)
+          break
+        }
+        
+        if (data && data.length > 0) {
+          allEntrees = [...allEntrees, ...data]
+          page++
+          hasMore = data.length === pageSize && (count === null || allEntrees.length < count)
+        } else {
+          hasMore = false
+        }
+      }
+
+      setEntrees(allEntrees)
+      console.log(`✅ ${allEntrees.length} entrées chargées`)
+    } catch (e) {
+      console.error('❌ Erreur fetchEntrees:', e?.message || e)
+      setEntrees([])
+    }
   }
 
   async function fetchPaiements() {
