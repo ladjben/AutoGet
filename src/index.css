@@ -112,3 +112,14 @@ code {
     background-color: hsl(var(--sidebar-accent));
   }
 }
+
+/* Styles pour les selects avec fond noir */
+select {
+  background-color: hsl(var(--background)) !important;
+  color: hsl(var(--foreground)) !important;
+}
+
+select option {
+  background-color: hsl(var(--background)) !important;
+  color: hsl(var(--foreground)) !important;
+}

@@ -326,11 +326,19 @@ const Entries = () => {
                 <select
                   value={formData.fournisseurId}
                   onChange={(e) => setFormData({ ...formData, fournisseurId: e.target.value })}
-                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex h-9 w-full rounded-md border-2 border-input bg-background px-3 py-1 text-sm text-foreground shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                  style={{ 
+                    backgroundColor: 'hsl(var(--background))',
+                    color: 'hsl(var(--foreground))'
+                  }}
                 >
-                  <option value="">Sélectionner un fournisseur</option>
+                  <option value="" style={{ backgroundColor: 'hsl(var(--background))', color: 'hsl(var(--foreground))' }}>Sélectionner un fournisseur</option>
                   {fournisseurs.map((f) => (
-                    <option key={f.id} value={f.id}>
+                    <option 
+                      key={f.id} 
+                      value={f.id}
+                      style={{ backgroundColor: 'hsl(var(--background))', color: 'hsl(var(--foreground))' }}
+                    >
                       {f.nom}
                     </option>
                   ))}
