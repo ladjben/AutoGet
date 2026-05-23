@@ -123,3 +123,26 @@ select option {
   background-color: hsl(var(--background)) !important;
   color: hsl(var(--foreground)) !important;
 }
+
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+  #fiche-paie-print,
+  #fiche-paie-print * {
+    visibility: visible !important;
+  }
+  #fiche-paie-print {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 24px;
+    background: #fff;
+    color: #000;
+    box-shadow: none;
+  }
+  .no-print {
+    display: none !important;
+  }
+}

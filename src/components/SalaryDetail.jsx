@@ -1,14 +1,43 @@
 import { useData } from '../context/UnifiedDataContext';
 import { USE_SUPABASE } from '../config';
 import { useAuth } from '../context/AuthContext';
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Users, CreditCard, TrendingDown, TrendingUp, DollarSign, Calendar, Trash2, Phone, Briefcase, Plus } from 'lucide-react';
+import { ArrowLeft, Users, CreditCard, TrendingDown, TrendingUp, DollarSign, Calendar, Trash2, Phone, Briefcase, Plus, Printer } from 'lucide-react';
+import cosmosLogo from '../assets/cosmos-logo.svg';
+
+const SPECIAL_DESCRIPTIONS = new Set(['Retard', 'Absence', 'Bonus']);
+
+const formatDa = (amount) => `${Number(amount).toFixed(2)} DA`;
+
+const formatDateFr = (dateStr) => {
+  if (!dateStr) return '—';
+  const d = new Date(`${dateStr}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return dateStr;
+  return d.toLocaleDateString('fr-FR');
+};
+
+const getAcompteCategory = (acompte) => {
+  const desc = (acompte.description || '').trim();
+  const montant = parseFloat(acompte.montant) || 0;
+  if (desc === 'Retard') return 'retards';
+  if (desc === 'Absence') return 'absences';
+  if (desc === 'Bonus') return 'bonus';
+  if (montant > 0 && !SPECIAL_DESCRIPTIONS.has(desc)) return 'avances';
+  return null;
+};
+
+const FICHE_CATEGORIES = [
+  { key: 'avances', title: 'Avances / Acomptes' },
+  { key: 'retards', title: 'Retards' },
+  { key: 'absences', title: 'Absences' },
+  { key: 'bonus', title: 'Primes / Bonus' },
+];
 
 const SalaryDetail = ({ salaryId, onBack }) => {
   const dataCtx = useData();
@@ -29,6 +58,7 @@ const SalaryDetail = ({ salaryId, onBack }) => {
   }, [salaryId, fetchSalaryHistory]);
 
   const [showAcompteModal, setShowAcompteModal] = useState(false);
+  const [showFichePaie, setShowFichePaie] = useState(false);
   const [acompteData, setAcompteData] = useState({
     salaryId: salaryId,
     montant: '',
@@ -161,13 +191,76 @@ const SalaryDetail = ({ salaryId, onBack }) => {
   const salaireMensuel = parseFloat(salary.salaire_mensuel ?? salary.salaireMensuel ?? 0);
   const tauxPaye = salaireMensuel > 0 ? ((totalAcomptes / salaireMensuel) * 100) : 0;
 
+  const currentMonthKey = getCurrentMonth();
+  const periodeFr = (() => {
+    const [year, month] = currentMonthKey.split('-').map(Number);
+    const label = new Date(year, month - 1, 1).toLocaleDateString('fr-FR', {
+      month: 'long',
+      year: 'numeric',
+    });
+    return label.charAt(0).toUpperCase() + label.slice(1);
+  })();
+  const dateEdition = new Date().toLocaleDateString('fr-FR', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+
+  const acomptesMois = acomptes.filter((a) => {
+    const moisAnnee = a.mois_annee || (a.date ? a.date.substring(0, 7) : '');
+    return moisAnnee === currentMonthKey || (a.date && a.date.startsWith(currentMonthKey));
+  });
+
+  const groupedMouvements = FICHE_CATEGORIES.reduce((acc, cat) => {
+    acc[cat.key] = [];
+    return acc;
+  }, {});
+  acomptesMois.forEach((a) => {
+    const category = getAcompteCategory(a);
+    if (category && groupedMouvements[category]) {
+      groupedMouvements[category].push(a);
+    }
+  });
+
+  const totalDeductions = acomptes.reduce((sum, a) => {
+    const m = parseFloat(a.montant) || 0;
+    return m > 0 ? sum + m : sum;
+  }, 0);
+
+  const totalPrimes = acomptes.reduce((sum, a) => {
+    const m = parseFloat(a.montant) || 0;
+    return m < 0 ? sum + Math.abs(m) : sum;
+  }, 0);
+
+  const renderMontantCell = (acompte, category) => {
+    const montant = parseFloat(acompte.montant) || 0;
+    if (category === 'bonus') {
+      return (
+        <span className="font-medium text-green-700">
+          +{formatDa(Math.abs(montant))}
+        </span>
+      );
+    }
+    return (
+      <span className="font-medium text-orange-700">
+        −{formatDa(montant)}
+      </span>
+    );
+  };
+
   return (
     <div className="space-y-6">
-      {/* Bouton retour */}
-      <Button onClick={onBack} variant="outline" size="lg">
-        <ArrowLeft className="mr-2 h-4 w-4" />
-        Retour à la liste
-      </Button>
+      {/* Bouton retour + fiche de paie */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Button onClick={onBack} variant="outline" size="lg">
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Retour à la liste
+        </Button>
+        <Button variant="outline" size="lg" onClick={() => setShowFichePaie(true)}>
+          <Printer className="mr-2 h-4 w-4" />
+          Imprimer fiche de paie
+        </Button>
+      </div>
 
       {/* En-tête du salarié */}
       <Card className="overflow-hidden border-2 border-primary">
@@ -431,6 +524,129 @@ const SalaryDetail = ({ salaryId, onBack }) => {
           )}
         </CardContent>
       </Card>
+
+      {/* Aperçu fiche de paie */}
+      {showFichePaie && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 pt-16">
+          <div className="no-print fixed right-4 top-4 z-[60] flex gap-2">
+            <Button type="button" onClick={() => window.print()}>
+              <Printer className="mr-2 h-4 w-4" />
+              Imprimer
+            </Button>
+            <Button type="button" variant="outline" className="bg-white" onClick={() => setShowFichePaie(false)}>
+              Fermer
+            </Button>
+          </div>
+
+          <div
+            id="fiche-paie-print"
+            className="my-4 w-full max-w-[800px] bg-white p-8 text-black shadow-2xl print:my-0 print:shadow-none"
+          >
+            {/* En-tête */}
+            <div className="mb-8 flex items-start justify-between gap-6 border-b border-gray-300 pb-6">
+              <div className="flex items-center gap-3">
+                <img src={cosmosLogo} alt="Cosmos" className="h-14 w-auto" />
+                <div>
+                  <p className="text-lg font-bold tracking-wide">COSMOS ALGÉRIE</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <h2 className="text-xl font-bold tracking-wider">FICHE DE PAIE</h2>
+                <p className="mt-1 text-sm text-gray-700">Période : {periodeFr}</p>
+                <p className="text-sm text-gray-600">Édité le {dateEdition}</p>
+              </div>
+            </div>
+
+            {/* Salarié */}
+            <div className="mb-8 rounded border border-gray-200 bg-gray-50 p-4">
+              <p className="text-lg font-semibold">{salary.nom}</p>
+              <p className="mt-1 text-sm text-gray-700">
+                Salaire de base : <span className="font-medium">{formatDa(salaireMensuel)}</span>
+              </p>
+            </div>
+
+            {/* Tableau mouvements */}
+            <div className="mb-8">
+              <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-600">
+                Mouvements du mois
+              </h3>
+              <table className="w-full border-collapse text-sm">
+                <thead>
+                  <tr className="border-b-2 border-gray-800 text-left">
+                    <th className="py-2 pr-4 font-semibold">Date</th>
+                    <th className="py-2 pr-4 font-semibold">Description</th>
+                    <th className="py-2 text-right font-semibold">Montant</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {FICHE_CATEGORIES.map((cat) => {
+                    const rows = groupedMouvements[cat.key];
+                    if (!rows?.length) return null;
+                    return (
+                      <React.Fragment key={cat.key}>
+                        <tr className="bg-gray-100">
+                          <td colSpan={3} className="py-2 pl-1 text-xs font-bold uppercase tracking-wide text-gray-700">
+                            {cat.title}
+                          </td>
+                        </tr>
+                        {rows.map((a) => (
+                          <tr key={a.id} className="border-b border-gray-200">
+                            <td className="py-2 pr-4">{formatDateFr(a.date)}</td>
+                            <td className="py-2 pr-4">{a.description || '—'}</td>
+                            <td className="py-2 text-right">{renderMontantCell(a, cat.key)}</td>
+                          </tr>
+                        ))}
+                      </React.Fragment>
+                    );
+                  })}
+                  {acomptesMois.length === 0 && (
+                    <tr>
+                      <td colSpan={3} className="py-6 text-center text-gray-500">
+                        Aucun mouvement pour ce mois
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Récapitulatif */}
+            <div className="mb-10 border-t-2 border-gray-800 pt-4">
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between gap-4">
+                  <span>Salaire de base</span>
+                  <span className="font-medium tabular-nums">+{formatDa(salaireMensuel)}</span>
+                </div>
+                <div className="flex justify-between gap-4 text-orange-800">
+                  <span>Total déductions</span>
+                  <span className="font-medium tabular-nums">−{formatDa(totalDeductions)}</span>
+                </div>
+                <div className="flex justify-between gap-4 text-green-800">
+                  <span>Total primes</span>
+                  <span className="font-medium tabular-nums">+{formatDa(totalPrimes)}</span>
+                </div>
+                <div className="my-2 border-t border-gray-400" />
+                <div className="flex justify-between gap-4 text-base font-bold">
+                  <span>NET À PAYER</span>
+                  <span className="tabular-nums">{formatDa(soldeRestant)}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Signatures */}
+            <div className="grid grid-cols-2 gap-8 pt-4">
+              <div>
+                <p className="mb-12 text-sm font-medium">Signature employeur</p>
+                <div className="border-t border-gray-800" />
+              </div>
+              <div>
+                <p className="mb-12 text-sm font-medium">Signature salarié</p>
+                <div className="border-t border-gray-800" />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal Acompte */}
       <Dialog open={showAcompteModal} onOpenChange={setShowAcompteModal}>
