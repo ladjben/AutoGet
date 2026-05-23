@@ -11,7 +11,8 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/com
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Plus, Users, CreditCard, TrendingDown, TrendingUp, DollarSign, Calendar, Trash2, Edit, Phone, Briefcase, ChevronRight } from 'lucide-react';
+import { Plus, Users, CreditCard, TrendingDown, TrendingUp, DollarSign, Calendar, Trash2, Edit, Phone, Briefcase, ChevronRight, Archive } from 'lucide-react';
+import { ToastAction } from '@/components/ui/toast';
 import SalaryDetail from './SalaryDetail';
 
 const Salaries = () => {
@@ -44,6 +45,8 @@ const SalariesList = ({ onSelectSalary }) => {
 
   const [showModal, setShowModal] = useState(false);
   const [showAcompteModal, setShowAcompteModal] = useState(false);
+  const [showCloseMonthDialog, setShowCloseMonthDialog] = useState(false);
+  const [isClosingMonth, setIsClosingMonth] = useState(false);
   const [editingSalary, setEditingSalary] = useState(null);
   const [filters, setFilters] = useState({
     salaryId: '',
@@ -204,6 +207,70 @@ const SalariesList = ({ onSelectSalary }) => {
       month: calcStats(month)
     };
   }, [state.acomptes]);
+
+  const activeAcomptesStats = useMemo(() => {
+    const list = state.acomptes || [];
+    return {
+      count: list.length,
+      total: list.reduce((sum, a) => sum + (parseFloat(a.montant) || 0), 0),
+    };
+  }, [state.acomptes]);
+
+  const handleCloseMonth = async () => {
+    if (!USE_SUPABASE || !dataCtx?.resetAllAcomptes) return;
+
+    const { count, total } = activeAcomptesStats;
+    setIsClosingMonth(true);
+    try {
+      const result = await dataCtx.resetAllAcomptes();
+      if (result?.success) {
+        const batch = result.batch;
+        localStorage.setItem('last_acompte_reset_batch', batch);
+        setShowCloseMonthDialog(false);
+        if (dataCtx?.fetchAcomptes) {
+          await dataCtx.fetchAcomptes();
+        }
+        toast({
+          title: 'Mois clôturé',
+          description: `${count} acompte(s) archivé(s) (${total.toFixed(2)} DA).`,
+          action: (
+            <ToastAction
+              altText="Annuler"
+              onClick={async () => {
+                try {
+                  await dataCtx.undoResetAcomptes(batch);
+                  localStorage.removeItem('last_acompte_reset_batch');
+                  if (dataCtx?.fetchAcomptes) {
+                    await dataCtx.fetchAcomptes();
+                  }
+                  toast({
+                    title: 'Annulation réussie',
+                    description: 'Les acomptes archivés ont été restaurés.',
+                  });
+                } catch (e) {
+                  toast({
+                    variant: 'destructive',
+                    title: 'Erreur',
+                    description: e?.message || "Impossible d'annuler la clôture",
+                  });
+                }
+              }}
+            >
+              Annuler
+            </ToastAction>
+          ),
+        });
+      }
+    } catch (e) {
+      toast({
+        variant: 'destructive',
+        title: 'Erreur',
+        description: e?.message || 'Impossible de clôturer le mois',
+      });
+    } finally {
+      setIsClosingMonth(false);
+    }
+  };
 
   const handleAddSalary = async () => {
     if (!formData.nom || !formData.salaire_mensuel) {
@@ -404,6 +471,58 @@ const SalariesList = ({ onSelectSalary }) => {
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-foreground">Salariés</h1>
         <div className="flex gap-3">
+          {USE_SUPABASE && (
+            <Dialog open={showCloseMonthDialog} onOpenChange={setShowCloseMonthDialog}>
+              <DialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="border-amber-600 text-amber-700 hover:bg-amber-50"
+                  disabled={activeAcomptesStats.count === 0}
+                >
+                  <Archive className="h-4 w-4 mr-2" />
+                  Clôturer le mois
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Clôturer le mois</DialogTitle>
+                  <DialogDescription>
+                    Cette action archive tous les acomptes du mois. Ils restent récupérables en cas d&apos;erreur.
+                  </DialogDescription>
+                </DialogHeader>
+                <Card>
+                  <CardContent className="pt-6 space-y-3">
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">Acomptes actifs</span>
+                      <span className="font-semibold">{activeAcomptesStats.count}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">Montant total</span>
+                      <span className="font-semibold text-orange-600">
+                        {activeAcomptesStats.total.toFixed(2)} DA
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+                <p className="text-sm text-muted-foreground">
+                  Les acomptes ne seront pas supprimés définitivement ; vous pourrez annuler cette action depuis la notification de succès.
+                </p>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setShowCloseMonthDialog(false)}>
+                    Annuler
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={handleCloseMonth}
+                    disabled={isClosingMonth || activeAcomptesStats.count === 0}
+                  >
+                    {isClosingMonth ? 'Archivage…' : 'Confirmer la clôture'}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
+
           <Dialog open={showAcompteModal} onOpenChange={setShowAcompteModal}>
             <DialogTrigger asChild>
               <Button variant="outline" className="bg-green-600 hover:bg-green-700 text-white border-green-600">

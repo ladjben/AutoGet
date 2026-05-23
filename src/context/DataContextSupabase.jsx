@@ -396,6 +396,7 @@ export const DataProvider = ({ children }) => {
       const { data, error } = await supabase
         .from('acomptes')
         .select('*')
+        .is('deleted_at', null)
         .order('date', { ascending: false })
       if (error) throw error
       setAcomptes(data || [])
@@ -432,13 +433,40 @@ export const DataProvider = ({ children }) => {
     try {
       const { error } = await supabase
         .from('acomptes')
-        .delete()
+        .update({ deleted_at: new Date().toISOString() })
         .eq('id', id)
       if (error) throw error
       await fetchAcomptes()
       return { success: true }
     } catch (e) {
       console.error('❌ Erreur deleteAcompte:', e?.message || e)
+      throw e
+    }
+  }
+
+  async function resetAllAcomptes() {
+    try {
+      const batch = new Date().toISOString()
+      const { error } = await supabase.from('acomptes')
+        .update({ deleted_at: batch }).is('deleted_at', null)
+      if (error) throw error
+      await fetchAcomptes()
+      return { success: true, batch }
+    } catch (e) {
+      console.error('❌ Erreur resetAllAcomptes:', e?.message || e)
+      throw e
+    }
+  }
+
+  async function undoResetAcomptes(batch) {
+    try {
+      const { error } = await supabase.from('acomptes')
+        .update({ deleted_at: null }).eq('deleted_at', batch)
+      if (error) throw error
+      await fetchAcomptes()
+      return { success: true }
+    } catch (e) {
+      console.error('❌ Erreur undoResetAcomptes:', e?.message || e)
       throw e
     }
   }
@@ -598,6 +626,8 @@ export const DataProvider = ({ children }) => {
         addColis, updateColis, deleteColis,
         addSalary, updateSalary, deleteSalary,
         addAcompte, deleteAcompte,
+        resetAllAcomptes, undoResetAcomptes,
+        resetMonthlySalaries: resetAllAcomptes,
       }}
     >
       {children}
