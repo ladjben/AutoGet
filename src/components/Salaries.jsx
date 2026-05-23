@@ -11,7 +11,7 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/com
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Plus, Users, CreditCard, TrendingDown, TrendingUp, DollarSign, Calendar, Trash2, Edit, Phone, Briefcase, ChevronRight, Archive, Clock } from 'lucide-react';
+import { Plus, Users, CreditCard, TrendingDown, TrendingUp, DollarSign, Calendar, Trash2, Edit, Phone, Briefcase, ChevronRight, Archive, Clock, UserX, Gift } from 'lucide-react';
 import { ToastAction } from '@/components/ui/toast';
 import SalaryDetail from './SalaryDetail';
 
@@ -25,6 +25,45 @@ const Salaries = () => {
 
   // Sinon, afficher la liste
   return <SalariesList onSelectSalary={setSelectedSalaryId} />;
+};
+
+const QUICK_ACTIONS = {
+  retard: {
+    label: 'Retard',
+    montantParDefaut: '500',
+    description: 'Retard',
+    signe: 1,
+    Icon: Clock,
+    buttonClassName: 'border-red-600 text-red-700 hover:bg-red-50',
+    dialogTitle: 'Enregistrer un retard',
+    dialogDescription: 'Déduit un acompte de retard pour le salarié sélectionné (date du jour).',
+    submitLabel: 'Enregistrer le retard',
+    successMessage: (montant) => `Retard enregistré : ${montant.toFixed(2)} DA déduits`,
+  },
+  absence: {
+    label: 'Absence',
+    montantParDefaut: '1500',
+    description: 'Absence',
+    signe: 1,
+    Icon: UserX,
+    buttonClassName: 'border-orange-600 text-orange-700 hover:bg-orange-50',
+    dialogTitle: 'Enregistrer une absence',
+    dialogDescription: 'Déduit un acompte d\'absence pour le salarié sélectionné (date du jour).',
+    submitLabel: 'Enregistrer l\'absence',
+    successMessage: (montant) => `Absence enregistrée : ${montant.toFixed(2)} DA déduits`,
+  },
+  bonus: {
+    label: 'Bonus',
+    montantParDefaut: '1000',
+    description: 'Bonus',
+    signe: -1,
+    Icon: Gift,
+    buttonClassName: 'border-emerald-600 text-emerald-700 hover:bg-emerald-50',
+    dialogTitle: 'Enregistrer un bonus',
+    dialogDescription: 'Ajoute une prime au salarié (acompte négatif, augmente le solde restant).',
+    submitLabel: 'Enregistrer le bonus',
+    successMessage: (montant) => `Bonus enregistré : +${montant.toFixed(2)} DA`,
+  },
 };
 
 const SalariesList = ({ onSelectSalary }) => {
@@ -47,8 +86,8 @@ const SalariesList = ({ onSelectSalary }) => {
   const [showAcompteModal, setShowAcompteModal] = useState(false);
   const [showCloseMonthDialog, setShowCloseMonthDialog] = useState(false);
   const [isClosingMonth, setIsClosingMonth] = useState(false);
-  const [showRetardModal, setShowRetardModal] = useState(false);
-  const [retardData, setRetardData] = useState({ salaryId: '', montant: '500' });
+  const [quickActionKey, setQuickActionKey] = useState(null);
+  const [quickActionData, setQuickActionData] = useState({ salaryId: '', montant: '' });
   const [editingSalary, setEditingSalary] = useState(null);
   const [filters, setFilters] = useState({
     salaryId: '',
@@ -457,8 +496,23 @@ const SalariesList = ({ onSelectSalary }) => {
     }
   };
 
-  const handleAddRetard = async () => {
-    if (!retardData.salaryId) {
+  const activeQuickAction = quickActionKey ? QUICK_ACTIONS[quickActionKey] : null;
+
+  const openQuickAction = (key) => {
+    const action = QUICK_ACTIONS[key];
+    setQuickActionKey(key);
+    setQuickActionData({ salaryId: '', montant: action.montantParDefaut });
+  };
+
+  const closeQuickAction = () => {
+    setQuickActionKey(null);
+    setQuickActionData({ salaryId: '', montant: '' });
+  };
+
+  const handleQuickActionSubmit = async () => {
+    if (!quickActionKey || !activeQuickAction) return;
+
+    if (!quickActionData.salaryId) {
       toast({
         variant: 'destructive',
         title: 'Erreur',
@@ -467,31 +521,39 @@ const SalariesList = ({ onSelectSalary }) => {
       return;
     }
 
-    const montant = parseFloat(retardData.montant) || 0;
+    const montantSaisi = parseFloat(quickActionData.montant) || 0;
+    const montantApi =
+      activeQuickAction.signe === -1 ? -Math.abs(montantSaisi) : montantSaisi;
+    const montantAffiche =
+      activeQuickAction.signe === -1 ? Math.abs(montantSaisi) : montantSaisi;
     const dateToday = new Date().toISOString().split('T')[0];
 
     try {
       if (USE_SUPABASE) {
-        await addAcompte(retardData.salaryId, retardData.montant, dateToday, 'Retard');
+        await addAcompte(
+          quickActionData.salaryId,
+          montantApi,
+          dateToday,
+          activeQuickAction.description
+        );
         if (dataCtx?.fetchAcomptes) {
           await dataCtx.fetchAcomptes();
         }
       } else {
         const newAcompte = {
           id: generateId(),
-          salaryId: retardData.salaryId,
-          montant,
+          salaryId: quickActionData.salaryId,
+          montant: montantApi,
           date: dateToday,
-          description: 'Retard',
+          description: activeQuickAction.description,
         };
         dispatch({ type: ActionTypes.ADD_ACOMPTE, payload: newAcompte });
       }
 
-      setRetardData({ salaryId: '', montant: '500' });
-      setShowRetardModal(false);
+      closeQuickAction();
       toast({
         title: 'Succès',
-        description: `Retard enregistré : ${montant.toFixed(2)} DA déduits`,
+        description: activeQuickAction.successMessage(montantAffiche),
       });
     } catch (e) {
       toast({
@@ -499,7 +561,7 @@ const SalariesList = ({ onSelectSalary }) => {
         title: 'Erreur',
         description: e?.message || 'Erreur inconnue',
       });
-      console.error('Erreur handleAddRetard:', e);
+      console.error('Erreur handleQuickActionSubmit:', e);
     }
   };
 
@@ -571,69 +633,76 @@ const SalariesList = ({ onSelectSalary }) => {
             </Dialog>
           )}
 
+          {Object.entries(QUICK_ACTIONS).map(([key, action]) => {
+            const ActionIcon = action.Icon;
+            return (
+              <Button
+                key={key}
+                type="button"
+                variant="outline"
+                className={action.buttonClassName}
+                onClick={() => openQuickAction(key)}
+              >
+                <ActionIcon className="h-4 w-4 mr-2" />
+                {action.label}
+              </Button>
+            );
+          })}
+
           <Dialog
-            open={showRetardModal}
+            open={quickActionKey !== null}
             onOpenChange={(open) => {
-              setShowRetardModal(open);
-              if (!open) {
-                setRetardData({ salaryId: '', montant: '500' });
-              }
+              if (!open) closeQuickAction();
             }}
           >
-            <DialogTrigger asChild>
-              <Button variant="outline" className="border-red-600 text-red-700 hover:bg-red-50">
-                <Clock className="h-4 w-4 mr-2" />
-                Retard
-              </Button>
-            </DialogTrigger>
             <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Enregistrer un retard</DialogTitle>
-                <DialogDescription>
-                  Déduit un acompte de retard pour le salarié sélectionné (date du jour).
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Salarié *</label>
-                  <select
-                    value={retardData.salaryId}
-                    onChange={(e) => setRetardData({ ...retardData, salaryId: e.target.value })}
-                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <option value="">Sélectionner</option>
-                    {(state.salaries || []).map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.nom}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              {activeQuickAction && (
+                <>
+                  <DialogHeader>
+                    <DialogTitle>{activeQuickAction.dialogTitle}</DialogTitle>
+                    <DialogDescription>{activeQuickAction.dialogDescription}</DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">Salarié *</label>
+                      <select
+                        value={quickActionData.salaryId}
+                        onChange={(e) =>
+                          setQuickActionData({ ...quickActionData, salaryId: e.target.value })
+                        }
+                        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <option value="">Sélectionner</option>
+                        {(state.salaries || []).map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.nom}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
 
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Montant (DA) *</label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={retardData.montant}
-                    onChange={(e) => setRetardData({ ...retardData, montant: e.target.value })}
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setShowRetardModal(false);
-                    setRetardData({ salaryId: '', montant: '500' });
-                  }}
-                >
-                  Annuler
-                </Button>
-                <Button onClick={handleAddRetard}>
-                  Enregistrer le retard
-                </Button>
-              </DialogFooter>
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">Montant (DA) *</label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={quickActionData.montant}
+                        onChange={(e) =>
+                          setQuickActionData({ ...quickActionData, montant: e.target.value })
+                        }
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" type="button" onClick={closeQuickAction}>
+                      Annuler
+                    </Button>
+                    <Button type="button" onClick={handleQuickActionSubmit}>
+                      {activeQuickAction.submitLabel}
+                    </Button>
+                  </DialogFooter>
+                </>
+              )}
             </DialogContent>
           </Dialog>
 
