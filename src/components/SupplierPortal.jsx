@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useData } from '../context/UnifiedDataContext';
 import { useAuth } from '../context/AuthContext';
 import { USE_SUPABASE } from '../config';
@@ -57,6 +57,7 @@ const SupplierPortal = () => {
   const [loadingProduits, setLoadingProduits] = useState(false);
   const [loadingNotifications, setLoadingNotifications] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const initialLoadDone = useRef(false);
 
   const [envoiForm, setEnvoiForm] = useState({
     date: new Date().toISOString().split('T')[0],
@@ -78,7 +79,7 @@ const SupplierPortal = () => {
     [envoiForm.lignes]
   );
 
-  const loadDashboard = useCallback(async () => {
+  const reloadDashboard = async () => {
     if (!fournisseurId || !dataCtx?.fetchFournisseurDashboard) return;
     setLoadingDashboard(true);
     try {
@@ -94,50 +95,57 @@ const SupplierPortal = () => {
     } finally {
       setLoadingDashboard(false);
     }
-  }, [fournisseurId, dataCtx, toast]);
+  };
 
-  const loadProduitsAssignes = useCallback(async () => {
-    if (!fournisseurId || !dataCtx?.fetchProduitsAssignes) return;
-    setLoadingProduits(true);
-    try {
-      const data = await dataCtx.fetchProduitsAssignes(fournisseurId);
-      setProduitsAssignes(data || []);
-    } catch (e) {
-      console.error('Erreur chargement produits assignés:', e);
-      toast({
-        variant: 'destructive',
-        title: 'Erreur',
-        description: e?.message || 'Impossible de charger les produits',
-      });
-    } finally {
-      setLoadingProduits(false);
-    }
-  }, [fournisseurId, dataCtx, toast]);
-
-  const loadNotifications = useCallback(async () => {
-    if (!fournisseurId || !dataCtx?.fetchNotifications) return;
-    setLoadingNotifications(true);
-    try {
-      const data = await dataCtx.fetchNotifications(fournisseurId);
-      setNotifications(data || []);
-    } catch (e) {
-      console.error('Erreur chargement notifications:', e);
-      toast({
-        variant: 'destructive',
-        title: 'Erreur',
-        description: e?.message || 'Impossible de charger les notifications',
-      });
-    } finally {
-      setLoadingNotifications(false);
-    }
-  }, [fournisseurId, dataCtx, toast]);
-
+  // Au montage : exactement 3 requêtes (dashboard agrégé, produits assignés, notifications)
   useEffect(() => {
-    if (!fournisseurId || !USE_SUPABASE) return;
-    loadDashboard();
-    loadProduitsAssignes();
-    loadNotifications();
-  }, [fournisseurId, loadDashboard, loadProduitsAssignes, loadNotifications]);
+    if (!fournisseurId || !USE_SUPABASE || initialLoadDone.current) return;
+    initialLoadDone.current = true;
+
+    let cancelled = false;
+
+    const loadInitialData = async () => {
+      setLoadingDashboard(true);
+      setLoadingProduits(true);
+      setLoadingNotifications(true);
+
+      try {
+        const [dashboardData, produitsData, notificationsData] = await Promise.all([
+          dataCtx?.fetchFournisseurDashboard?.(fournisseurId),
+          dataCtx?.fetchProduitsAssignes?.(fournisseurId),
+          dataCtx?.fetchNotifications?.(fournisseurId),
+        ]);
+
+        if (cancelled) return;
+
+        setDashboard(dashboardData ?? null);
+        setProduitsAssignes(produitsData || []);
+        setNotifications(notificationsData || []);
+      } catch (e) {
+        console.error('Erreur chargement portail fournisseur:', e);
+        if (!cancelled) {
+          toast({
+            variant: 'destructive',
+            title: 'Erreur',
+            description: e?.message || 'Impossible de charger les données',
+          });
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingDashboard(false);
+          setLoadingProduits(false);
+          setLoadingNotifications(false);
+        }
+      }
+    };
+
+    loadInitialData();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fournisseurId]);
 
   const handleAddLigne = () => {
     if (!currentLigne.produitId || !currentLigne.quantite) {
@@ -225,7 +233,7 @@ const SupplierPortal = () => {
         lignes: [],
       });
       setCurrentLigne({ produitId: '', quantite: '' });
-      await loadDashboard();
+      await reloadDashboard();
       setActiveTab('overview');
     } catch (e) {
       toast({
