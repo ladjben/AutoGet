@@ -28,9 +28,19 @@ const TABS = [
   { id: 'notifications', label: 'Notifications', icon: Bell },
 ];
 
-const formatNumber = (value) => Number(value || 0).toLocaleString('fr-FR');
+const numberFormatter = new Intl.NumberFormat('fr-FR', {
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 2,
+});
 
-const formatDa = (value) => `${formatNumber(parseFloat(value || 0).toFixed(2))} DA`;
+const formatNumber = (value) => numberFormatter.format(Number(value || 0));
+
+const formatDa = (value) => `${formatNumber(value)} DA`;
+
+const formatProduitOption = (produit) => {
+  const refPart = produit.reference ? `${produit.reference} · ` : '';
+  return `${refPart}${produit.nom} — ${formatDa(produit.prix_achat)}`;
+};
 
 const SupplierPortal = () => {
   const dataCtx = useData();
@@ -57,6 +67,15 @@ const SupplierPortal = () => {
   const unreadCount = useMemo(
     () => notifications.filter((n) => !n.lu).length,
     [notifications]
+  );
+
+  const envoiTotal = useMemo(
+    () =>
+      envoiForm.lignes.reduce(
+        (sum, l) => sum + l.quantite * (l.prixAchat || 0),
+        0
+      ),
+    [envoiForm.lignes]
   );
 
   const loadDashboard = useCallback(async () => {
@@ -148,6 +167,8 @@ const SupplierPortal = () => {
         {
           produitId: currentLigne.produitId,
           produitNom: produit?.nom || 'Produit',
+          produitReference: produit?.reference || '',
+          prixAchat: parseFloat(produit?.prix_achat) || 0,
           quantite,
         },
       ],
@@ -455,7 +476,7 @@ const SupplierPortal = () => {
                   <option value="">Sélectionner un produit</option>
                   {produitsAssignes.map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.nom}{p.reference ? ` (${p.reference})` : ''}
+                      {formatProduitOption(p)}
                     </option>
                   ))}
                 </select>
@@ -485,12 +506,21 @@ const SupplierPortal = () => {
             {envoiForm.lignes.length > 0 && (
               <div className="space-y-2">
                 <p className="text-sm font-medium">Lignes de l&apos;envoi ({envoiForm.lignes.length})</p>
-                {envoiForm.lignes.map((ligne, index) => (
+                {envoiForm.lignes.map((ligne, index) => {
+                  const sousTotal = ligne.quantite * (ligne.prixAchat || 0);
+                  return (
                   <Card key={`${ligne.produitId}-${index}`} className="bg-muted/30">
-                    <CardContent className="p-4 flex justify-between items-center">
+                    <CardContent className="p-4 flex justify-between items-center gap-4">
                       <div>
-                        <p className="font-medium">{ligne.produitNom}</p>
-                        <p className="text-sm text-muted-foreground">{ligne.quantite} paire(s)</p>
+                        <p className="font-medium">
+                          {ligne.produitReference
+                            ? `${ligne.produitReference} · ${ligne.produitNom}`
+                            : ligne.produitNom}
+                        </p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {formatNumber(ligne.quantite)} paires × {formatDa(ligne.prixAchat)} ={' '}
+                          <span className="font-semibold text-foreground">{formatDa(sousTotal)}</span>
+                        </p>
                       </div>
                       <Button
                         type="button"
@@ -502,7 +532,12 @@ const SupplierPortal = () => {
                       </Button>
                     </CardContent>
                   </Card>
-                ))}
+                  );
+                })}
+                <div className="flex justify-between items-center pt-3 border-t border-border">
+                  <span className="font-semibold">Total de l&apos;envoi</span>
+                  <span className="font-bold text-lg">{formatDa(envoiTotal)}</span>
+                </div>
               </div>
             )}
 
