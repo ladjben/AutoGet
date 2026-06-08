@@ -20,10 +20,15 @@ import {
   TrendingDown,
   DollarSign,
   CheckCircle2,
+  ClipboardList,
+  Calendar,
+  Clock,
+  CheckCheck,
 } from 'lucide-react';
 
 const TABS = [
   { id: 'overview', label: "Vue d'ensemble", icon: LayoutDashboard },
+  { id: 'mes-envois', label: 'Mes envois', icon: ClipboardList },
   { id: 'envoi', label: 'Créer un envoi', icon: Package },
   { id: 'notifications', label: 'Notifications', icon: Bell },
 ];
@@ -36,6 +41,26 @@ const numberFormatter = new Intl.NumberFormat('fr-FR', {
 const formatNumber = (value) => numberFormatter.format(Number(value || 0));
 
 const formatDa = (value) => `${formatNumber(value)} DA`;
+
+const formatDate = (dateStr) => {
+  if (!dateStr) return '—';
+  const d = new Date(`${dateStr}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return dateStr;
+  return d.toLocaleDateString('fr-FR');
+};
+
+const getStatutBadge = (statut) => {
+  switch (statut) {
+    case 'en_attente':
+      return <Badge variant="secondary">En attente</Badge>;
+    case 'valide':
+      return <Badge className="bg-green-600 hover:bg-green-600">Validé</Badge>;
+    case 'litige':
+      return <Badge variant="destructive">Litige</Badge>;
+    default:
+      return <Badge variant="outline">{statut || '—'}</Badge>;
+  }
+};
 
 const formatProduitOption = (produit) => {
   const refPart = produit.reference ? `${produit.reference} · ` : '';
@@ -53,9 +78,11 @@ const SupplierPortal = () => {
   const [dashboard, setDashboard] = useState(null);
   const [produitsAssignes, setProduitsAssignes] = useState([]);
   const [notifications, setNotifications] = useState([]);
+  const [envois, setEnvois] = useState([]);
   const [loadingDashboard, setLoadingDashboard] = useState(false);
   const [loadingProduits, setLoadingProduits] = useState(false);
   const [loadingNotifications, setLoadingNotifications] = useState(false);
+  const [loadingEnvois, setLoadingEnvois] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const initialLoadDone = useRef(false);
 
@@ -78,6 +105,34 @@ const SupplierPortal = () => {
       ),
     [envoiForm.lignes]
   );
+
+  const envoisEnAttente = useMemo(
+    () => envois.filter((e) => e.statut === 'en_attente'),
+    [envois]
+  );
+
+  const envoisValides = useMemo(
+    () => envois.filter((e) => e.statut === 'valide' || e.statut === 'litige'),
+    [envois]
+  );
+
+  const reloadEnvois = async () => {
+    if (!fournisseurId || !dataCtx?.fetchEnvoisFournisseur) return;
+    setLoadingEnvois(true);
+    try {
+      const data = await dataCtx.fetchEnvoisFournisseur(fournisseurId);
+      setEnvois(data || []);
+    } catch (e) {
+      console.error('Erreur chargement envois:', e);
+      toast({
+        variant: 'destructive',
+        title: 'Erreur',
+        description: e?.message || 'Impossible de charger vos envois',
+      });
+    } finally {
+      setLoadingEnvois(false);
+    }
+  };
 
   const reloadDashboard = async () => {
     if (!fournisseurId || !dataCtx?.fetchFournisseurDashboard) return;
@@ -146,6 +201,13 @@ const SupplierPortal = () => {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fournisseurId]);
+
+  useEffect(() => {
+    if (activeTab === 'mes-envois' && fournisseurId && USE_SUPABASE) {
+      reloadEnvois();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, fournisseurId]);
 
   const handleAddLigne = () => {
     if (!currentLigne.produitId || !currentLigne.quantite) {
@@ -233,8 +295,8 @@ const SupplierPortal = () => {
         lignes: [],
       });
       setCurrentLigne({ produitId: '', quantite: '' });
-      await reloadDashboard();
-      setActiveTab('overview');
+      await Promise.all([reloadDashboard(), reloadEnvois()]);
+      setActiveTab('mes-envois');
     } catch (e) {
       toast({
         variant: 'destructive',
@@ -450,7 +512,131 @@ const SupplierPortal = () => {
         </div>
       )}
 
-      {/* Onglet 2 : Créer un envoi */}
+      {/* Onglet Mes envois */}
+      {activeTab === 'mes-envois' && (
+        <div className="space-y-6">
+          {loadingEnvois ? (
+            <Card>
+              <CardContent className="pt-6 text-center text-muted-foreground">
+                Chargement de vos envois…
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Clock className="h-5 w-5 text-orange-500" />
+                    En attente
+                  </CardTitle>
+                  <CardDescription>
+                    Envoi soumis, en attente de validation à la réception
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {envoisEnAttente.length === 0 ? (
+                    <p className="text-center text-muted-foreground py-6">
+                      Aucun envoi en attente
+                    </p>
+                  ) : (
+                    <div className="space-y-4">
+                      {envoisEnAttente.map((envoi) => (
+                        <Card key={envoi.entree_id} className="border-orange-200/60 bg-orange-50/30 dark:bg-orange-950/10">
+                          <CardContent className="p-4 space-y-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div className="flex items-center gap-2 text-sm">
+                                <Calendar className="h-4 w-4 text-muted-foreground" />
+                                <span className="font-medium">{formatDate(envoi.date_envoi)}</span>
+                              </div>
+                              {getStatutBadge(envoi.statut)}
+                            </div>
+                            <Separator />
+                            <ul className="space-y-2">
+                              {envoi.lignes.map((ligne, idx) => (
+                                <li key={idx} className="text-sm">
+                                  <span className="font-medium">
+                                    {ligne.reference ? `${ligne.reference} · ` : ''}
+                                    {ligne.produit_nom}
+                                  </span>
+                                  <span className="text-muted-foreground">
+                                    {' '}— {formatNumber(ligne.qte_envoyee)}{' '}
+                                    {ligne.qte_envoyee !== 1 ? 'paires envoyées' : 'paire envoyée'}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <CheckCheck className="h-5 w-5 text-green-600" />
+                    Validés
+                  </CardTitle>
+                  <CardDescription>
+                    Envoi traité à la réception (validé ou litige)
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {envoisValides.length === 0 ? (
+                    <p className="text-center text-muted-foreground py-6">
+                      Aucun envoi validé
+                    </p>
+                  ) : (
+                    <div className="space-y-4">
+                      {envoisValides.map((envoi) => (
+                        <Card key={envoi.entree_id} className="border-green-200/60">
+                          <CardContent className="p-4 space-y-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div className="flex items-center gap-2 text-sm">
+                                <Calendar className="h-4 w-4 text-muted-foreground" />
+                                <span className="font-medium">{formatDate(envoi.date_envoi)}</span>
+                              </div>
+                              {getStatutBadge(envoi.statut)}
+                            </div>
+                            <Separator />
+                            <ul className="space-y-3">
+                              {envoi.lignes.map((ligne, idx) => (
+                                <li key={idx} className="text-sm space-y-1">
+                                  <p className="font-medium">
+                                    {ligne.reference ? `${ligne.reference} · ` : ''}
+                                    {ligne.produit_nom}
+                                  </p>
+                                  <p className="text-muted-foreground text-xs">
+                                    Envoyé : {formatNumber(ligne.qte_envoyee)} paire
+                                    {ligne.qte_envoyee !== 1 ? 's' : ''}
+                                    {' · '}
+                                    Reçu : {formatNumber(ligne.qte_recue)} paire
+                                    {ligne.qte_recue !== 1 ? 's' : ''}
+                                  </p>
+                                  {ligne.qte_manquante > 0 && (
+                                    <p className="text-sm font-semibold text-red-600">
+                                      Manque : {formatNumber(ligne.qte_manquante)} paire
+                                      {ligne.qte_manquante !== 1 ? 's' : ''} — {formatDa(ligne.valeur_manquante)}
+                                    </p>
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Onglet Créer un envoi */}
       {activeTab === 'envoi' && (
         <Card>
           <CardHeader>

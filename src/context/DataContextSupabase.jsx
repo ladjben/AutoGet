@@ -715,6 +715,78 @@ export const DataProvider = ({ children }) => {
     }
   }
 
+  async function fetchEnvoisFournisseur(fournisseurId) {
+    try {
+      let allRows = []
+      let page = 0
+      const pageSize = 1000
+      let hasMore = true
+
+      while (hasMore) {
+        const { data, error, count } = await supabase
+          .from('v_entree_lignes_detail')
+          .select(
+            'entree_id, entree_date, statut, produit_id, produit_resolu_id, produit_nom, qte_envoyee, qte_recue, qte_manquante, valeur_envoyee, valeur_manquante',
+            { count: 'exact' }
+          )
+          .eq('fournisseur_id', fournisseurId)
+          .range(page * pageSize, (page + 1) * pageSize - 1)
+
+        if (error) throw error
+
+        if (data && data.length > 0) {
+          allRows = [...allRows, ...data]
+          page++
+          hasMore = data.length === pageSize && (count === null || allRows.length < count)
+        } else {
+          hasMore = false
+        }
+      }
+
+      const produitRefMap = new Map(
+        (produits || []).map((p) => [p.id, p.reference || ''])
+      )
+
+      const byEntree = new Map()
+
+      for (const row of allRows) {
+        const entreeId = row.entree_id
+        if (!byEntree.has(entreeId)) {
+          byEntree.set(entreeId, {
+            entree_id: entreeId,
+            date_envoi: row.entree_date,
+            statut: row.statut,
+            lignes: [],
+          })
+        }
+
+        const produitId = row.produit_resolu_id ?? row.produit_id
+        byEntree.get(entreeId).lignes.push({
+          reference: produitRefMap.get(produitId) || '',
+          produit_nom: row.produit_nom || '',
+          qte_envoyee: parseInt(row.qte_envoyee, 10) || 0,
+          qte_recue: parseInt(row.qte_recue, 10) || 0,
+          qte_manquante: parseInt(row.qte_manquante, 10) || 0,
+          valeur_envoyee: parseFloat(row.valeur_envoyee) || 0,
+          valeur_manquante: parseFloat(row.valeur_manquante) || 0,
+        })
+      }
+
+      const envois = Array.from(byEntree.values())
+      envois.sort((a, b) => {
+        const dateA = a.date_envoi || ''
+        const dateB = b.date_envoi || ''
+        if (dateA !== dateB) return dateB.localeCompare(dateA)
+        return String(b.entree_id).localeCompare(String(a.entree_id))
+      })
+
+      return envois
+    } catch (e) {
+      console.error('❌ Erreur fetchEnvoisFournisseur:', e?.message || e)
+      throw e
+    }
+  }
+
   async function validateEntree({ entreeId, fournisseurId, lignesRecues, validatedBy }) {
     try {
       const lignesDetail = await fetchEntreeLignesDetail(entreeId)
@@ -861,7 +933,7 @@ export const DataProvider = ({ children }) => {
         // reads
         fetchAll, fetchProduits, fetchFournisseurs, fetchEntrees, fetchPaiements, fetchDepenses, fetchDepenseCategories, fetchEntreeDetails, fetchColis, fetchSalaries, fetchAcomptes, fetchSalaryHistory,
         fetchProduitsAssignes, fetchAssignations,
-        fetchEntreesEnAttente, fetchEntreeLignesDetail, fetchNotifications, fetchFournisseurDashboard,
+        fetchEntreesEnAttente, fetchEntreeLignesDetail, fetchEnvoisFournisseur, fetchNotifications, fetchFournisseurDashboard,
         // writes
         addProduit, updateProduit, deleteProduit, addFournisseur,
         addPaiement, deletePaiement,
