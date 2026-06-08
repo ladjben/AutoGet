@@ -25,25 +25,54 @@ const Dashboard = () => {
   // État pour stocker les détails des entrées (lignes) en mode Supabase
   const [entreesDetails, setEntreesDetails] = useState({});
 
-  // Charger les détails de toutes les entrées en mode Supabase
+  // Charger toutes les lignes d'entrée en une seule requête (vue agrégée)
   useEffect(() => {
-    if (USE_SUPABASE && dataCtx?.fetchEntreeDetails && state.entrees?.length > 0) {
-      const loadAllEntreesDetails = async () => {
-        const details = {};
-        for (const entree of state.entrees) {
-          try {
-            const lignes = await dataCtx.fetchEntreeDetails(entree.id);
-            details[entree.id] = lignes || [];
-          } catch (e) {
-            console.error(`Erreur chargement détails entrée ${entree.id}:`, e);
-            details[entree.id] = [];
+    if (!USE_SUPABASE || !dataCtx?.supabase) return;
+
+    const loadAllEntreesDetails = async () => {
+      try {
+        let allRows = [];
+        let page = 0;
+        const pageSize = 1000;
+        let hasMore = true;
+
+        while (hasMore) {
+          const { data, error, count } = await dataCtx.supabase
+            .from('v_entree_lignes_detail')
+            .select('entree_id, produit_id, prix_achat, qte_envoyee', { count: 'exact' })
+            .range(page * pageSize, (page + 1) * pageSize - 1);
+
+          if (error) throw error;
+
+          if (data && data.length > 0) {
+            allRows = [...allRows, ...data];
+            page++;
+            hasMore = data.length === pageSize && (count === null || allRows.length < count);
+          } else {
+            hasMore = false;
           }
         }
+
+        const details = {};
+        for (const row of allRows) {
+          const entreeId = row.entree_id;
+          if (!details[entreeId]) details[entreeId] = [];
+          details[entreeId].push({
+            produit_id: row.produit_id,
+            prix_achat: row.prix_achat,
+            quantite: row.qte_envoyee,
+          });
+        }
         setEntreesDetails(details);
-      };
-      loadAllEntreesDetails();
-    }
-  }, [USE_SUPABASE, state.entrees, dataCtx?.fetchEntreeDetails]);
+      } catch (e) {
+        console.error('Erreur chargement lignes détail:', e);
+        setEntreesDetails({});
+      }
+    };
+
+    loadAllEntreesDetails();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleExport = () => {
     const dataStr = JSON.stringify(state, null, 2);
@@ -114,9 +143,9 @@ const Dashboard = () => {
           }
         });
       } else if (USE_SUPABASE && entreesDetails[entree.id]) {
-        // Mode Supabase : utiliser les détails chargés
+        // Mode Supabase : utiliser les détails chargés (vue v_entree_lignes_detail)
         entreesDetails[entree.id].forEach(ligne => {
-          const prix = ligne.produit_id?.prix_achat ?? 0;
+          const prix = parseFloat(ligne.prix_achat) || 0;
           entreeValue += (ligne.quantite || 0) * prix;
           produitsCount += ligne.quantite || 0;
         });
