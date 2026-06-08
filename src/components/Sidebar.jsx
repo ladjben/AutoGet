@@ -1,16 +1,26 @@
-import React, { useState } from 'react';
-import { LayoutDashboard, Package, ArrowDownLeft, Building2, PiggyBank, Boxes, Users, Menu, LogOut, X } from 'lucide-react';
+import React from 'react';
+import {
+  LayoutDashboard,
+  Package,
+  ArrowDownLeft,
+  Building2,
+  PiggyBank,
+  Boxes,
+  Users,
+  LogOut,
+  ClipboardCheck,
+  Link2,
+  Store,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import {
   Sheet,
   SheetContent,
 } from '@/components/ui/sheet';
 
-// Configuration des items de navigation avec catégories
-const navSections = [
+const adminNavSections = [
   {
     title: 'MAIN',
     items: [
@@ -33,9 +43,57 @@ const navSections = [
       { id: 'salaries', label: 'Salariés', icon: Users },
     ],
   },
+  {
+    title: 'FOURNISSEURS',
+    items: [
+      { id: 'employee-validation', label: 'Réception', icon: ClipboardCheck },
+      { id: 'supplier-access', label: 'Accès & Assignation', icon: Link2 },
+    ],
+  },
 ];
 
-const Sidebar = ({ activeView, setActiveView, user, logout, isAdmin, isUser, isMobile, sheetOpen, setSheetOpen }) => {
+const fournisseurNavSections = [
+  {
+    title: 'MON ESPACE',
+    items: [
+      { id: 'supplier-portal', label: 'Mon espace', icon: Store },
+    ],
+  },
+];
+
+const employeNavSections = [
+  {
+    title: 'RÉCEPTION',
+    items: [
+      { id: 'employee-validation', label: 'Valider la marchandise', icon: ClipboardCheck },
+    ],
+  },
+];
+
+const Sidebar = ({
+  activeView,
+  setActiveView,
+  user,
+  logout,
+  isAdmin,
+  isFournisseur,
+  isEmploye,
+  isMobile,
+  sheetOpen,
+  setSheetOpen,
+}) => {
+  const navSections = isFournisseur?.()
+    ? fournisseurNavSections
+    : isEmploye?.()
+      ? employeNavSections
+      : adminNavSections;
+
+  const subtitle = isFournisseur?.()
+    ? 'Portail Fournisseur'
+    : isEmploye?.()
+      ? 'Réception'
+      : 'Admin Dashboard';
+
   const handleNavClick = (viewId) => {
     setActiveView(viewId);
     if (isMobile) {
@@ -53,7 +111,7 @@ const Sidebar = ({ activeView, setActiveView, user, logout, isAdmin, isUser, isM
           </div>
           <div className="flex flex-col">
             <h1 className="text-lg font-bold text-foreground">COSMOS ALGÉRIE</h1>
-            <span className="text-xs text-muted-foreground">Admin Dashboard</span>
+            <span className="text-xs text-muted-foreground">{subtitle}</span>
           </div>
         </div>
       </div>
@@ -72,10 +130,10 @@ const Sidebar = ({ activeView, setActiveView, user, logout, isAdmin, isUser, isM
                 return (
                   <Button
                     key={item.id}
-                    variant={isActive ? "secondary" : "ghost"}
+                    variant={isActive ? 'secondary' : 'ghost'}
                     className={cn(
-                      "w-full justify-start gap-3 h-10",
-                      isActive && "bg-sidebar-accent text-sidebar-foreground"
+                      'w-full justify-start gap-3 h-10',
+                      isActive && 'bg-sidebar-accent text-sidebar-foreground'
                     )}
                     onClick={() => handleNavClick(item.id)}
                   >
@@ -94,9 +152,19 @@ const Sidebar = ({ activeView, setActiveView, user, logout, isAdmin, isUser, isM
         <div className="px-3 py-2 rounded-md bg-sidebar-accent">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-medium text-foreground">{user?.name}</span>
-            {isAdmin() && (
+            {isAdmin?.() && (
               <Badge variant="secondary" className="text-xs">
                 Admin
+              </Badge>
+            )}
+            {isFournisseur?.() && (
+              <Badge variant="secondary" className="text-xs">
+                Fournisseur
+              </Badge>
+            )}
+            {isEmploye?.() && (
+              <Badge variant="secondary" className="text-xs">
+                Employé
               </Badge>
             )}
           </div>
@@ -133,4 +201,3 @@ const Sidebar = ({ activeView, setActiveView, user, logout, isAdmin, isUser, isM
 };
 
 export default Sidebar;
-

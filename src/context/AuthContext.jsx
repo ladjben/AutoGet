@@ -26,7 +26,7 @@ export const AuthProvider = ({ children }) => {
         // Login avec Supabase
         const { data, error } = await supabase
           .from('comptes')
-          .select('id, username, nom, role, active')
+          .select('id, username, nom, role, active, fournisseur_id')
           .eq('username', username)
           .eq('password', password)
           .eq('active', true)
@@ -46,7 +46,8 @@ export const AuthProvider = ({ children }) => {
           id: data.id,
           username: data.username,
           name: data.nom,
-          role: data.role || 'user'
+          role: data.role || 'user',
+          fournisseur_id: data.fournisseur_id ?? null,
         };
 
         setUser(userData);
@@ -172,6 +173,8 @@ export const AuthProvider = ({ children }) => {
 
   const isAdmin = () => user?.role === 'admin';
   const isUser = () => user?.role === 'user';
+  const isFournisseur = () => user?.role === 'fournisseur';
+  const isEmploye = () => user?.role === 'employe';
 
   const value = {
     user,
@@ -181,6 +184,8 @@ export const AuthProvider = ({ children }) => {
     logout,
     isAdmin,
     isUser,
+    isFournisseur,
+    isEmploye,
     isAuthenticated: !!user
   };
 

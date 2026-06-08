@@ -17,6 +17,9 @@ import Suppliers from './components/Suppliers'
 import Depenses from './components/Depenses'
 import Colis from './components/Colis'
 import Salaries from './components/Salaries'
+import SupplierPortal from './components/SupplierPortal'
+import EmployeeValidation from './components/EmployeeValidation'
+import SupplierAccess from './components/SupplierAccess'
 
 /**
  * Garde ce composant simple : AppHeader reçoit
@@ -25,7 +28,7 @@ import Salaries from './components/Salaries'
  */
 const AppContent = () => {
   const [activeView, setActiveView] = useState('dashboard')
-  const { user, logout, isAdmin, isUser } = useAuth()
+  const { user, logout, isAdmin, isUser, isFournisseur, isEmploye } = useAuth()
   const [isMobile, setIsMobile] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -38,6 +41,17 @@ const AppContent = () => {
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+
+  useEffect(() => {
+    if (!user) return
+    if (isFournisseur()) {
+      setActiveView('supplier-portal')
+    } else if (isEmploye()) {
+      setActiveView('employee-validation')
+    } else {
+      setActiveView('dashboard')
+    }
+  }, [user, isFournisseur, isEmploye]);
 
   const renderView = () => {
     switch (activeView) {
@@ -55,6 +69,12 @@ const AppContent = () => {
         return <Colis />
       case 'salaries':
         return <Salaries />
+      case 'supplier-portal':
+        return <SupplierPortal />
+      case 'employee-validation':
+        return <EmployeeValidation />
+      case 'supplier-access':
+        return <SupplierAccess />
       default:
         return <Dashboard />
     }
@@ -81,6 +101,8 @@ const AppContent = () => {
         logout={logout}
         isAdmin={isAdmin}
         isUser={isUser}
+        isFournisseur={isFournisseur}
+        isEmploye={isEmploye}
         isMobile={isMobile}
         sheetOpen={sidebarOpen}
         setSheetOpen={setSidebarOpen}

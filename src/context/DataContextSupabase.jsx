@@ -558,7 +558,7 @@ export const DataProvider = ({ children }) => {
    * }
    */
   async function addEntreeWithLines(payload) {
-    const { date, fournisseur_id, paye = false, lignes = [] } = payload || {}
+    const { date, fournisseur_id, paye = false, lignes = [], created_by } = payload || {}
 
     if (!date || !fournisseur_id) throw new Error('date et fournisseur_id sont obligatoires')
     if (!Array.isArray(lignes) || lignes.length === 0) throw new Error('ajoute au moins une ligne')
@@ -571,7 +571,13 @@ export const DataProvider = ({ children }) => {
     // 1) créer l'entrée
     const { data: entreeRow, error: e1 } = await supabase
       .from('entrees')
-      .insert([{ date, fournisseur_id, paye }])
+      .insert([{
+        date,
+        fournisseur_id,
+        paye,
+        statut: 'en_attente',
+        created_by: created_by || null,
+      }])
       .select('id')
       .single()
     if (e1) throw e1
@@ -608,6 +614,243 @@ export const DataProvider = ({ children }) => {
     return { entree_id, lignes_count: rows.length }
   }
 
+  // ========== PRODUIT ↔ FOURNISSEUR ==========
+  async function fetchProduitsAssignes(fournisseurId) {
+    try {
+      const { data, error } = await supabase
+        .from('produit_fournisseur')
+        .select(`
+          id,
+          produit_id,
+          fournisseur_id,
+          created_at,
+          produits ( id, nom, reference, prix_achat, created_at, updated_at )
+        `)
+        .eq('fournisseur_id', fournisseurId)
+        .order('created_at', { ascending: false })
+      if (error) throw error
+      return (data || []).map((row) => ({
+        ...(row.produits || {}),
+        assignation_id: row.id,
+        produit_id: row.produit_id,
+        fournisseur_id: row.fournisseur_id,
+        assignation_created_at: row.created_at,
+      }))
+    } catch (e) {
+      console.error('❌ Erreur fetchProduitsAssignes:', e?.message || e)
+      throw e
+    }
+  }
+
+  async function fetchAssignations() {
+    try {
+      const { data, error } = await supabase
+        .from('produit_fournisseur')
+        .select('*')
+        .order('created_at', { ascending: false })
+      if (error) throw error
+      return data || []
+    } catch (e) {
+      console.error('❌ Erreur fetchAssignations:', e?.message || e)
+      throw e
+    }
+  }
+
+  async function assignProduit(produitId, fournisseurId) {
+    try {
+      const { error } = await supabase
+        .from('produit_fournisseur')
+        .insert([{ produit_id: produitId, fournisseur_id: fournisseurId }])
+      if (error) throw error
+      return { success: true }
+    } catch (e) {
+      console.error('❌ Erreur assignProduit:', e?.message || e)
+      throw e
+    }
+  }
+
+  async function unassignProduit(produitId, fournisseurId) {
+    try {
+      const { error } = await supabase
+        .from('produit_fournisseur')
+        .delete()
+        .eq('produit_id', produitId)
+        .eq('fournisseur_id', fournisseurId)
+      if (error) throw error
+      return { success: true }
+    } catch (e) {
+      console.error('❌ Erreur unassignProduit:', e?.message || e)
+      throw e
+    }
+  }
+
+  // ========== VALIDATION ENTRÉES / NOTIFICATIONS ==========
+  async function fetchEntreesEnAttente() {
+    try {
+      const { data, error } = await supabase
+        .from('entrees')
+        .select('*, fournisseurs ( id, nom )')
+        .eq('statut', 'en_attente')
+        .order('date', { ascending: false })
+      if (error) throw error
+      return data || []
+    } catch (e) {
+      console.error('❌ Erreur fetchEntreesEnAttente:', e?.message || e)
+      throw e
+    }
+  }
+
+  async function fetchEntreeLignesDetail(entreeId) {
+    try {
+      const { data, error } = await supabase
+        .from('v_entree_lignes_detail')
+        .select('*')
+        .eq('entree_id', entreeId)
+        .order('ligne_id', { ascending: true })
+      if (error) throw error
+      return data || []
+    } catch (e) {
+      console.error('❌ Erreur fetchEntreeLignesDetail:', e?.message || e)
+      throw e
+    }
+  }
+
+  async function validateEntree({ entreeId, fournisseurId, lignesRecues, validatedBy }) {
+    try {
+      const lignesDetail = await fetchEntreeLignesDetail(entreeId)
+      const recuMap = new Map()
+
+      for (const lr of lignesRecues || []) {
+        const ligneId = lr.ligne_id ?? lr.ligneId ?? lr.id
+        const qteRecue = lr.quantite_recue ?? lr.quantiteRecue ?? lr.quantite ?? 0
+        if (ligneId) recuMap.set(ligneId, parseInt(qteRecue, 10) || 0)
+      }
+
+      let totalManquePaires = 0
+      let totalManqueValeur = 0
+      const manquesRefs = []
+
+      for (const ligne of lignesDetail) {
+        const qteEnvoyee = parseInt(ligne.qte_envoyee, 10) || 0
+        const qteRecue = recuMap.has(ligne.ligne_id)
+          ? recuMap.get(ligne.ligne_id)
+          : 0
+        const prixAchat = parseFloat(ligne.prix_achat) || 0
+        const manque = Math.max(qteEnvoyee - qteRecue, 0)
+
+        const { error: ligneError } = await supabase
+          .from('entree_lignes')
+          .update({ quantite_recue: qteRecue })
+          .eq('id', ligne.ligne_id)
+        if (ligneError) throw ligneError
+
+        if (manque > 0) {
+          totalManquePaires += manque
+          totalManqueValeur += manque * prixAchat
+          manquesRefs.push(`${ligne.produit_nom || 'Produit'} (−${manque})`)
+        }
+      }
+
+      const statut = totalManquePaires > 0 ? 'litige' : 'valide'
+      const { error: entreeError } = await supabase
+        .from('entrees')
+        .update({
+          statut,
+          validated_at: new Date().toISOString(),
+          validated_by: validatedBy || null,
+        })
+        .eq('id', entreeId)
+      if (entreeError) throw entreeError
+
+      if (totalManquePaires > 0 && fournisseurId) {
+        const { error: notifError } = await supabase
+          .from('notifications')
+          .insert([{
+            fournisseur_id: fournisseurId,
+            entree_id: entreeId,
+            type: 'manque',
+            message: `Manques constatés : ${manquesRefs.join(', ')}`,
+            montant_manque: totalManqueValeur,
+            paires_manquantes: totalManquePaires,
+            lu: false,
+          }])
+        if (notifError) throw notifError
+      }
+
+      await fetchEntrees()
+      return { statut, totalManquePaires, totalManqueValeur }
+    } catch (e) {
+      console.error('❌ Erreur validateEntree:', e?.message || e)
+      throw e
+    }
+  }
+
+  async function fetchNotifications(fournisseurId) {
+    try {
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('fournisseur_id', fournisseurId)
+        .order('created_at', { ascending: false })
+      if (error) throw error
+      return data || []
+    } catch (e) {
+      console.error('❌ Erreur fetchNotifications:', e?.message || e)
+      throw e
+    }
+  }
+
+  async function markNotificationRead(id) {
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .update({ lu: true })
+        .eq('id', id)
+      if (error) throw error
+      return { success: true }
+    } catch (e) {
+      console.error('❌ Erreur markNotificationRead:', e?.message || e)
+      throw e
+    }
+  }
+
+  async function fetchFournisseurDashboard(fournisseurId) {
+    try {
+      const { data, error } = await supabase
+        .from('v_fournisseur_dashboard')
+        .select('*')
+        .eq('fournisseur_id', fournisseurId)
+        .single()
+      if (error) throw error
+      return data
+    } catch (e) {
+      console.error('❌ Erreur fetchFournisseurDashboard:', e?.message || e)
+      throw e
+    }
+  }
+
+  async function createCompte({ username, password, nom, role, fournisseur_id }) {
+    try {
+      const { data, error } = await supabase
+        .from('comptes')
+        .insert([{
+          username,
+          password,
+          nom,
+          role,
+          fournisseur_id: fournisseur_id ?? null,
+          active: true,
+        }])
+        .select('id, username, nom, role, fournisseur_id, active')
+        .single()
+      if (error) throw error
+      return { success: true, data }
+    } catch (e) {
+      console.error('❌ Erreur createCompte:', e?.message || e)
+      throw e
+    }
+  }
+
   return (
     <DataContext.Provider
       value={{
@@ -617,12 +860,15 @@ export const DataProvider = ({ children }) => {
         produits, fournisseurs, entrees, paiements, depenses, depenseCategories, colis, salaries, acomptes, salaryHistory,
         // reads
         fetchAll, fetchProduits, fetchFournisseurs, fetchEntrees, fetchPaiements, fetchDepenses, fetchDepenseCategories, fetchEntreeDetails, fetchColis, fetchSalaries, fetchAcomptes, fetchSalaryHistory,
+        fetchProduitsAssignes, fetchAssignations,
+        fetchEntreesEnAttente, fetchEntreeLignesDetail, fetchNotifications, fetchFournisseurDashboard,
         // writes
         addProduit, updateProduit, deleteProduit, addFournisseur,
         addPaiement, deletePaiement,
         addDepense, updateDepense, deleteDepense,
         addDepenseCategory, deleteDepenseCategory,
         addEntreeWithLines,
+        assignProduit, unassignProduit, validateEntree, markNotificationRead, createCompte,
         addColis, updateColis, deleteColis,
         addSalary, updateSalary, deleteSalary,
         addAcompte, deleteAcompte,
