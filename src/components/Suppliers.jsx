@@ -66,7 +66,6 @@ const SuppliersList = ({ onSelectSupplier }) => {
   const [showPaiementModal, setShowPaiementModal] = useState(false);
   const [selectedFournisseur, setSelectedFournisseur] = useState(null);
   const [entreesDetails, setEntreesDetails] = useState({}); // { entreeId: lignes[] }
-  const [loadingDetails, setLoadingDetails] = useState({});
   const [filters, setFilters] = useState({
     fournisseurId: '',
     dateStart: '',
@@ -85,7 +84,10 @@ const SuppliersList = ({ onSelectSupplier }) => {
   });
 
   // Helper functions - déclarer en premier avec useCallback pour stabilité
-  const getProduitPrixAchat = useCallback((produitId) => {
+  const getProduitPrixAchat = useCallback((produitId, ligne = null) => {
+    if (ligne?.prix_achat != null) {
+      return parseFloat(ligne.prix_achat) || 0;
+    }
     const produit = (state.produits || []).find(p => p.id === produitId);
     return produit ? (produit.prix_achat ?? produit.prixAchat ?? 0) : 0;
   }, [state.produits]);
@@ -125,10 +127,10 @@ const SuppliersList = ({ onSelectSupplier }) => {
       }, 0);
     }
     
-    // Mode Supabase : utiliser les détails chargés
+    // Mode Supabase : utiliser les détails chargés (vue v_entree_lignes_detail)
     if (USE_SUPABASE && entreesDetails[entree.id]) {
       return entreesDetails[entree.id].reduce((sum, ligne) => {
-        const prix = ligne.produit_id?.prix_achat ?? 0;
+        const prix = getProduitPrixAchat(ligne.produit_id, ligne);
         return sum + (ligne.quantite || 0) * prix;
       }, 0);
     }
@@ -291,21 +293,55 @@ const SuppliersList = ({ onSelectSupplier }) => {
     getEntreeLignes
   ]);
 
-  // Charger automatiquement les détails des entrées non payées pour le calcul
+  // Charger toutes les lignes d'entrée en une seule requête (vue agrégée)
   useEffect(() => {
-    if (USE_SUPABASE && dataCtx?.fetchEntreeDetails) {
-      // Charger les détails de toutes les entrées non payées une par une
-      const loadAll = async () => {
-        for (const entree of (state.entrees || [])) {
-          if (!entree.paye && !entreesDetails[entree.id] && !loadingDetails[entree.id]) {
-            await loadEntreeDetails(entree.id);
+    if (!USE_SUPABASE || !dataCtx?.supabase) return;
+
+    const loadAllEntreesDetails = async () => {
+      try {
+        let allRows = [];
+        let page = 0;
+        const pageSize = 1000;
+        let hasMore = true;
+
+        while (hasMore) {
+          const { data, error, count } = await dataCtx.supabase
+            .from('v_entree_lignes_detail')
+            .select('entree_id, produit_id, prix_achat, qte_envoyee, qte_recue', { count: 'exact' })
+            .range(page * pageSize, (page + 1) * pageSize - 1);
+
+          if (error) throw error;
+
+          if (data && data.length > 0) {
+            allRows = [...allRows, ...data];
+            page++;
+            hasMore = data.length === pageSize && (count === null || allRows.length < count);
+          } else {
+            hasMore = false;
           }
         }
-      };
-      loadAll();
-    }
+
+        const details = {};
+        for (const row of allRows) {
+          const entreeId = row.entree_id;
+          if (!details[entreeId]) details[entreeId] = [];
+          details[entreeId].push({
+            produit_id: row.produit_id,
+            prix_achat: row.prix_achat,
+            quantite: row.qte_envoyee,
+            qte_recue: row.qte_recue,
+          });
+        }
+        setEntreesDetails(details);
+      } catch (e) {
+        console.error('Erreur chargement lignes détail:', e);
+        setEntreesDetails({});
+      }
+    };
+
+    loadAllEntreesDetails();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.entrees]);
+  }, []);
 
   const handleAddFournisseur = async () => {
     if (!formData.nom) {
@@ -475,22 +511,6 @@ const SuppliersList = ({ onSelectSupplier }) => {
     const fournisseur = (state.fournisseurs || []).find(f => f.id === fournisseurId);
     return fournisseur ? fournisseur.nom : 'Inconnu';
   };
-
-  // Charger les détails d'une entrée (Supabase)
-  const loadEntreeDetails = async (entreeId) => {
-    if (!USE_SUPABASE || loadingDetails[entreeId] || entreesDetails[entreeId]) return;
-    
-    setLoadingDetails(prev => ({ ...prev, [entreeId]: true }));
-    try {
-      const details = await dataCtx?.fetchEntreeDetails?.(entreeId);
-      setEntreesDetails(prev => ({ ...prev, [entreeId]: details || [] }));
-    } catch (e) {
-      console.error('Erreur chargement détails entrée:', e);
-    } finally {
-      setLoadingDetails(prev => ({ ...prev, [entreeId]: false }));
-    }
-  };
-
 
   return (
     <div className="space-y-6">
