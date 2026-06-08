@@ -787,6 +787,107 @@ export const DataProvider = ({ children }) => {
     }
   }
 
+  function buildLigneSignature(lignes, getProduitId, getQuantite) {
+    return (lignes || [])
+      .map((l) => {
+        const produitId = getProduitId(l)
+        const quantite = parseInt(getQuantite(l), 10) || 0
+        return `${String(produitId)}:${quantite}`
+      })
+      .sort()
+      .join('|')
+  }
+
+  async function findEnvoiDoublon(fournisseurId, lignes) {
+    try {
+      if (!fournisseurId || !lignes?.length) return null
+
+      const inputSignature = buildLigneSignature(
+        lignes,
+        (l) => l.produit_id ?? l.produitId,
+        (l) => l.quantite ?? l.qte_envoyee ?? 0
+      )
+
+      let allRows = []
+      let page = 0
+      const pageSize = 1000
+      let hasMore = true
+
+      while (hasMore) {
+        const { data, error, count } = await supabase
+          .from('v_entree_lignes_detail')
+          .select(
+            'entree_id, entree_date, statut, produit_id, produit_resolu_id, qte_envoyee, valeur_envoyee',
+            { count: 'exact' }
+          )
+          .eq('fournisseur_id', fournisseurId)
+          .range(page * pageSize, (page + 1) * pageSize - 1)
+
+        if (error) throw error
+
+        if (data && data.length > 0) {
+          allRows = [...allRows, ...data]
+          page++
+          hasMore = data.length === pageSize && (count === null || allRows.length < count)
+        } else {
+          hasMore = false
+        }
+      }
+
+      const byEntree = new Map()
+
+      for (const row of allRows) {
+        const entreeId = row.entree_id
+        if (!byEntree.has(entreeId)) {
+          byEntree.set(entreeId, {
+            entree_id: entreeId,
+            date_envoi: row.entree_date,
+            statut: row.statut,
+            lignes: [],
+          })
+        }
+        byEntree.get(entreeId).lignes.push({
+          produit_id: row.produit_resolu_id ?? row.produit_id,
+          qte_envoyee: parseInt(row.qte_envoyee, 10) || 0,
+          valeur_envoyee: parseFloat(row.valeur_envoyee) || 0,
+        })
+      }
+
+      const envois = Array.from(byEntree.values()).map((envoi) => ({
+        entree_id: envoi.entree_id,
+        date_envoi: envoi.date_envoi,
+        statut: envoi.statut,
+        signature: buildLigneSignature(
+          envoi.lignes,
+          (l) => l.produit_id,
+          (l) => l.qte_envoyee
+        ),
+        valeur_totale: envoi.lignes.reduce((sum, l) => sum + l.valeur_envoyee, 0),
+      }))
+
+      envois.sort((a, b) => {
+        const aPending = a.statut === 'en_attente' ? 0 : 1
+        const bPending = b.statut === 'en_attente' ? 0 : 1
+        if (aPending !== bPending) return aPending - bPending
+        const dateA = a.date_envoi || ''
+        const dateB = b.date_envoi || ''
+        return dateB.localeCompare(dateA)
+      })
+
+      const match = envois.find((e) => e.signature === inputSignature)
+      if (!match) return null
+
+      return {
+        entree_id: match.entree_id,
+        date_envoi: match.date_envoi,
+        valeur_totale: match.valeur_totale,
+      }
+    } catch (e) {
+      console.error('❌ Erreur findEnvoiDoublon:', e?.message || e)
+      throw e
+    }
+  }
+
   async function validateEntree({ entreeId, fournisseurId, lignesRecues, validatedBy }) {
     try {
       const lignesDetail = await fetchEntreeLignesDetail(entreeId)
@@ -933,7 +1034,7 @@ export const DataProvider = ({ children }) => {
         // reads
         fetchAll, fetchProduits, fetchFournisseurs, fetchEntrees, fetchPaiements, fetchDepenses, fetchDepenseCategories, fetchEntreeDetails, fetchColis, fetchSalaries, fetchAcomptes, fetchSalaryHistory,
         fetchProduitsAssignes, fetchAssignations,
-        fetchEntreesEnAttente, fetchEntreeLignesDetail, fetchEnvoisFournisseur, fetchNotifications, fetchFournisseurDashboard,
+        fetchEntreesEnAttente, fetchEntreeLignesDetail, fetchEnvoisFournisseur, findEnvoiDoublon, fetchNotifications, fetchFournisseurDashboard,
         // writes
         addProduit, updateProduit, deleteProduit, addFournisseur,
         addPaiement, deletePaiement,

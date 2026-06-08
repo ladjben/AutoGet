@@ -27,6 +27,8 @@ const Entries = () => {
   const [currentLigne, setCurrentLigne] = useState({ produitId: '', quantite: '' })
   const [detail, setDetail] = useState({ openFor: null, rows: [] })
   const [creating, setCreating] = useState(false)
+  const [checkingDoublon, setCheckingDoublon] = useState(false)
+  const [doublonAlert, setDoublonAlert] = useState(null)
   const [filters, setFilters] = useState({
     fournisseurId: '',
     dateStart: '',
@@ -75,6 +77,21 @@ const Entries = () => {
     return p ? (p.prix_achat ?? p.prixAchat ?? 0) : 0
   }
 
+  const formatDateFr = (dateStr) => {
+    if (!dateStr) return '—'
+    const d = new Date(`${dateStr}T12:00:00`)
+    if (Number.isNaN(d.getTime())) return dateStr
+    return d.toLocaleDateString('fr-FR')
+  }
+
+  const formatDa = (value) =>
+    `${Number(parseFloat(value || 0).toFixed(2)).toLocaleString('fr-FR')} DA`
+
+  const resetForm = () => {
+    setFormData({ fournisseurId: '', date: new Date().toISOString().split('T')[0], lignes: [] })
+    setDoublonAlert(null)
+  }
+
   const calculateEntreeValueLocal = (entree) => {
     let total = 0
     entree.lignes?.forEach((ligne) => {
@@ -109,18 +126,9 @@ const Entries = () => {
   }
 
   // ----- ACTIONS : CRUD ENTRÉE -----
-  const handleAddEntree = async () => {
-    if (!formData.fournisseurId || formData.lignes.length === 0) {
-      toast({
-        variant: "destructive",
-        title: "Erreur",
-        description: "Veuillez sélectionner un fournisseur et ajouter au moins une ligne",
-      })
-      return
-    }
-
+  const createEntree = async () => {
+    setCreating(true)
     try {
-      setCreating(true)
       if (USE_SUPABASE) {
         const lignes = formData.lignes.map((l) => ({
           produit_id: l.produitId,
@@ -156,7 +164,7 @@ const Entries = () => {
         })
       }
 
-      setFormData({ fournisseurId: '', date: new Date().toISOString().split('T')[0], lignes: [] })
+      resetForm()
       setShowModal(false)
     } catch (e) {
       console.error(e)
@@ -168,6 +176,49 @@ const Entries = () => {
     } finally {
       setCreating(false)
     }
+  }
+
+  const handleAddEntree = async () => {
+    if (!formData.fournisseurId || formData.lignes.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "Erreur",
+        description: "Veuillez sélectionner un fournisseur et ajouter au moins une ligne",
+      })
+      return
+    }
+
+    if (USE_SUPABASE && dataCtx?.findEnvoiDoublon) {
+      setCheckingDoublon(true)
+      try {
+        const lignesDoublon = formData.lignes.map((l) => ({
+          produit_id: l.produitId,
+          quantite: l.quantite,
+        }))
+        const doublon = await dataCtx.findEnvoiDoublon(formData.fournisseurId, lignesDoublon)
+        if (doublon) {
+          setDoublonAlert(doublon)
+          return
+        }
+      } catch (e) {
+        console.error(e)
+        toast({
+          variant: "destructive",
+          title: "Erreur",
+          description: e?.message || 'Impossible de vérifier les doublons',
+        })
+        return
+      } finally {
+        setCheckingDoublon(false)
+      }
+    }
+
+    await createEntree()
+  }
+
+  const handleConfirmDespiteDoublon = async () => {
+    setDoublonAlert(null)
+    await createEntree()
   }
 
   // Filtrer les entrées selon les filtres
@@ -306,7 +357,10 @@ const Entries = () => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-foreground">Entrées de Stock</h1>
-        <Dialog open={showModal} onOpenChange={setShowModal}>
+        <Dialog open={showModal} onOpenChange={(open) => {
+          setShowModal(open)
+          if (!open) resetForm()
+        }}>
           <DialogTrigger asChild>
             <Button>
               <Plus className="h-4 w-4 mr-2" />
@@ -431,19 +485,48 @@ const Entries = () => {
                 </>
               )}
             </div>
+
+            {doublonAlert && (
+              <div className="rounded-lg border border-orange-300 bg-orange-50 dark:bg-orange-950/20 p-4 space-y-3">
+                <p className="text-sm text-orange-900 dark:text-orange-100">
+                  ⚠️ Une entrée identique existe déjà pour ce fournisseur — mêmes produits et même valeur (
+                  {formatDa(doublonAlert.valeur_totale)}), créée le {formatDateFr(doublonAlert.date_envoi)}.
+                  Voulez-vous quand même la créer ?
+                </p>
+                <div className="flex flex-wrap gap-2 justify-end">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setDoublonAlert(null)}
+                  >
+                    Annuler
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={handleConfirmDespiteDoublon}
+                    disabled={creating}
+                  >
+                    {creating ? 'Enregistrement…' : 'Créer quand même'}
+                  </Button>
+                </div>
+              </div>
+            )}
+
             <DialogFooter>
               <Button
                 variant="outline"
                 onClick={() => {
                   setShowModal(false)
-                  setFormData({ fournisseurId: '', date: new Date().toISOString().split('T')[0], lignes: [] })
+                  resetForm()
                 }}
               >
                 Annuler
               </Button>
-              <Button onClick={handleAddEntree} disabled={creating}>
-                {creating ? 'Enregistrement…' : "Enregistrer l'entrée"}
-              </Button>
+              {!doublonAlert && (
+                <Button onClick={handleAddEntree} disabled={creating || checkingDoublon}>
+                  {checkingDoublon ? 'Vérification…' : creating ? 'Enregistrement…' : "Enregistrer l'entrée"}
+                </Button>
+              )}
             </DialogFooter>
           </DialogContent>
         </Dialog>
