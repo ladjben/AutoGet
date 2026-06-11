@@ -77,15 +77,29 @@ const SupplierDetail = ({ supplierId, onBack }) => {
     return entreesDetails[entree.id] || [];
   }, [entreesDetails]);
 
+  const isEntreeComptable = useCallback((entree) => {
+    if (!USE_SUPABASE) return true;
+    return entree.statut !== 'en_attente';
+  }, []);
+
+  const getLigneQteRecue = (ligne) => {
+    if (ligne.qte_recue != null) return parseInt(ligne.qte_recue, 10) || 0;
+    if (ligne.quantite_recue != null) return parseInt(ligne.quantite_recue, 10) || 0;
+    return parseInt(ligne.quantite, 10) || 0;
+  };
+
   const calculateEntreeValue = useCallback((entree) => {
+    if (USE_SUPABASE && !isEntreeComptable(entree)) return 0;
+
     const lignes = getEntreeLignes(entree);
     return lignes.reduce((sum, ligne) => {
-      const prix = USE_SUPABASE 
-        ? (ligne.produit_id?.prix_achat ?? 0)
+      const prix = USE_SUPABASE
+        ? (ligne.prix_achat ?? ligne.produit_id?.prix_achat ?? 0)
         : getProduitPrixAchat(ligne.produitId);
-      return sum + (ligne.quantite * prix);
+      const qte = USE_SUPABASE ? getLigneQteRecue(ligne) : (ligne.quantite || 0);
+      return sum + qte * prix;
     }, 0);
-  }, [getEntreeLignes, getProduitPrixAchat]);
+  }, [getEntreeLignes, getProduitPrixAchat, isEntreeComptable]);
 
   const getFilteredPaiements = useCallback(() => {
     return (state.paiements || []).filter(p => {
@@ -97,9 +111,9 @@ const SupplierDetail = ({ supplierId, onBack }) => {
   const calculateTotalDue = useCallback(() => {
     const entrees = getFournisseurEntrees();
     return entrees
-      .filter(e => !e.paye)
+      .filter((e) => !e.paye && isEntreeComptable(e))
       .reduce((sum, e) => sum + calculateEntreeValue(e), 0);
-  }, [getFournisseurEntrees, calculateEntreeValue]);
+  }, [getFournisseurEntrees, calculateEntreeValue, isEntreeComptable]);
 
   const calculateTotalPaye = useCallback(() => {
     const paiements = getFilteredPaiements();

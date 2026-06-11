@@ -39,7 +39,7 @@ const Dashboard = () => {
         while (hasMore) {
           const { data, error, count } = await dataCtx.supabase
             .from('v_entree_lignes_detail')
-            .select('entree_id, produit_id, prix_achat, qte_envoyee', { count: 'exact' })
+            .select('entree_id, statut, produit_id, prix_achat, qte_envoyee, qte_recue', { count: 'exact' })
             .range(page * pageSize, (page + 1) * pageSize - 1);
 
           if (error) throw error;
@@ -60,7 +60,7 @@ const Dashboard = () => {
           details[entreeId].push({
             produit_id: row.produit_id,
             prix_achat: row.prix_achat,
-            quantite: row.qte_envoyee,
+            qte_recue: row.qte_recue,
           });
         }
         setEntreesDetails(details);
@@ -128,14 +128,15 @@ const Dashboard = () => {
     let totalEntreesNonPayees = 0;
     let totalProduitsReçus = 0;
     
-    entrees.forEach(entree => {
+    entrees.forEach((entree) => {
+      if (USE_SUPABASE && entree.statut === 'en_attente') return;
+
       let entreeValue = 0;
       let produitsCount = 0;
-      
-      // Mode local
+
       if (!USE_SUPABASE && entree.lignes) {
-        entree.lignes.forEach(ligne => {
-          const produit = produits.find(p => p.id === ligne.produitId);
+        entree.lignes.forEach((ligne) => {
+          const produit = produits.find((p) => p.id === ligne.produitId);
           if (produit) {
             const prix = produit.prix_achat ?? produit.prixAchat ?? 0;
             entreeValue += ligne.quantite * prix;
@@ -143,17 +144,17 @@ const Dashboard = () => {
           }
         });
       } else if (USE_SUPABASE && entreesDetails[entree.id]) {
-        // Mode Supabase : utiliser les détails chargés (vue v_entree_lignes_detail)
-        entreesDetails[entree.id].forEach(ligne => {
+        entreesDetails[entree.id].forEach((ligne) => {
           const prix = parseFloat(ligne.prix_achat) || 0;
-          entreeValue += (ligne.quantite || 0) * prix;
-          produitsCount += ligne.quantite || 0;
+          const qteRecue = parseInt(ligne.qte_recue, 10) || 0;
+          entreeValue += qteRecue * prix;
+          produitsCount += qteRecue;
         });
       }
-      
+
       totalValeurEntrees += entreeValue;
       totalProduitsReçus += produitsCount;
-      
+
       const paye = Boolean(entree.paye);
       if (paye) {
         totalEntreesPayees++;

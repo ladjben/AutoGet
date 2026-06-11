@@ -58,7 +58,7 @@ export const DataProvider = ({ children }) => {
       while (hasMore) {
         const { data, error, count } = await supabase
           .from('entrees')
-          .select('id, date, paye, fournisseur_id', { count: 'exact' })
+          .select('id, date, paye, fournisseur_id, statut', { count: 'exact' })
           .order('date', { ascending: false })
           .range(page * pageSize, (page + 1) * pageSize - 1)
         
@@ -533,7 +533,7 @@ export const DataProvider = ({ children }) => {
     const { data, error } = await supabase
       .from('entree_lignes')
       .select(`
-        id, quantite, created_at,
+        id, quantite, quantite_recue, created_at,
         produit_id ( id, nom, reference, prix_achat ),
         variante_id ( id, taille, couleur, modele, quantite )
       `)

@@ -118,37 +118,48 @@ const SuppliersList = ({ onSelectSupplier }) => {
     return entreesDetails[entree.id] || [];
   }, [entreesDetails]);
 
-  // Calculer la valeur d'une entrée
+  const isEntreeComptable = useCallback((entree) => {
+    if (!USE_SUPABASE) return true;
+    return entree.statut !== 'en_attente';
+  }, []);
+
+  const getLigneQteRecue = (ligne) => {
+    if (ligne.qte_recue != null) return parseInt(ligne.qte_recue, 10) || 0;
+    if (ligne.quantite_recue != null) return parseInt(ligne.quantite_recue, 10) || 0;
+    return parseInt(ligne.quantite, 10) || 0;
+  };
+
+  // Calculer la valeur d'une entrée (quantité reçue uniquement, hors en_attente)
   const calculateEntreeValue = useCallback((entree) => {
+    if (USE_SUPABASE && !isEntreeComptable(entree)) return 0;
+
     if (!USE_SUPABASE && entree.lignes) {
-      // Mode local : lignes déjà incluses
       return entree.lignes.reduce((sum, ligne) => {
         return sum + (ligne.quantite || 0) * getProduitPrixAchat(ligne.produitId);
       }, 0);
     }
-    
-    // Mode Supabase : utiliser les détails chargés (vue v_entree_lignes_detail)
+
     if (USE_SUPABASE && entreesDetails[entree.id]) {
       return entreesDetails[entree.id].reduce((sum, ligne) => {
         const prix = getProduitPrixAchat(ligne.produit_id, ligne);
-        return sum + (ligne.quantite || 0) * prix;
+        return sum + getLigneQteRecue(ligne) * prix;
       }, 0);
     }
-    
+
     return 0;
-  }, [getProduitPrixAchat, entreesDetails]);
+  }, [getProduitPrixAchat, entreesDetails, isEntreeComptable]);
 
   const calculateTotalDue = useCallback((fournisseurId) => {
     let total = 0;
     const entrees = getFournisseurEntrees(fournisseurId);
-    
-    entrees.forEach(entree => {
-      if (!entree.paye) {
+
+    entrees.forEach((entree) => {
+      if (!entree.paye && isEntreeComptable(entree)) {
         total += calculateEntreeValue(entree);
       }
     });
     return total;
-  }, [getFournisseurEntrees, calculateEntreeValue]);
+  }, [getFournisseurEntrees, calculateEntreeValue, isEntreeComptable]);
 
   const calculateTotalPaye = useCallback((fournisseurId) => {
     let total = 0;
@@ -234,10 +245,11 @@ const SuppliersList = ({ onSelectSupplier }) => {
       totalEntreesPayees += entrees.filter(e => e.paye).length;
       totalEntreesNonPayees += entrees.filter(e => !e.paye).length;
       
-      // Compter les produits dans les entrées
-      entrees.forEach(entree => {
+      // Compter les produits reçus (hors envois en attente)
+      entrees.forEach((entree) => {
+        if (!isEntreeComptable(entree)) return;
         const lignes = getEntreeLignes(entree);
-        totalProduitsReçus += lignes.reduce((sum, ligne) => sum + (ligne.quantite || 0), 0);
+        totalProduitsReçus += lignes.reduce((sum, ligne) => sum + getLigneQteRecue(ligne), 0);
       });
     });
     
@@ -290,7 +302,8 @@ const SuppliersList = ({ onSelectSupplier }) => {
     calculateTotalPaye,
     getFournisseurEntrees,
     calculateEntreeValue,
-    getEntreeLignes
+    getEntreeLignes,
+    isEntreeComptable
   ]);
 
   // Charger toutes les lignes d'entrée en une seule requête (vue agrégée)
@@ -307,7 +320,7 @@ const SuppliersList = ({ onSelectSupplier }) => {
         while (hasMore) {
           const { data, error, count } = await dataCtx.supabase
             .from('v_entree_lignes_detail')
-            .select('entree_id, produit_id, prix_achat, qte_envoyee, qte_recue', { count: 'exact' })
+            .select('entree_id, statut, produit_id, prix_achat, qte_envoyee, qte_recue', { count: 'exact' })
             .range(page * pageSize, (page + 1) * pageSize - 1);
 
           if (error) throw error;
@@ -328,7 +341,6 @@ const SuppliersList = ({ onSelectSupplier }) => {
           details[entreeId].push({
             produit_id: row.produit_id,
             prix_achat: row.prix_achat,
-            quantite: row.qte_envoyee,
             qte_recue: row.qte_recue,
           });
         }
