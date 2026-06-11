@@ -42,7 +42,11 @@ export const DataProvider = ({ children }) => {
   }
 
   async function fetchFournisseurs() {
-    const { data, error } = await supabase.from('fournisseurs').select('*').order('created_at', { ascending: false })
+    const { data, error } = await supabase
+      .from('fournisseurs')
+      .select('*')
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
     if (error) console.error(error)
     else setFournisseurs(data || [])
   }
@@ -164,6 +168,50 @@ export const DataProvider = ({ children }) => {
     const { error } = await supabase.from('fournisseurs').insert([{ nom, contact, adresse }])
     if (error) return console.error(error)
     fetchFournisseurs()
+  }
+
+  async function deleteFournisseur(id) {
+    try {
+      const { error: fournisseurError } = await supabase
+        .from('fournisseurs')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', id)
+      if (fournisseurError) throw fournisseurError
+
+      const { error: compteError } = await supabase
+        .from('comptes')
+        .update({ active: false })
+        .eq('fournisseur_id', id)
+      if (compteError) throw compteError
+
+      await fetchFournisseurs()
+      return { success: true }
+    } catch (e) {
+      console.error('❌ Erreur deleteFournisseur:', e?.message || e)
+      throw e
+    }
+  }
+
+  async function restoreFournisseur(id) {
+    try {
+      const { error: fournisseurError } = await supabase
+        .from('fournisseurs')
+        .update({ deleted_at: null })
+        .eq('id', id)
+      if (fournisseurError) throw fournisseurError
+
+      const { error: compteError } = await supabase
+        .from('comptes')
+        .update({ active: true })
+        .eq('fournisseur_id', id)
+      if (compteError) throw compteError
+
+      await fetchFournisseurs()
+      return { success: true }
+    } catch (e) {
+      console.error('❌ Erreur restoreFournisseur:', e?.message || e)
+      throw e
+    }
   }
 
   // === Gestion des paiements ===
@@ -700,6 +748,118 @@ export const DataProvider = ({ children }) => {
     }
   }
 
+  async function fetchEntreesValidees() {
+    try {
+      let allEntrees = []
+      let page = 0
+      const pageSize = 100
+      let hasMore = true
+
+      while (hasMore) {
+        const { data, error, count } = await supabase
+          .from('entrees')
+          .select(
+            `
+            id, date, statut, paye, fournisseur_id,
+            fournisseurs ( id, nom ),
+            entree_lignes (
+              id, quantite, quantite_recue,
+              produit_id ( id, nom, reference, prix_achat )
+            )
+          `,
+            { count: 'exact' }
+          )
+          .in('statut', ['valide', 'litige'])
+          .order('date', { ascending: false })
+          .range(page * pageSize, (page + 1) * pageSize - 1)
+
+        if (error) throw error
+
+        if (data && data.length > 0) {
+          allEntrees = [...allEntrees, ...data]
+          page++
+          hasMore = data.length === pageSize && (count === null || allEntrees.length < count)
+        } else {
+          hasMore = false
+        }
+      }
+
+      return allEntrees.map((entree) => ({
+        entree_id: entree.id,
+        date: entree.date,
+        statut: entree.statut,
+        paye: Boolean(entree.paye),
+        fournisseur_id: entree.fournisseur_id,
+        fournisseur_nom: entree.fournisseurs?.nom || '',
+        lignes: (entree.entree_lignes || []).map((ligne) => ({
+          ligne_id: ligne.id,
+          produit_id: ligne.produit_id?.id ?? ligne.produit_id,
+          reference: ligne.produit_id?.reference || '',
+          produit_nom: ligne.produit_id?.nom || 'Produit',
+          prix_achat: parseFloat(ligne.produit_id?.prix_achat) || 0,
+          quantite: parseInt(ligne.quantite, 10) || 0,
+          quantite_recue: ligne.quantite_recue != null ? parseInt(ligne.quantite_recue, 10) || 0 : 0,
+        })),
+      }))
+    } catch (e) {
+      console.error('❌ Erreur fetchEntreesValidees:', e?.message || e)
+      throw e
+    }
+  }
+
+  async function updateEntreeLigne(ligneId, { quantite, quantite_recue }) {
+    try {
+      const payload = {}
+      if (quantite != null) payload.quantite = parseInt(quantite, 10) || 0
+      if (quantite_recue != null) payload.quantite_recue = parseInt(quantite_recue, 10) || 0
+
+      const { error } = await supabase
+        .from('entree_lignes')
+        .update(payload)
+        .eq('id', ligneId)
+      if (error) throw error
+      return { success: true }
+    } catch (e) {
+      console.error('❌ Erreur updateEntreeLigne:', e?.message || e)
+      throw e
+    }
+  }
+
+  async function addEntreeLigne(entreeId, { produit_id, quantite, quantite_recue }) {
+    try {
+      const { data, error } = await supabase
+        .from('entree_lignes')
+        .insert([{
+          entree_id: entreeId,
+          produit_id,
+          variante_id: null,
+          quantite: parseInt(quantite, 10) || 0,
+          quantite_recue: quantite_recue != null ? parseInt(quantite_recue, 10) || 0 : null,
+        }])
+        .select('id')
+        .single()
+      if (error) throw error
+      return { success: true, ligne_id: data?.id }
+    } catch (e) {
+      console.error('❌ Erreur addEntreeLigne:', e?.message || e)
+      throw e
+    }
+  }
+
+  async function deleteEntreeLigne(ligneId) {
+    try {
+      const { error } = await supabase
+        .from('entree_lignes')
+        .delete()
+        .eq('id', ligneId)
+      if (error) throw error
+      return { success: true }
+    } catch (e) {
+      console.error('❌ Erreur deleteEntreeLigne:', e?.message || e)
+      throw e
+    }
+  }
+
   async function fetchEntreeLignesDetail(entreeId) {
     try {
       const { data, error } = await supabase
@@ -1034,13 +1194,14 @@ export const DataProvider = ({ children }) => {
         // reads
         fetchAll, fetchProduits, fetchFournisseurs, fetchEntrees, fetchPaiements, fetchDepenses, fetchDepenseCategories, fetchEntreeDetails, fetchColis, fetchSalaries, fetchAcomptes, fetchSalaryHistory,
         fetchProduitsAssignes, fetchAssignations,
-        fetchEntreesEnAttente, fetchEntreeLignesDetail, fetchEnvoisFournisseur, findEnvoiDoublon, fetchNotifications, fetchFournisseurDashboard,
+        fetchEntreesEnAttente, fetchEntreesValidees, fetchEntreeLignesDetail, fetchEnvoisFournisseur, findEnvoiDoublon, fetchNotifications, fetchFournisseurDashboard,
         // writes
-        addProduit, updateProduit, deleteProduit, addFournisseur,
+        addProduit, updateProduit, deleteProduit, addFournisseur, deleteFournisseur, restoreFournisseur,
         addPaiement, deletePaiement,
         addDepense, updateDepense, deleteDepense,
         addDepenseCategory, deleteDepenseCategory,
         addEntreeWithLines,
+        updateEntreeLigne, addEntreeLigne, deleteEntreeLigne,
         assignProduit, unassignProduit, validateEntree, markNotificationRead, createCompte,
         addColis, updateColis, deleteColis,
         addSalary, updateSalary, deleteSalary,

@@ -11,6 +11,7 @@ import {
   ClipboardCheck,
   Link2,
   Store,
+  ListChecks,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -32,6 +33,7 @@ const adminNavSections = [
     items: [
       { id: 'products', label: 'Products', icon: Package },
       { id: 'entries', label: 'Inventory', icon: ArrowDownLeft },
+      { id: 'validated-entries', label: 'Entrées validées', icon: ListChecks },
       { id: 'suppliers', label: 'Suppliers', icon: Building2 },
     ],
   },

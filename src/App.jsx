@@ -20,6 +20,7 @@ import Salaries from './components/Salaries'
 import SupplierPortal from './components/SupplierPortal'
 import EmployeeValidation from './components/EmployeeValidation'
 import SupplierAccess from './components/SupplierAccess'
+import ValidatedEntries from './components/ValidatedEntries'
 
 /**
  * Garde ce composant simple : AppHeader reçoit
@@ -61,6 +62,8 @@ const AppContent = () => {
         return <Products />
       case 'entries':
         return <Entries />
+      case 'validated-entries':
+        return <ValidatedEntries />
       case 'suppliers':
         return <Suppliers />
       case 'depenses':

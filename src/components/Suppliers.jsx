@@ -398,18 +398,14 @@ const SuppliersList = ({ onSelectSupplier }) => {
     }
     try {
       if (USE_SUPABASE) {
-        if (!dataCtx?.supabase) {
-          throw new Error("Supabase client non initialisé");
+        if (!dataCtx?.deleteFournisseur) {
+          throw new Error('Fonction deleteFournisseur non disponible');
         }
-        const { error } = await dataCtx.supabase.from('fournisseurs').delete().eq('id', id);
-        if (error) throw error;
-        
-        // Recharger les fournisseurs
-        await dataCtx?.fetchFournisseurs?.();
-        
+        await dataCtx.deleteFournisseur(id);
+
         toast({
           title: "Succès",
-          description: "Fournisseur supprimé avec succès",
+          description: "Fournisseur supprimé (historique conservé)",
         });
       } else {
         dispatch?.({ type: ActionTypes.DELETE_FOURNISSEUR, payload: id });
