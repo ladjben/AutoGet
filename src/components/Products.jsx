@@ -1,14 +1,48 @@
+/**
+ * Produits — présentation uniquement.
+ * CRUD, validations, permissions isAdmin, dual Supabase/local inchangés.
+ */
 import { useData, ActionTypes } from '../context/UnifiedDataContext';
 import { USE_SUPABASE } from '../config';
 import { useAuth } from '../context/AuthContext';
 import { useState, useMemo } from 'react';
-import { filterByPeriod } from '../utils/dateUtils';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
-import { Plus, Edit, Trash2, Package } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Plus, Edit, Trash2, Package, Search, MoreHorizontal } from 'lucide-react';
+import { PageHeader } from '@/components/PageHeader';
+import { PageSurface } from '@/components/PageSurface';
+
+const formatDa = (n) =>
+  `${Number(n || 0).toLocaleString('fr-FR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })} DA`;
+
+const formatNum = (n) => Number(n || 0).toLocaleString('fr-FR');
+
+function MetaStat({ label, value }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-[11px] text-muted-foreground">{label}</p>
+      <p className="truncate text-sm font-semibold tabular-nums">{value}</p>
+    </div>
+  );
+}
 
 const Products = () => {
   const dataCtx = useData();
@@ -28,6 +62,7 @@ const Products = () => {
   const { toast } = useToast();
   const [showModal, setShowModal] = useState(false);
   const [editingProduit, setEditingProduit] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const [formData, setFormData] = useState({
     nom: '',
     reference: '',
@@ -54,6 +89,18 @@ const Products = () => {
       prixMin
     };
   }, [state.produits]);
+
+  // Filtre présentation uniquement (nom / référence)
+  const filteredProduits = useMemo(() => {
+    const list = state.produits || [];
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return list;
+    return list.filter((p) => {
+      const nom = String(p.nom || '').toLowerCase();
+      const ref = String(p.reference || '').toLowerCase();
+      return nom.includes(q) || ref.includes(q);
+    });
+  }, [state.produits, searchQuery]);
 
   const handleAddProduit = async () => {
     if (!formData.nom || !formData.prixAchat) {
@@ -105,7 +152,7 @@ const Products = () => {
     try {
       if (USE_SUPABASE) {
         const prix_achat = parseFloat(formData.prixAchat)
-        await dataCtx?.updateProduit?.(editingProduit.id, {
+        await updateProduit?.(editingProduit.id, {
           nom: formData.nom,
           reference: formData.reference,
           prix_achat,
@@ -173,178 +220,220 @@ const Products = () => {
     setShowModal(true);
   };
 
+  const openCreateModal = () => {
+    setEditingProduit(null);
+    resetForm();
+    setShowModal(true);
+  };
+
   const resetForm = () => {
     setFormData({ nom: '', reference: '', prixAchat: '' });
   };
 
+  const closeModal = () => {
+    setShowModal(false);
+    setEditingProduit(null);
+    resetForm();
+  };
+
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-foreground">Produits</h1>
-        <Button onClick={() => {
-          setEditingProduit(null);
-          resetForm();
-          setShowModal(true);
-        }}>
-          <Plus className="h-4 w-4" />
-          Nouveau Produit
-        </Button>
+    <PageSurface className="space-y-6">
+      <PageHeader
+        eyebrow="Catalogue"
+        title="Produits"
+        description="Gestion du catalogue — nom, référence et prix d'achat (DA)."
+        actions={
+          <Button onClick={openCreateModal} size="sm">
+            <Plus className="mr-2 h-4 w-4" />
+            Nouveau produit
+          </Button>
+        }
+      />
+
+      {/* Stats compactes */}
+      <div className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg border border-border/80 bg-card px-4 py-3 sm:grid-cols-3 lg:grid-cols-5">
+        <MetaStat label="Produits" value={formatNum(stats.totalProduits)} />
+        <MetaStat label="Valeur totale" value={formatDa(stats.valeurTotale)} />
+        <MetaStat label="Prix moyen" value={formatDa(stats.prixMoyen)} />
+        <MetaStat label="Prix max" value={formatDa(stats.prixMax)} />
+        <MetaStat label="Prix min" value={formatDa(stats.prixMin)} />
       </div>
 
-      {/* Résumé Global */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Résumé Global</CardTitle>
-          <CardDescription>Statistiques des produits enregistrés</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Total Produits</p>
-                    <p className="text-2xl font-bold">{stats.totalProduits}</p>
-                  </div>
-                  <Package className="h-8 w-8 text-blue-500" />
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Valeur Totale</p>
-                    <p className="text-2xl font-bold">{stats.valeurTotale.toFixed(2)} DA</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Prix Moyen</p>
-                    <p className="text-2xl font-bold">{stats.prixMoyen.toFixed(2)} DA</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Prix Maximum</p>
-                    <p className="text-2xl font-bold">{stats.prixMax.toFixed(2)} DA</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Prix Minimum</p>
-                    <p className="text-2xl font-bold">{stats.prixMin.toFixed(2)} DA</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+      {/* Recherche + liste */}
+      <section className="space-y-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="font-display text-base font-semibold tracking-tight">
+              Liste des produits
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              {filteredProduits.length}
+              {searchQuery.trim()
+                ? ` résultat(s) · ${stats.totalProduits} au total`
+                : ` produit(s) enregistré(s)`}
+            </p>
           </div>
-        </CardContent>
-      </Card>
+          <div className="relative w-full sm:max-w-xs">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Rechercher nom ou référence…"
+              className="pl-8"
+              aria-label="Rechercher un produit"
+            />
+          </div>
+        </div>
 
-      {/* Products List */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Liste des Produits</CardTitle>
-          <CardDescription>{state.produits.length} produit(s) enregistré(s)</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {state.produits.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <p className="text-lg">Aucun produit enregistré</p>
-              </div>
-            ) : (
-              state.produits.map((produit) => (
-                <Card key={produit.id}>
-                  <CardContent className="pt-6">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-4">
-                          <Package className="h-8 w-8 text-primary" />
-                          <div>
-                            <h3 className="text-xl font-semibold">{produit.nom}</h3>
-                            {produit.reference && (
-                              <p className="text-sm text-muted-foreground">Référence: {produit.reference}</p>
+        {(state.produits || []).length === 0 ? (
+          <div className="rounded-lg border border-dashed border-border/80 px-4 py-12 text-center">
+            <Package className="mx-auto mb-3 h-8 w-8 text-muted-foreground/50" />
+            <p className="text-sm font-medium text-foreground">Aucun produit enregistré</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Créez votre premier produit pour démarrer le catalogue.
+            </p>
+            <Button className="mt-4" size="sm" onClick={openCreateModal}>
+              <Plus className="mr-2 h-4 w-4" />
+              Nouveau produit
+            </Button>
+          </div>
+        ) : filteredProduits.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-border/80 px-4 py-10 text-center text-sm text-muted-foreground">
+            Aucun produit ne correspond à « {searchQuery.trim()} »
+          </div>
+        ) : (
+          <>
+            {/* Desktop table */}
+            <div className="hidden overflow-x-auto rounded-lg border border-border/80 md:block">
+              <table className="w-full min-w-[560px] text-left text-sm">
+                <thead className="border-b border-border/80 bg-muted/40 text-xs text-muted-foreground">
+                  <tr>
+                    <th className="px-3 py-2.5 font-medium">Nom</th>
+                    <th className="px-3 py-2.5 font-medium">Référence</th>
+                    <th className="px-3 py-2.5 text-right font-medium">Prix d&apos;achat</th>
+                    <th className="w-12 px-3 py-2.5 text-right font-medium">
+                      <span className="sr-only">Actions</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredProduits.map((produit) => (
+                    <tr
+                      key={produit.id}
+                      className="border-b border-border/40 last:border-0 hover:bg-muted/20"
+                    >
+                      <td className="px-3 py-2.5 font-medium">{produit.nom}</td>
+                      <td className="px-3 py-2.5 text-muted-foreground">
+                        {produit.reference || '—'}
+                      </td>
+                      <td className="px-3 py-2.5 text-right tabular-nums">
+                        {formatDa(produit.prix_achat ?? produit.prixAchat ?? 0)}
+                      </td>
+                      <td className="px-3 py-2.5 text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreHorizontal className="h-4 w-4" />
+                              <span className="sr-only">Actions</span>
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-40">
+                            <DropdownMenuItem onClick={() => openEditModal(produit)}>
+                              <Edit className="mr-2 h-4 w-4" />
+                              Modifier
+                            </DropdownMenuItem>
+                            {isAdmin() && (
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive"
+                                onClick={() => handleDeleteProduit(produit.id)}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Supprimer
+                              </DropdownMenuItem>
                             )}
-                          </div>
-                        </div>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
-                          <div>
-                            <p className="text-sm text-muted-foreground mb-1">Prix d'achat</p>
-                            <p className="text-lg font-semibold">
-                              {produit.prix_achat ?? produit.prixAchat ?? 0} DA
-                            </p>
-                          </div>
-                          {produit.reference && (
-                            <div>
-                              <p className="text-sm text-muted-foreground mb-1">Référence</p>
-                              <p className="text-lg font-semibold">{produit.reference}</p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
-                      <div className="flex flex-col gap-2 ml-6">
-                        <Button 
-                          variant="outline"
-                          size="sm"
-                          onClick={() => openEditModal(produit)}
-                        >
-                          <Edit className="h-4 w-4 mr-2" />
-                          Éditer
+            {/* Mobile cards */}
+            <div className="space-y-2 md:hidden">
+              {filteredProduits.map((produit) => (
+                <div
+                  key={produit.id}
+                  className="rounded-lg border border-border/80 bg-card px-3 py-3"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">{produit.nom}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {produit.reference ? `Réf. ${produit.reference}` : 'Sans référence'}
+                      </p>
+                      <p className="mt-1 text-sm font-semibold tabular-nums">
+                        {formatDa(produit.prix_achat ?? produit.prixAchat ?? 0)}
+                      </p>
+                    </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+                          <MoreHorizontal className="h-4 w-4" />
+                          <span className="sr-only">Actions</span>
                         </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-40">
+                        <DropdownMenuItem onClick={() => openEditModal(produit)}>
+                          <Edit className="mr-2 h-4 w-4" />
+                          Modifier
+                        </DropdownMenuItem>
                         {isAdmin() && (
-                          <Button
-                            variant="destructive"
-                            size="sm"
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
                             onClick={() => handleDeleteProduit(produit.id)}
                           >
-                            <Trash2 className="h-4 w-4 mr-2" />
+                            <Trash2 className="mr-2 h-4 w-4" />
                             Supprimer
-                          </Button>
+                          </DropdownMenuItem>
                         )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
-            )}
-          </div>
-        </CardContent>
-      </Card>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </section>
 
       {/* Add/Edit Product Dialog */}
-      <Dialog open={showModal} onOpenChange={setShowModal}>
+      <Dialog
+        open={showModal}
+        onOpenChange={(open) => {
+          if (!open) closeModal();
+          else setShowModal(true);
+        }}
+      >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingProduit ? 'Modifier le Produit' : 'Nouveau Produit'}</DialogTitle>
+            <DialogTitle>{editingProduit ? 'Modifier le produit' : 'Nouveau produit'}</DialogTitle>
             <DialogDescription>
-              {editingProduit ? 'Modifiez les informations du produit' : 'Ajoutez un nouveau produit à votre catalogue'}
+              {editingProduit
+                ? 'Modifiez les informations du produit'
+                : 'Ajoutez un nouveau produit à votre catalogue'}
             </DialogDescription>
           </DialogHeader>
           
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Nom *</label>
+              <label className="text-sm font-medium" htmlFor="produit-nom">
+                Nom *
+              </label>
               <Input
+                id="produit-nom"
                 type="text"
                 value={formData.nom}
                 onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
@@ -353,8 +442,11 @@ const Products = () => {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Référence</label>
+              <label className="text-sm font-medium" htmlFor="produit-ref">
+                Référence
+              </label>
               <Input
+                id="produit-ref"
                 type="text"
                 value={formData.reference}
                 onChange={(e) => setFormData({ ...formData, reference: e.target.value })}
@@ -363,8 +455,11 @@ const Products = () => {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Prix d'achat (DA) *</label>
+              <label className="text-sm font-medium" htmlFor="produit-prix">
+                Prix d&apos;achat (DA) *
+              </label>
               <Input
+                id="produit-prix"
                 type="number"
                 step="0.01"
                 value={formData.prixAchat}
@@ -375,14 +470,7 @@ const Products = () => {
           </div>
 
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setShowModal(false);
-                setEditingProduit(null);
-                resetForm();
-              }}
-            >
+            <Button variant="outline" onClick={closeModal}>
               Annuler
             </Button>
             <Button onClick={editingProduit ? handleUpdateProduit : handleAddProduit}>
@@ -391,7 +479,7 @@ const Products = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageSurface>
   );
 };
 
