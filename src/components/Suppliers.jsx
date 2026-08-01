@@ -1,3 +1,9 @@
+/**
+ * Fournisseurs — liste (présentation uniquement).
+ * Formules financières, filtres période, v_entree_lignes_detail,
+ * CRUD fournisseurs/paiements et permissions inchangés.
+ * SupplierDetail non modifié.
+ */
 import { useData, ActionTypes } from '../context/UnifiedDataContext';
 import { USE_SUPABASE } from '../config';
 import { useAuth } from '../context/AuthContext';
@@ -6,12 +12,80 @@ import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
-import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogTrigger,
+  DialogDescription,
+} from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
-import { Plus, Building2, CreditCard, TrendingDown, TrendingUp, Package, DollarSign, Calendar, Trash2, Edit, Phone, MapPin, ChevronRight } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { cn } from '@/lib/utils';
+import { PageHeader } from '@/components/PageHeader';
+import { PageSurface } from '@/components/PageSurface';
+import { StatusBadge } from '@/components/StatusBadge';
+import {
+  Plus,
+  Building2,
+  CreditCard,
+  Trash2,
+  Phone,
+  MoreHorizontal,
+  Search,
+  ChevronRight,
+  Eye,
+  AlertTriangle,
+} from 'lucide-react';
 import SupplierDetail from './SupplierDetail';
+
+const formatDa = (value) =>
+  `${Number(parseFloat(value || 0).toFixed(2)).toLocaleString('fr-FR')} DA`;
+
+const formatNum = (n) => Number(n || 0).toLocaleString('fr-FR');
+
+function MetaStat({ label, value, tone }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-[11px] text-muted-foreground">{label}</p>
+      <p
+        className={cn(
+          'truncate text-sm font-semibold tabular-nums',
+          tone === 'danger' && 'text-danger',
+          tone === 'success' && 'text-success',
+          tone === 'warning' && 'text-[hsl(var(--warning))]',
+          tone === 'info' && 'text-[hsl(var(--info))]'
+        )}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function MoneyCell({ value, tone }) {
+  const n = parseFloat(value) || 0;
+  return (
+    <span
+      className={cn(
+        'tabular-nums font-semibold',
+        tone === 'danger' && n > 0 && 'text-danger',
+        tone === 'success' && n > 0 && 'text-success',
+        tone === 'warning' && n > 0 && 'text-[hsl(var(--warning))]',
+        tone === 'info' && n !== 0 && 'text-[hsl(var(--info))]'
+      )}
+    >
+      {formatDa(n)}
+    </span>
+  );
+}
 
 const Suppliers = () => {
   const [selectedSupplierId, setSelectedSupplierId] = useState(null);
@@ -41,31 +115,13 @@ const SuppliersList = ({ onSelectSupplier }) => {
   const deletePaiement = dataCtx?.deletePaiement;
   const { isAdmin } = useAuth();
   const { toast } = useToast();
-  
-  // Masquer toute la section pour les utilisateurs non-admin
-  if (!isAdmin()) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle>Accès Restreint</CardTitle>
-            <CardDescription>
-              Cette section est réservée aux administrateurs uniquement.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground text-center">
-              Vous devez être administrateur pour accéder à la gestion des fournisseurs.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+
   const [showModal, setShowModal] = useState(false);
   const [showPaiementModal, setShowPaiementModal] = useState(false);
-  const [selectedFournisseur, setSelectedFournisseur] = useState(null);
   const [entreesDetails, setEntreesDetails] = useState({}); // { entreeId: lignes[] }
+  const [detailsLoading, setDetailsLoading] = useState(false);
+  const [detailsError, setDetailsError] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState({
     fournisseurId: '',
     dateStart: '',
@@ -311,6 +367,8 @@ const SuppliersList = ({ onSelectSupplier }) => {
     if (!USE_SUPABASE || !dataCtx?.supabase) return;
 
     const loadAllEntreesDetails = async () => {
+      setDetailsLoading(true);
+      setDetailsError(null);
       try {
         let allRows = [];
         let page = 0;
@@ -348,6 +406,9 @@ const SuppliersList = ({ onSelectSupplier }) => {
       } catch (e) {
         console.error('Erreur chargement lignes détail:', e);
         setEntreesDetails({});
+        setDetailsError(e?.message || 'Erreur de chargement des lignes');
+      } finally {
+        setDetailsLoading(false);
       }
     };
 
@@ -520,481 +581,635 @@ const SuppliersList = ({ onSelectSupplier }) => {
     return fournisseur ? fournisseur.nom : 'Inconnu';
   };
 
-  return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-foreground">Fournisseurs</h1>
-        <div className="flex gap-3">
-          <Dialog open={showPaiementModal} onOpenChange={setShowPaiementModal}>
-            <DialogTrigger asChild>
-              <Button variant="outline" className="bg-green-600 hover:bg-green-700 text-white border-green-600">
-                <CreditCard className="h-4 w-4 mr-2" />
-                Nouveau Paiement
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Nouveau Paiement</DialogTitle>
-                <DialogDescription>
-                  Enregistrez un nouveau paiement pour un fournisseur
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Fournisseur *</label>
-                  <select
-                    value={paiementData.fournisseurId}
-                    onChange={(e) => setPaiementData({ ...paiementData, fournisseurId: e.target.value })}
-                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <option value="">Sélectionner</option>
-                    {(state.fournisseurs || []).map((fournisseur) => {
-                      const due = calculateTotalDue(fournisseur.id);
-                      return (
-                        <option key={fournisseur.id} value={fournisseur.id}>
-                          {fournisseur.nom} {due > 0 ? `(Dû: ${due.toFixed(2)}DA)` : ''}
-                        </option>
-                      );
-                    })}
-                  </select>
-                </div>
+  // Helpers / handlers métier conservés (parité avant redesign ; utilisés hors rendu liste)
+  void getProduitName;
+  void getFournisseurName;
+  void handleDeletePaiement;
 
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Montant (DA) *</label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={paiementData.montant}
-                    onChange={(e) => setPaiementData({ ...paiementData, montant: e.target.value })}
-                  />
-                </div>
+  // Recherche présentationnelle — n’altère pas globalTotals ni les filtres période
+  const displayedFournisseurs = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return filteredFournisseurs;
+    return filteredFournisseurs.filter((f) => {
+      const nom = (f.nom || '').toLowerCase();
+      const contact = (f.contact || '').toLowerCase();
+      const adresse = (f.adresse || '').toLowerCase();
+      return nom.includes(q) || contact.includes(q) || adresse.includes(q);
+    });
+  }, [filteredFournisseurs, searchQuery]);
 
-                {paiementData.fournisseurId && (
-                  <Card>
-                    <CardContent className="pt-6">
-                      {(() => {
-                        const currentTotalDue = calculateTotalDue(paiementData.fournisseurId);
-                        const currentTotalPaye = calculateTotalPaye(paiementData.fournisseurId);
-                        const restantActuel = currentTotalDue - currentTotalPaye;
-                        const montantPaiement = parseFloat(paiementData.montant) || 0;
-                        const nouveauReste = restantActuel - montantPaiement;
-                        
-                        return (
-                          <div className="space-y-2">
-                            <div className="flex justify-between">
-                              <span className="text-sm text-muted-foreground">Reste actuel:</span>
-                              <span className="font-semibold text-orange-600">{restantActuel.toFixed(2)} DA</span>
-                            </div>
-                            {montantPaiement > 0 && (
-                              <>
-                                <div className="flex justify-between">
-                                  <span className="text-sm text-muted-foreground">Paiement:</span>
-                                  <span className="font-semibold text-green-600">-{montantPaiement.toFixed(2)} DA</span>
-                                </div>
-                                <Separator />
-                                <div className="flex justify-between">
-                                  <span className="font-semibold">Nouveau reste:</span>
-                                  <span className={`font-bold text-lg ${nouveauReste > 0 ? 'text-orange-600' : 'text-green-600'}`}>
-                                    {nouveauReste.toFixed(2)} DA
-                                  </span>
-                                </div>
-                              </>
-                            )}
-                          </div>
-                        );
-                      })()}
-                    </CardContent>
-                  </Card>
-                )}
+  const hasActiveFilters =
+    Boolean(filters.fournisseurId || filters.dateStart || filters.dateEnd) ||
+    Boolean(searchQuery.trim());
 
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Date *</label>
-                  <Input
-                    type="date"
-                    value={paiementData.date}
-                    onChange={(e) => setPaiementData({ ...paiementData, date: e.target.value })}
-                  />
-                </div>
+  const resetFilters = () => {
+    setFilters({ fournisseurId: '', dateStart: '', dateEnd: '' });
+    setSearchQuery('');
+  };
 
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Description</label>
-                  <Textarea
-                    value={paiementData.description}
-                    onChange={(e) => setPaiementData({ ...paiementData, description: e.target.value })}
-                    rows={3}
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setShowPaiementModal(false);
-                    setPaiementData({
-                      fournisseurId: '',
-                      montant: '',
-                      date: new Date().toISOString().split('T')[0],
-                      description: ''
-                    });
-                  }}
-                >
-                  Annuler
-                </Button>
-                <Button onClick={handleAddPaiement}>
-                  Enregistrer
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-
-          <Dialog open={showModal} onOpenChange={setShowModal}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Nouveau Fournisseur
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Nouveau Fournisseur</DialogTitle>
-                <DialogDescription>
-                  Ajoutez un nouveau fournisseur à votre base de données
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Nom *</label>
-                  <Input
-                    type="text"
-                    value={formData.nom}
-                    onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
-                  />
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Contact</label>
-                  <Input
-                    type="text"
-                    value={formData.contact}
-                    onChange={(e) => setFormData({ ...formData, contact: e.target.value })}
-                  />
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Adresse</label>
-                  <Textarea
-                    value={formData.adresse}
-                    onChange={(e) => setFormData({ ...formData, adresse: e.target.value })}
-                    rows={3}
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setShowModal(false);
-                    setFormData({ nom: '', contact: '', adresse: '' });
-                  }}
-                >
-                  Annuler
-                </Button>
-                <Button onClick={handleAddFournisseur}>
-                  Ajouter
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+  // Masquer toute la section pour les utilisateurs non-admin
+  if (!isAdmin()) {
+    return (
+      <PageSurface>
+        <PageHeader
+          eyebrow="Inventaire"
+          title="Fournisseurs"
+          description="Accès réservé aux administrateurs."
+        />
+        <div className="rounded-lg border border-dashed border-border/80 px-4 py-12 text-center">
+          <AlertTriangle className="mx-auto mb-3 h-8 w-8 text-muted-foreground/40" />
+          <p className="text-sm font-medium">Accès restreint</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Vous devez être administrateur pour accéder à la gestion des fournisseurs.
+          </p>
         </div>
+      </PageSurface>
+    );
+  }
+
+  const paiementDialog = (
+    <Dialog open={showPaiementModal} onOpenChange={setShowPaiementModal}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm">
+          <CreditCard className="mr-2 h-4 w-4" />
+          Nouveau paiement
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Nouveau paiement</DialogTitle>
+          <DialogDescription>
+            Enregistrez un nouveau paiement pour un fournisseur
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div>
+            <label className="mb-2 block text-sm font-medium" htmlFor="sp-fournisseur">
+              Fournisseur *
+            </label>
+            <select
+              id="sp-fournisseur"
+              value={paiementData.fournisseurId}
+              onChange={(e) => setPaiementData({ ...paiementData, fournisseurId: e.target.value })}
+              className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            >
+              <option value="">Sélectionner</option>
+              {(state.fournisseurs || []).map((fournisseur) => {
+                const due = calculateTotalDue(fournisseur.id);
+                return (
+                  <option key={fournisseur.id} value={fournisseur.id}>
+                    {fournisseur.nom} {due > 0 ? `(Dû: ${due.toFixed(2)}DA)` : ''}
+                  </option>
+                );
+              })}
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-medium" htmlFor="sp-montant">
+              Montant (DA) *
+            </label>
+            <Input
+              id="sp-montant"
+              type="number"
+              step="0.01"
+              value={paiementData.montant}
+              onChange={(e) => setPaiementData({ ...paiementData, montant: e.target.value })}
+            />
+          </div>
+
+          {paiementData.fournisseurId && (
+            <div className="rounded-lg border border-border/80 bg-muted/30 px-3 py-3">
+              {(() => {
+                const currentTotalDue = calculateTotalDue(paiementData.fournisseurId);
+                const currentTotalPaye = calculateTotalPaye(paiementData.fournisseurId);
+                const restantActuel = currentTotalDue - currentTotalPaye;
+                const montantPaiement = parseFloat(paiementData.montant) || 0;
+                const nouveauReste = restantActuel - montantPaiement;
+
+                return (
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">Reste actuel</span>
+                      <span className="font-semibold tabular-nums text-[hsl(var(--warning))]">
+                        {formatDa(restantActuel)}
+                      </span>
+                    </div>
+                    {montantPaiement > 0 && (
+                      <>
+                        <div className="flex justify-between">
+                          <span className="text-sm text-muted-foreground">Paiement</span>
+                          <span className="font-semibold tabular-nums text-success">
+                            −{formatDa(montantPaiement)}
+                          </span>
+                        </div>
+                        <Separator />
+                        <div className="flex justify-between">
+                          <span className="font-semibold">Nouveau reste</span>
+                          <span
+                            className={cn(
+                              'text-lg font-bold tabular-nums',
+                              nouveauReste > 0 ? 'text-[hsl(var(--warning))]' : 'text-success'
+                            )}
+                          >
+                            {formatDa(nouveauReste)}
+                          </span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+
+          <div>
+            <label className="mb-2 block text-sm font-medium" htmlFor="sp-date">
+              Date *
+            </label>
+            <Input
+              id="sp-date"
+              type="date"
+              value={paiementData.date}
+              onChange={(e) => setPaiementData({ ...paiementData, date: e.target.value })}
+            />
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-medium" htmlFor="sp-desc">
+              Description
+            </label>
+            <Textarea
+              id="sp-desc"
+              value={paiementData.description}
+              onChange={(e) => setPaiementData({ ...paiementData, description: e.target.value })}
+              rows={3}
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setShowPaiementModal(false);
+              setPaiementData({
+                fournisseurId: '',
+                montant: '',
+                date: new Date().toISOString().split('T')[0],
+                description: ''
+              });
+            }}
+          >
+            Annuler
+          </Button>
+          <Button onClick={handleAddPaiement}>Enregistrer</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+
+  const fournisseurDialog = (
+    <Dialog open={showModal} onOpenChange={setShowModal}>
+      <DialogTrigger asChild>
+        <Button size="sm">
+          <Plus className="mr-2 h-4 w-4" />
+          Nouveau fournisseur
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Nouveau fournisseur</DialogTitle>
+          <DialogDescription>
+            Ajoutez un nouveau fournisseur à votre base de données
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div>
+            <label className="mb-2 block text-sm font-medium" htmlFor="sf-nom">
+              Nom *
+            </label>
+            <Input
+              id="sf-nom"
+              type="text"
+              value={formData.nom}
+              onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="mb-2 block text-sm font-medium" htmlFor="sf-contact">
+              Contact
+            </label>
+            <Input
+              id="sf-contact"
+              type="text"
+              value={formData.contact}
+              onChange={(e) => setFormData({ ...formData, contact: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="mb-2 block text-sm font-medium" htmlFor="sf-adresse">
+              Adresse
+            </label>
+            <Textarea
+              id="sf-adresse"
+              value={formData.adresse}
+              onChange={(e) => setFormData({ ...formData, adresse: e.target.value })}
+              rows={3}
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setShowModal(false);
+              setFormData({ nom: '', contact: '', adresse: '' });
+            }}
+          >
+            Annuler
+          </Button>
+          <Button onClick={handleAddFournisseur}>Ajouter</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+
+  return (
+    <PageSurface className="space-y-6">
+      <PageHeader
+        eyebrow="Inventaire"
+        title="Fournisseurs"
+        description="Soldes, marchandise et paiements — vue financière consolidée."
+        actions={
+          <>
+            {paiementDialog}
+            {fournisseurDialog}
+          </>
+        }
+      />
+
+      {/* KPI prioritaires */}
+      <div className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg border border-border/80 bg-card px-4 py-3 sm:grid-cols-4">
+        <MetaStat
+          label="Total dû"
+          value={formatDa(globalTotals.totalDue)}
+          tone="danger"
+        />
+        <MetaStat
+          label="Total payé"
+          value={formatDa(globalTotals.totalPaye)}
+          tone="success"
+        />
+        <MetaStat
+          label={globalTotals.reste > 0 ? 'Reste' : globalTotals.reste < 0 ? 'Crédit' : 'Reste'}
+          value={formatDa(Math.abs(globalTotals.reste))}
+          tone={globalTotals.reste > 0 ? 'warning' : globalTotals.reste < 0 ? 'info' : 'success'}
+        />
+        <MetaStat
+          label="Marchandise"
+          value={formatDa(globalTotals.totalMarchandise)}
+        />
       </div>
 
-      {/* Résumé Global */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Vue d'Ensemble Globale</CardTitle>
-          <CardDescription>Statistiques complètes sur tous les fournisseurs</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Total Dû</p>
-                    <p className="text-3xl font-bold text-destructive">{globalTotals.totalDue.toFixed(2)} DA</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {filteredFournisseurs.filter(f => calculateTotalDue(f.id) > 0).length} fournisseur{filteredFournisseurs.filter(f => calculateTotalDue(f.id) > 0).length !== 1 ? 's' : ''} avec dettes
-                    </p>
-                  </div>
-                  <TrendingDown className="h-8 w-8 text-destructive" />
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Total Payé</p>
-                    <p className="text-3xl font-bold text-green-600">{globalTotals.totalPaye.toFixed(2)} DA</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {globalTotals.totalPaye > 0 
-                        ? `${((globalTotals.totalPaye / (globalTotals.totalDue || 1)) * 100).toFixed(1)}% du total dû`
-                        : 'Aucun paiement enregistré'
-                      }
-                    </p>
-                  </div>
-                  <TrendingUp className="h-8 w-8 text-green-600" />
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className={`text-sm ${globalTotals.reste > 0 ? 'text-orange-600' : 'text-green-600'}`}>
-                      {globalTotals.reste > 0 ? 'Reste à Payer' : 'Solde Positif'}
-                    </p>
-                    <p className={`text-3xl font-bold ${globalTotals.reste > 0 ? 'text-orange-600' : 'text-green-600'}`}>
-                      {Math.abs(globalTotals.reste).toFixed(2)} DA
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {globalTotals.reste > 0 
-                        ? `${filteredFournisseurs.filter(f => (calculateTotalDue(f.id) - calculateTotalPaye(f.id)) > 0).length} fournisseur${filteredFournisseurs.filter(f => (calculateTotalDue(f.id) - calculateTotalPaye(f.id)) > 0).length !== 1 ? 's' : ''} en attente`
-                        : 'Toutes les dettes sont payées'
-                      }
-                    </p>
-                  </div>
-                  {globalTotals.reste > 0 ? (
-                    <TrendingDown className="h-8 w-8 text-orange-600" />
-                  ) : (
-                    <TrendingUp className="h-8 w-8 text-green-600" />
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+      {/* Indicateurs secondaires */}
+      <div className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg border border-border/60 bg-muted/20 px-4 py-3 sm:grid-cols-3 lg:grid-cols-5">
+        <MetaStat label="Fournisseurs" value={formatNum(filteredFournisseurs.length)} />
+        <MetaStat
+          label="Entrées"
+          value={`${formatNum(globalTotals.totalEntrees)} · ${formatNum(globalTotals.totalEntreesPayees)} payées / ${formatNum(globalTotals.totalEntreesNonPayees)} non`}
+        />
+        <MetaStat label="Paiements" value={formatNum(globalTotals.totalPaiements)} />
+        <MetaStat
+          label="Qté reçues"
+          value={formatNum(globalTotals.totalProduitsReçus)}
+        />
+        <MetaStat
+          label="Avec dettes"
+          value={formatNum(globalTotals.fournisseursAvecDettes)}
+          tone="warning"
+        />
+      </div>
+
+      {/* Recherche + filtres */}
+      <section className="flex flex-col gap-3 rounded-lg border border-border/80 bg-card px-3 py-3 sm:flex-row sm:flex-wrap sm:items-end">
+        <div className="relative min-w-[180px] flex-1 space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground" htmlFor="sup-search">
+            Recherche
+          </label>
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              id="sup-search"
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Nom, contact ou adresse…"
+              className="h-9 pl-8"
+            />
           </div>
-          
-          <Separator />
+        </div>
+        <div className="min-w-[160px] space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground" htmlFor="sup-f">
+            Fournisseur
+          </label>
+          <select
+            id="sup-f"
+            value={filters.fournisseurId}
+            onChange={(e) => setFilters({ ...filters, fournisseurId: e.target.value })}
+            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            <option value="">Tous</option>
+            {(state.fournisseurs || []).map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.nom}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="min-w-[140px] space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground" htmlFor="sup-ds">
+            Date début
+          </label>
+          <Input
+            id="sup-ds"
+            type="date"
+            value={filters.dateStart}
+            onChange={(e) => setFilters({ ...filters, dateStart: e.target.value })}
+            className="h-9"
+          />
+        </div>
+        <div className="min-w-[140px] space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground" htmlFor="sup-de">
+            Date fin
+          </label>
+          <Input
+            id="sup-de"
+            type="date"
+            value={filters.dateEnd}
+            onChange={(e) => setFilters({ ...filters, dateEnd: e.target.value })}
+            className="h-9"
+          />
+        </div>
+        {hasActiveFilters && (
+          <Button type="button" variant="outline" size="sm" className="h-9" onClick={resetFilters}>
+            Réinitialiser
+          </Button>
+        )}
+      </section>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-            <div className="text-center">
-              <p className="text-xs text-muted-foreground mb-1">Total Fournisseurs</p>
-              <p className="text-xl font-bold">{filteredFournisseurs.length}</p>
-              <p className="text-xs text-muted-foreground mt-1">Actifs</p>
-            </div>
-            <div className="text-center">
-              <p className="text-xs text-muted-foreground mb-1">Entrées Totales</p>
-              <p className="text-xl font-bold">{globalTotals.totalEntrees}</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                {globalTotals.totalEntreesPayees} payées / {globalTotals.totalEntreesNonPayees} non payées
-              </p>
-            </div>
-            <div className="text-center">
-              <p className="text-xs text-muted-foreground mb-1">Paiements Totaux</p>
-              <p className="text-xl font-bold">{globalTotals.totalPaiements}</p>
-              <p className="text-xs text-muted-foreground mt-1">Transactions</p>
-            </div>
-            <div className="text-center">
-              <p className="text-xs text-muted-foreground mb-1">Valeur Marchandise</p>
-              <p className="text-xl font-bold">{globalTotals.totalMarchandise.toFixed(2)} DA</p>
-              <p className="text-xs text-muted-foreground mt-1">Total reçu</p>
-            </div>
-            <div className="text-center">
-              <p className="text-xs text-muted-foreground mb-1">Produits Reçus</p>
-              <p className="text-xl font-bold">{globalTotals.totalProduitsReçus}</p>
-              <p className="text-xs text-muted-foreground mt-1">Unités</p>
-            </div>
-            <div className="text-center">
-              <p className="text-xs text-muted-foreground mb-1">Taux Paiement</p>
-              <p className="text-xl font-bold">{globalTotals.tauxPaiement.toFixed(1)}%</p>
-              <p className="text-xs text-muted-foreground mt-1">Pourcentage payé</p>
-            </div>
+      {detailsError && (
+        <div className="flex items-start gap-2 rounded-lg border border-[hsl(var(--danger)/0.35)] bg-[hsl(var(--danger)/0.08)] px-3 py-2.5 text-sm">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-danger" />
+          <div>
+            <p className="font-medium text-danger">Erreur de chargement des lignes</p>
+            <p className="text-xs text-muted-foreground">{detailsError}</p>
           </div>
+        </div>
+      )}
 
-          <Separator />
+      {/* Liste */}
+      <section className="space-y-3">
+        <div>
+          <h2 className="font-display text-base font-semibold tracking-tight">
+            Liste des fournisseurs
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            {detailsLoading
+              ? 'Chargement des lignes de marchandise…'
+              : `${formatNum(displayedFournisseurs.length)} fournisseur(s)${
+                  hasActiveFilters ? ' (filtrés)' : ''
+                }`}
+          </p>
+        </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-            <div className="text-center">
-              <p className="text-xs text-muted-foreground mb-1">Fournisseurs avec Dettes</p>
-              <p className="text-xl font-bold">{globalTotals.fournisseursAvecDettes}</p>
-              <p className="text-xs text-muted-foreground mt-1">En attente paiement</p>
-            </div>
-            <div className="text-center">
-              <p className="text-xs text-muted-foreground mb-1">Fournisseurs en Attente</p>
-              <p className="text-xl font-bold">{globalTotals.fournisseursEnAttente}</p>
-              <p className="text-xs text-muted-foreground mt-1">Non réglés</p>
-            </div>
-            <div className="text-center">
-              <p className="text-xs text-muted-foreground mb-1">Moyenne Due/Fournisseur</p>
-              <p className="text-xl font-bold">{globalTotals.moyenneDueParFournisseur.toFixed(2)} DA</p>
-              <p className="text-xs text-muted-foreground mt-1">Par fournisseur</p>
-            </div>
-            <div className="text-center">
-              <p className="text-xs text-muted-foreground mb-1">Moyenne Payée/Fournisseur</p>
-              <p className="text-xl font-bold">{globalTotals.moyennePayeParFournisseur.toFixed(2)} DA</p>
-              <p className="text-xs text-muted-foreground mt-1">Par fournisseur</p>
-            </div>
-            <div className="text-center">
-              <p className="text-xs text-muted-foreground mb-1">Entrées Payées</p>
-              <p className="text-xl font-bold">{globalTotals.totalEntreesPayees}</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                {globalTotals.totalEntrees > 0 ? `${((globalTotals.totalEntreesPayees / globalTotals.totalEntrees) * 100).toFixed(1)}%` : '0%'}
-              </p>
-            </div>
-            <div className="text-center">
-              <p className="text-xs text-muted-foreground mb-1">Entrées Non Payées</p>
-              <p className="text-xl font-bold">{globalTotals.totalEntreesNonPayees}</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                {globalTotals.totalEntrees > 0 ? `${((globalTotals.totalEntreesNonPayees / globalTotals.totalEntrees) * 100).toFixed(1)}%` : '0%'}
-              </p>
-            </div>
+        {detailsLoading && (state.fournisseurs || []).length === 0 ? (
+          <div className="rounded-lg border border-dashed border-border/80 px-4 py-12 text-center text-sm text-muted-foreground">
+            Chargement des fournisseurs…
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Filtres */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Filtres</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="text-sm font-medium mb-2 block">Fournisseur</label>
-              <select
-                value={filters.fournisseurId}
-                onChange={(e) => setFilters({ ...filters, fournisseurId: e.target.value })}
-                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <option value="">Tous les fournisseurs</option>
-                {(state.fournisseurs || []).map((f) => (
-                  <option key={f.id} value={f.id}>{f.nom}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="text-sm font-medium mb-2 block">Date début</label>
-              <Input
-                type="date"
-                value={filters.dateStart}
-                onChange={(e) => setFilters({ ...filters, dateStart: e.target.value })}
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium mb-2 block">Date fin</label>
-              <Input
-                type="date"
-                value={filters.dateEnd}
-                onChange={(e) => setFilters({ ...filters, dateEnd: e.target.value })}
-              />
-            </div>
+        ) : displayedFournisseurs.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-border/80 px-4 py-12 text-center">
+            <Building2 className="mx-auto mb-3 h-8 w-8 text-muted-foreground/40" />
+            <p className="text-sm font-medium">
+              {(state.fournisseurs || []).length === 0
+                ? 'Aucun fournisseur'
+                : 'Aucun résultat'}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {hasActiveFilters
+                ? 'Modifiez ou réinitialisez les filtres.'
+                : 'Créez un fournisseur pour commencer.'}
+            </p>
           </div>
-          {(filters.fournisseurId || filters.dateStart || filters.dateEnd) && (
-            <Button
-              onClick={() => setFilters({ fournisseurId: '', dateStart: '', dateEnd: '' })}
-              variant="outline"
-              className="mt-4"
-            >
-              Réinitialiser les filtres
-            </Button>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Liste des fournisseurs */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {filteredFournisseurs.length === 0 ? (
-          <Card className="col-span-full">
-            <CardContent className="pt-6">
-              <div className="text-center py-8 text-muted-foreground">
-                <p className="text-lg">Aucun fournisseur trouvé</p>
-              </div>
-            </CardContent>
-          </Card>
         ) : (
-          filteredFournisseurs.map((fournisseur) => {
-            const totalDue = calculateTotalDue(fournisseur.id);
-            const totalPaye = calculateTotalPaye(fournisseur.id);
-            const reste = totalDue - totalPaye;
-            const paiements = getFilteredPaiements(fournisseur.id);
-            const entrees = getFournisseurEntrees(fournisseur.id);
-            const entreesPayees = entrees.filter(e => e.paye).length;
-            const entreesNonPayees = entrees.filter(e => !e.paye).length;
-            const totalMarchandise = entrees.reduce((sum, e) => sum + calculateEntreeValue(e), 0);
-            
-            return (
-              <Card 
-                key={fournisseur.id} 
-                className="overflow-hidden cursor-pointer hover:shadow-xl transition-all border-2 hover:border-primary hover:scale-[1.02]"
-                onClick={() => onSelectSupplier(fournisseur.id)}
-              >
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4 flex-1">
-                      <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
-                        <Building2 className="h-8 w-8 text-primary" />
+          <>
+            {/* Desktop table */}
+            <div className="hidden overflow-x-auto rounded-lg border border-border/80 md:block">
+              <table className="w-full min-w-[780px] text-left text-sm">
+                <thead className="border-b border-border/80 bg-muted/40 text-xs text-muted-foreground">
+                  <tr>
+                    <th className="px-3 py-2.5 font-medium">Fournisseur</th>
+                    <th className="px-3 py-2.5 font-medium">Contact</th>
+                    <th className="px-3 py-2.5 text-right font-medium">Marchandise</th>
+                    <th className="px-3 py-2.5 text-right font-medium">Dû</th>
+                    <th className="px-3 py-2.5 text-right font-medium">Payé</th>
+                    <th className="px-3 py-2.5 text-right font-medium">Reste</th>
+                    <th className="w-12 px-3 py-2.5 text-right font-medium">
+                      <span className="sr-only">Actions</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {displayedFournisseurs.map((fournisseur) => {
+                    const totalDue = calculateTotalDue(fournisseur.id);
+                    const totalPaye = calculateTotalPaye(fournisseur.id);
+                    const reste = totalDue - totalPaye;
+                    const entrees = getFournisseurEntrees(fournisseur.id);
+                    const totalMarchandise = entrees.reduce(
+                      (sum, e) => sum + calculateEntreeValue(e),
+                      0
+                    );
+                    const isDisabled = Boolean(fournisseur.deleted_at);
+                    const isCredit = reste < 0;
+                    const hasDebt = reste > 0;
+
+                    return (
+                      <tr
+                        key={fournisseur.id}
+                        className={cn(
+                          'border-b border-border/40 last:border-0 hover:bg-muted/20',
+                          isDisabled && 'opacity-60',
+                          hasDebt && 'bg-[hsl(var(--warning)/0.03)]'
+                        )}
+                      >
+                        <td className="px-3 py-2.5">
+                          <button
+                            type="button"
+                            className="flex items-center gap-2 text-left font-medium hover:underline"
+                            onClick={() => onSelectSupplier(fournisseur.id)}
+                          >
+                            <Building2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            <span className="truncate">{fournisseur.nom}</span>
+                          </button>
+                          {isDisabled && (
+                            <div className="mt-1">
+                              <StatusBadge status="litige" label="Désactivé" />
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5 text-muted-foreground">
+                          {fournisseur.contact || '—'}
+                        </td>
+                        <td className="px-3 py-2.5 text-right tabular-nums">
+                          {formatDa(totalMarchandise)}
+                        </td>
+                        <td className="px-3 py-2.5 text-right">
+                          <MoneyCell value={totalDue} tone="danger" />
+                        </td>
+                        <td className="px-3 py-2.5 text-right">
+                          <MoneyCell value={totalPaye} tone="success" />
+                        </td>
+                        <td className="px-3 py-2.5 text-right">
+                          <div className="flex flex-col items-end gap-0.5">
+                            <MoneyCell
+                              value={Math.abs(reste)}
+                              tone={hasDebt ? 'warning' : isCredit ? 'info' : undefined}
+                            />
+                            {isCredit && (
+                              <span className="text-[10px] font-medium text-[hsl(var(--info))]">
+                                Crédit
+                              </span>
+                            )}
+                            {hasDebt && (
+                              <span className="text-[10px] font-medium text-[hsl(var(--warning))]">
+                                À payer
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-3 py-2.5 text-right">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreHorizontal className="h-4 w-4" />
+                                <span className="sr-only">Actions</span>
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-44">
+                              <DropdownMenuItem
+                                onClick={() => onSelectSupplier(fournisseur.id)}
+                              >
+                                <Eye className="mr-2 h-4 w-4" />
+                                Ouvrir le détail
+                              </DropdownMenuItem>
+                              {isAdmin() && (
+                                <DropdownMenuItem
+                                  className="text-destructive focus:text-destructive"
+                                  onClick={() => handleDeleteFournisseur(fournisseur.id)}
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Supprimer
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile cards */}
+            <div className="space-y-2 md:hidden">
+              {displayedFournisseurs.map((fournisseur) => {
+                const totalDue = calculateTotalDue(fournisseur.id);
+                const totalPaye = calculateTotalPaye(fournisseur.id);
+                const reste = totalDue - totalPaye;
+                const entrees = getFournisseurEntrees(fournisseur.id);
+                const paiements = getFilteredPaiements(fournisseur.id);
+                const totalMarchandise = entrees.reduce(
+                  (sum, e) => sum + calculateEntreeValue(e),
+                  0
+                );
+                const isDisabled = Boolean(fournisseur.deleted_at);
+                const isCredit = reste < 0;
+                const hasDebt = reste > 0;
+
+                return (
+                  <button
+                    type="button"
+                    key={fournisseur.id}
+                    onClick={() => onSelectSupplier(fournisseur.id)}
+                    className={cn(
+                      'w-full rounded-lg border border-border/80 bg-card px-3 py-3 text-left transition-colors hover:bg-muted/20',
+                      isDisabled && 'opacity-60',
+                      hasDebt && 'border-[hsl(var(--warning)/0.35)]'
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 space-y-1">
+                        <p className="flex items-center gap-1.5 font-medium">
+                          <Building2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                          <span className="truncate">{fournisseur.nom}</span>
+                          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        </p>
+                        {fournisseur.contact ? (
+                          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <Phone className="h-3 w-3" />
+                            {fournisseur.contact}
+                          </p>
+                        ) : null}
+                        <p className="text-xs text-muted-foreground">
+                          {entrees.length} entrée{entrees.length !== 1 ? 's' : ''}
+                          {' · '}
+                          {paiements.length} paiement{paiements.length !== 1 ? 's' : ''}
+                        </p>
+                        {isDisabled && <StatusBadge status="litige" label="Désactivé" />}
                       </div>
-                      <div>
-                        <h3 className="text-2xl font-bold mb-1">{fournisseur.nom}</h3>
-                        <p className="text-sm text-muted-foreground">
-                          Cliquez pour voir les détails
+                      <div className="shrink-0 space-y-0.5 text-right">
+                        <p
+                          className={cn(
+                            'text-sm font-semibold tabular-nums',
+                            hasDebt && 'text-[hsl(var(--warning))]',
+                            isCredit && 'text-[hsl(var(--info))]'
+                          )}
+                        >
+                          {formatDa(Math.abs(reste))}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {hasDebt ? 'À payer' : isCredit ? 'Crédit' : 'Soldé'}
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      {isAdmin() && (
-                        <Button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteFournisseur(fournisseur.id);
-                          }}
-                          variant="ghost"
-                          size="icon"
-                        >
-                          <Trash2 className="h-5 w-5 text-destructive" />
-                        </Button>
-                      )}
-                      <ChevronRight className="h-8 w-8 text-muted-foreground" />
+                    <div className="mt-2 grid grid-cols-3 gap-2 border-t border-border/50 pt-2 text-center">
+                      <div>
+                        <p className="text-[10px] text-muted-foreground">Marchandise</p>
+                        <p className="text-xs font-medium tabular-nums">
+                          {formatDa(totalMarchandise)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-muted-foreground">Dû</p>
+                        <p className="text-xs font-medium tabular-nums text-danger">
+                          {formatDa(totalDue)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-muted-foreground">Payé</p>
+                        <p className="text-xs font-medium tabular-nums text-success">
+                          {formatDa(totalPaye)}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                  
-                  <div className="mt-4 pt-4 border-t grid grid-cols-4 gap-4">
-                    <div className="text-center">
-                      <Package className="h-5 w-5 mx-auto mb-1 text-primary/50" />
-                      <p className="text-xl font-bold">{entrees.length}</p>
-                      <p className="text-xs text-muted-foreground">Entrées</p>
-                    </div>
-                    <div className="text-center">
-                      <CreditCard className="h-5 w-5 mx-auto mb-1 text-green-500/50" />
-                      <p className="text-xl font-bold">{paiements.length}</p>
-                      <p className="text-xs text-muted-foreground">Paiements</p>
-                    </div>
-                    <div className="text-center">
-                      <DollarSign className="h-5 w-5 mx-auto mb-1 text-blue-500/50" />
-                      <p className="text-xl font-bold">{totalMarchandise.toFixed(0)}</p>
-                      <p className="text-xs text-muted-foreground">DA Total</p>
-                    </div>
-                    <div className="text-center">
-                      {reste > 0 ? (
-                        <TrendingDown className="h-5 w-5 mx-auto mb-1 text-orange-500/50" />
-                      ) : (
-                        <TrendingUp className="h-5 w-5 mx-auto mb-1 text-blue-500/50" />
-                      )}
-                      <p className={`text-xl font-bold ${reste > 0 ? 'text-orange-700' : 'text-blue-700'}`}>
-                        {Math.abs(reste).toFixed(0)}
-                      </p>
-                      <p className="text-xs text-muted-foreground">{reste > 0 ? 'À payer' : 'Crédit'}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })
+                  </button>
+                );
+              })}
+            </div>
+          </>
         )}
-      </div>
-    </div>
+      </section>
+    </PageSurface>
   );
 };
 
