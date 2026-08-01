@@ -1,3 +1,7 @@
+/**
+ * Entrées validées — présentation uniquement.
+ * fetchEntreesValidees, CRUD lignes, calcValeurTotale, permissions inchangés.
+ */
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useData } from '../context/UnifiedDataContext';
 import { useAuth } from '../context/AuthContext';
@@ -5,9 +9,17 @@ import { USE_SUPABASE } from '../config';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { cn } from '@/lib/utils';
+import { PageHeader } from '@/components/PageHeader';
+import { PageSurface } from '@/components/PageSurface';
+import { StatusBadge } from '@/components/StatusBadge';
 import {
   ArrowLeft,
   Building2,
@@ -16,7 +28,10 @@ import {
   Plus,
   Trash2,
   Save,
-  ListChecks,
+  MoreHorizontal,
+  Search,
+  AlertTriangle,
+  Eye,
 } from 'lucide-react';
 
 const formatDa = (value) =>
@@ -29,18 +44,31 @@ const formatDate = (dateStr) => {
   return d.toLocaleDateString('fr-FR');
 };
 
+const formatNum = (n) => Number(n || 0).toLocaleString('fr-FR');
+
 const calcValeurTotale = (lignes) =>
   (lignes || []).reduce(
     (sum, l) => sum + (parseInt(l.quantite_recue, 10) || 0) * (parseFloat(l.prix_achat) || 0),
     0
   );
 
-const getStatutBadge = (statut) => {
-  if (statut === 'litige') {
-    return <Badge variant="destructive">Litige</Badge>;
-  }
-  return <Badge className="bg-green-600 hover:bg-green-600">Validé</Badge>;
-};
+function MetaStat({ label, value, tone }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-[11px] text-muted-foreground">{label}</p>
+      <p
+        className={cn(
+          'truncate text-sm font-semibold tabular-nums',
+          tone === 'danger' && 'text-danger',
+          tone === 'success' && 'text-success',
+          tone === 'warning' && 'text-[hsl(var(--warning))]'
+        )}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
 
 const ValidatedEntries = () => {
   const dataCtx = useData();
@@ -55,6 +83,9 @@ const ValidatedEntries = () => {
   const [editLignes, setEditLignes] = useState([]);
   const [deletedLigneIds, setDeletedLigneIds] = useState([]);
   const [newLigne, setNewLigne] = useState({ produitId: '', quantite: '', quantite_recue: '' });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterStatut, setFilterStatut] = useState('');
+  const [filterPaye, setFilterPaye] = useState('');
 
   const produits = useMemo(() => dataCtx?.produits ?? [], [dataCtx?.produits]);
 
@@ -119,6 +150,11 @@ const ValidatedEntries = () => {
       setDeletedLigneIds((prev) => [...prev, ligne.ligne_id]);
     }
     setEditLignes((prev) => prev.filter((l) => l._key !== ligne._key));
+  };
+
+  const requestRemoveLigne = (ligne) => {
+    if (!window.confirm('Êtes-vous sûr de vouloir retirer cette ligne ?')) return;
+    handleRemoveLigne(ligne);
   };
 
   const handleAddLigne = () => {
@@ -209,100 +245,320 @@ const ValidatedEntries = () => {
     }
   };
 
+  // Filtre présentation uniquement (données déjà chargées)
+  const filteredEntrees = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return (entrees || []).filter((entree) => {
+      if (filterStatut && entree.statut !== filterStatut) return false;
+      if (filterPaye === 'paye' && !entree.paye) return false;
+      if (filterPaye === 'non_paye' && entree.paye) return false;
+      if (!q) return true;
+      const nom = String(entree.fournisseur_nom || '').toLowerCase();
+      const id = String(entree.entree_id || '').toLowerCase();
+      return nom.includes(q) || id.includes(q);
+    });
+  }, [entrees, searchQuery, filterStatut, filterPaye]);
+
+  // KPI dérivés des données déjà présentes + calcValeurTotale existant
+  const listStats = useMemo(() => {
+    const list = entrees || [];
+    let litiges = 0;
+    let payees = 0;
+    let valeur = 0;
+    list.forEach((e) => {
+      if (e.statut === 'litige') litiges += 1;
+      if (e.paye) payees += 1;
+      valeur += calcValeurTotale(e.lignes);
+    });
+    return {
+      total: list.length,
+      litiges,
+      valides: list.length - litiges,
+      payees,
+      nonPayees: list.length - payees,
+      valeur,
+    };
+  }, [entrees]);
+
+  const hasActiveFilters = Boolean(searchQuery.trim() || filterStatut || filterPaye);
+
+  const renderStatutBadge = (statut) => {
+    if (statut === 'litige') return <StatusBadge status="litige" />;
+    return <StatusBadge status="valide" label="Validé" />;
+  };
+
+  const renderPayeBadge = (paye) =>
+    paye ? (
+      <StatusBadge status="paye" />
+    ) : (
+      <StatusBadge status="litige" label="Non payé" />
+    );
+
+  const lineHasEcart = (ligne) =>
+    Number(ligne.quantite || 0) !== Number(ligne.quantite_recue || 0);
+
   if (!USE_SUPABASE) {
     return (
-      <Card className="max-w-lg mx-auto">
-        <CardContent className="pt-6 text-center text-muted-foreground">
-          Cette section nécessite Supabase.
-        </CardContent>
-      </Card>
+      <PageSurface>
+        <PageHeader
+          eyebrow="Inventaire"
+          title="Entrées validées"
+          description="Cette section nécessite Supabase."
+        />
+        <div className="rounded-lg border border-dashed border-border/80 px-4 py-10 text-center text-sm text-muted-foreground">
+          Mode localStorage : les entrées validées ne sont pas disponibles.
+        </div>
+      </PageSurface>
     );
   }
 
   if (!isAdmin()) {
     return (
-      <Card className="max-w-lg mx-auto">
-        <CardHeader>
-          <CardTitle>Accès restreint</CardTitle>
-          <CardDescription>Réservé aux administrateurs.</CardDescription>
-        </CardHeader>
-      </Card>
+      <PageSurface>
+        <PageHeader
+          eyebrow="Inventaire"
+          title="Entrées validées"
+          description="Accès réservé aux administrateurs."
+        />
+        <div className="rounded-lg border border-dashed border-border/80 px-4 py-10 text-center text-sm text-muted-foreground">
+          Accès restreint — réservé aux administrateurs.
+        </div>
+      </PageSurface>
     );
   }
 
   if (screen === 'detail' && selectedEntree) {
-    return (
-      <div className="space-y-6">
-        <Button type="button" variant="outline" onClick={backToList}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Retour à la liste
-        </Button>
+    const detailLitige = selectedEntree.statut === 'litige';
+    const ecartCount = editLignes.filter(lineHasEcart).length;
 
-        <Card>
-          <CardHeader>
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  <Building2 className="h-5 w-5" />
-                  {selectedEntree.fournisseur_nom || 'Fournisseur'}
-                </CardTitle>
-                <CardDescription className="flex flex-wrap items-center gap-2 mt-2">
-                  <Calendar className="h-4 w-4" />
-                  {formatDate(selectedEntree.date)}
-                  {getStatutBadge(selectedEntree.statut)}
-                  <Badge variant={selectedEntree.paye ? 'default' : 'secondary'}>
-                    {selectedEntree.paye ? 'Payé' : 'Non payé'}
-                  </Badge>
-                </CardDescription>
-              </div>
-              <div className="text-right">
-                <p className="text-sm text-muted-foreground">Valeur (qté reçue)</p>
-                <p className="text-2xl font-bold text-primary">{formatDa(liveValeur)}</p>
-              </div>
+    return (
+      <PageSurface className="space-y-6">
+        <div className="flex flex-wrap items-center gap-3">
+          <Button type="button" variant="outline" size="sm" onClick={backToList}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Retour à la liste
+          </Button>
+          {saving ? (
+            <span className="text-xs text-muted-foreground">Enregistrement en cours…</span>
+          ) : null}
+        </div>
+
+        <PageHeader
+          eyebrow="Détail"
+          title={selectedEntree.fournisseur_nom || 'Fournisseur'}
+          description={`Entrée du ${formatDate(selectedEntree.date)} · correction des quantités envoyées et reçues.`}
+          actions={
+            <div className="flex flex-wrap items-center gap-2">
+              {renderStatutBadge(selectedEntree.statut)}
+              {renderPayeBadge(selectedEntree.paye)}
             </div>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold">Lignes de l&apos;entrée</h3>
-              {editLignes.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-4 text-center">
-                  Aucune ligne — ajoutez un produit ci-dessous.
-                </p>
+          }
+        />
+
+        {(detailLitige || ecartCount > 0) && (
+          <div
+            role="status"
+            className={cn(
+              'flex gap-3 rounded-lg border px-3 py-3 text-sm',
+              detailLitige
+                ? 'border-[hsl(var(--danger)/0.45)] bg-[hsl(var(--danger)/0.1)]'
+                : 'border-[hsl(var(--warning)/0.45)] bg-[hsl(var(--warning)/0.1)]'
+            )}
+          >
+            <AlertTriangle
+              className={cn(
+                'mt-0.5 h-4 w-4 shrink-0',
+                detailLitige ? 'text-danger' : 'text-[hsl(var(--warning))]'
+              )}
+            />
+            <div>
+              {detailLitige ? (
+                <p className="font-medium">Entrée en litige</p>
               ) : (
-                editLignes.map((ligne) => (
-                  <Card key={ligne._key} className="bg-muted/30">
-                    <CardContent className="p-4 space-y-3">
-                      <div className="flex flex-wrap justify-between gap-2 items-start">
-                        <div>
+                <p className="font-medium">Écarts de quantité détectés</p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                {ecartCount > 0
+                  ? `${ecartCount} ligne(s) avec quantité reçue différente de la quantité envoyée.`
+                  : 'Contrôlez les quantités reçues avant enregistrement.'}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Infos entrée */}
+        <section className="grid grid-cols-2 gap-3 rounded-lg border border-border/80 bg-card px-4 py-3 sm:grid-cols-4">
+          <MetaStat
+            label="Fournisseur"
+            value={selectedEntree.fournisseur_nom || '—'}
+          />
+          <MetaStat label="Date" value={formatDate(selectedEntree.date)} />
+          <MetaStat label="Lignes" value={formatNum(editLignes.length)} />
+          <MetaStat label="Valeur (qté reçue)" value={formatDa(liveValeur)} />
+        </section>
+
+        {/* Lignes */}
+        <section className="space-y-3">
+          <div>
+            <h2 className="font-display text-base font-semibold tracking-tight">
+              Lignes de produits
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              Quantités envoyées / reçues — les écarts sont surlignés.
+            </p>
+          </div>
+
+          {editLignes.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-border/80 px-4 py-8 text-center text-sm text-muted-foreground">
+              Aucune ligne — ajoutez un produit ci-dessous.
+            </div>
+          ) : (
+            <>
+              {/* Desktop table */}
+              <div className="hidden overflow-x-auto rounded-lg border border-border/80 md:block">
+                <table className="w-full min-w-[640px] text-left text-sm">
+                  <thead className="border-b border-border/80 bg-muted/40 text-xs text-muted-foreground">
+                    <tr>
+                      <th className="px-3 py-2.5 font-medium">Produit</th>
+                      <th className="px-3 py-2.5 text-right font-medium">Prix</th>
+                      <th className="px-3 py-2.5 text-right font-medium">Envoyée</th>
+                      <th className="px-3 py-2.5 text-right font-medium">Reçue</th>
+                      <th className="px-3 py-2.5 text-right font-medium">Écart</th>
+                      <th className="px-3 py-2.5 text-right font-medium">Sous-total</th>
+                      <th className="w-10 px-2 py-2.5" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {editLignes.map((ligne) => {
+                      const ecart =
+                        Number(ligne.quantite_recue || 0) - Number(ligne.quantite || 0);
+                      const hasEcart = lineHasEcart(ligne);
+                      const sousTotal =
+                        (ligne.quantite_recue || 0) * (ligne.prix_achat || 0);
+                      return (
+                        <tr
+                          key={ligne._key}
+                          className={cn(
+                            'border-b border-border/40 last:border-0',
+                            hasEcart && 'bg-[hsl(var(--warning)/0.08)]'
+                          )}
+                        >
+                          <td className="px-3 py-2.5">
+                            <p className="font-medium">
+                              {ligne.reference ? `${ligne.reference} · ` : ''}
+                              {ligne.produit_nom}
+                            </p>
+                            {ligne._isNew ? (
+                              <p className="text-[11px] text-muted-foreground">Nouvelle ligne</p>
+                            ) : null}
+                          </td>
+                          <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">
+                            {formatDa(ligne.prix_achat)}
+                          </td>
+                          <td className="px-3 py-2.5">
+                            <Input
+                              type="number"
+                              min="0"
+                              value={ligne.quantite}
+                              onChange={(e) =>
+                                handleLigneChange(ligne._key, 'quantite', e.target.value)
+                              }
+                              className="ml-auto h-8 w-24 text-right"
+                            />
+                          </td>
+                          <td className="px-3 py-2.5">
+                            <Input
+                              type="number"
+                              min="0"
+                              value={ligne.quantite_recue}
+                              onChange={(e) =>
+                                handleLigneChange(ligne._key, 'quantite_recue', e.target.value)
+                              }
+                              className="ml-auto h-8 w-24 text-right"
+                            />
+                          </td>
+                          <td
+                            className={cn(
+                              'px-3 py-2.5 text-right tabular-nums font-medium',
+                              hasEcart && 'text-[hsl(var(--warning))]'
+                            )}
+                          >
+                            {hasEcart ? (ecart > 0 ? `+${ecart}` : ecart) : '—'}
+                          </td>
+                          <td className="px-3 py-2.5 text-right font-semibold tabular-nums">
+                            {formatDa(sousTotal)}
+                          </td>
+                          <td className="px-2 py-2.5 text-right">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive"
+                              onClick={() => requestRemoveLigne(ligne)}
+                              aria-label="Retirer la ligne"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile cards */}
+              <div className="space-y-2 md:hidden">
+                {editLignes.map((ligne) => {
+                  const ecart =
+                    Number(ligne.quantite_recue || 0) - Number(ligne.quantite || 0);
+                  const hasEcart = lineHasEcart(ligne);
+                  const sousTotal =
+                    (ligne.quantite_recue || 0) * (ligne.prix_achat || 0);
+                  return (
+                    <div
+                      key={ligne._key}
+                      className={cn(
+                        'rounded-lg border border-border/80 bg-card px-3 py-3 space-y-3',
+                        hasEcart && 'border-[hsl(var(--warning)/0.5)]'
+                      )}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
                           <p className="font-medium">
                             {ligne.reference ? `${ligne.reference} · ` : ''}
                             {ligne.produit_nom}
                           </p>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Prix achat : {formatDa(ligne.prix_achat)}
+                          <p className="text-xs text-muted-foreground">
+                            Prix : {formatDa(ligne.prix_achat)}
+                            {hasEcart ? ` · Écart ${ecart > 0 ? `+${ecart}` : ecart}` : ''}
                           </p>
                         </div>
                         <Button
                           type="button"
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleRemoveLigne(ligne)}
+                          className="h-8 w-8 shrink-0 text-destructive"
+                          onClick={() => requestRemoveLigne(ligne)}
+                          aria-label="Retirer la ligne"
                         >
-                          <Trash2 className="h-4 w-4 text-destructive" />
+                          <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                          <label className="text-xs font-medium mb-1 block">Quantité envoyée</label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-xs text-muted-foreground">Qté envoyée</label>
                           <Input
                             type="number"
                             min="0"
                             value={ligne.quantite}
-                            onChange={(e) => handleLigneChange(ligne._key, 'quantite', e.target.value)}
+                            onChange={(e) =>
+                              handleLigneChange(ligne._key, 'quantite', e.target.value)
+                            }
                           />
                         </div>
-                        <div>
-                          <label className="text-xs font-medium mb-1 block">Quantité reçue</label>
+                        <div className="space-y-1">
+                          <label className="text-xs text-muted-foreground">Qté reçue</label>
                           <Input
                             type="number"
                             min="0"
@@ -313,148 +569,326 @@ const ValidatedEntries = () => {
                           />
                         </div>
                       </div>
-                      <p className="text-sm text-muted-foreground">
-                        Sous-total reçu :{' '}
-                        <span className="font-semibold text-foreground">
-                          {formatDa((ligne.quantite_recue || 0) * (ligne.prix_achat || 0))}
-                        </span>
+                      <p className="text-sm">
+                        Sous-total :{' '}
+                        <span className="font-semibold tabular-nums">{formatDa(sousTotal)}</span>
                       </p>
-                    </CardContent>
-                  </Card>
-                ))
-              )}
-            </div>
-
-            <Separator />
-
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold flex items-center gap-2">
-                <Plus className="h-4 w-4" />
-                Ajouter une ligne
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                <div className="md:col-span-2">
-                  <label className="text-xs font-medium mb-1 block">Produit</label>
-                  <select
-                    value={newLigne.produitId}
-                    onChange={(e) => setNewLigne({ ...newLigne, produitId: e.target.value })}
-                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  >
-                    <option value="">Sélectionner…</option>
-                    {produits.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.reference ? `${p.reference} · ` : ''}{p.nom}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-medium mb-1 block">Qté envoyée</label>
-                  <Input
-                    type="number"
-                    min="1"
-                    value={newLigne.quantite}
-                    onChange={(e) => setNewLigne({ ...newLigne, quantite: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-medium mb-1 block">Qté reçue</label>
-                  <Input
-                    type="number"
-                    min="0"
-                    value={newLigne.quantite_recue}
-                    onChange={(e) => setNewLigne({ ...newLigne, quantite_recue: e.target.value })}
-                  />
-                </div>
+                    </div>
+                  );
+                })}
               </div>
-              <Button type="button" variant="outline" onClick={handleAddLigne}>
-                <Plus className="h-4 w-4 mr-2" />
-                Ajouter la ligne
-              </Button>
-            </div>
+            </>
+          )}
+        </section>
 
-            <Separator />
+        <Separator />
 
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div>
-                <p className="text-sm text-muted-foreground">Total entrée (quantité reçue × prix)</p>
-                <p className="text-xl font-bold">{formatDa(liveValeur)}</p>
-              </div>
-              <Button type="button" onClick={handleSave} disabled={saving}>
-                <Save className="h-4 w-4 mr-2" />
-                {saving ? 'Enregistrement…' : 'Enregistrer'}
-              </Button>
+        {/* Ajout ligne */}
+        <section className="space-y-3">
+          <h2 className="font-display text-base font-semibold tracking-tight">
+            Ajouter une ligne
+          </h2>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-4 md:items-end">
+            <div className="space-y-1.5 md:col-span-2">
+              <label className="text-xs font-medium text-muted-foreground" htmlFor="ve-produit">
+                Produit
+              </label>
+              <select
+                id="ve-produit"
+                value={newLigne.produitId}
+                onChange={(e) => setNewLigne({ ...newLigne, produitId: e.target.value })}
+                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              >
+                <option value="">Sélectionner…</option>
+                {produits.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.reference ? `${p.reference} · ` : ''}
+                    {p.nom}
+                  </option>
+                ))}
+              </select>
             </div>
-          </CardContent>
-        </Card>
-      </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground" htmlFor="ve-qte">
+                Qté envoyée
+              </label>
+              <Input
+                id="ve-qte"
+                type="number"
+                min="1"
+                value={newLigne.quantite}
+                onChange={(e) => setNewLigne({ ...newLigne, quantite: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground" htmlFor="ve-qte-r">
+                Qté reçue
+              </label>
+              <Input
+                id="ve-qte-r"
+                type="number"
+                min="0"
+                value={newLigne.quantite_recue}
+                onChange={(e) => setNewLigne({ ...newLigne, quantite_recue: e.target.value })}
+              />
+            </div>
+          </div>
+          <Button type="button" variant="outline" size="sm" onClick={handleAddLigne}>
+            <Plus className="mr-2 h-4 w-4" />
+            Ajouter la ligne
+          </Button>
+        </section>
+
+        <Separator />
+
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-border/80 bg-muted/30 px-4 py-3">
+          <div>
+            <p className="text-xs text-muted-foreground">
+              Total entrée (quantité reçue × prix)
+            </p>
+            <p className="text-xl font-semibold tabular-nums">{formatDa(liveValeur)}</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" onClick={backToList} disabled={saving}>
+              Annuler
+            </Button>
+            <Button type="button" onClick={handleSave} disabled={saving}>
+              <Save className="mr-2 h-4 w-4" />
+              {saving ? 'Enregistrement…' : 'Enregistrer'}
+            </Button>
+          </div>
+        </div>
+      </PageSurface>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-foreground flex items-center gap-2">
-          <ListChecks className="h-8 w-8" />
-          Entrées validées
-        </h1>
-        <p className="text-muted-foreground mt-1">
-          Consultez et modifiez les entrées validées ou en litige
-        </p>
+    <PageSurface className="space-y-6">
+      <PageHeader
+        eyebrow="Inventaire"
+        title="Entrées validées"
+        description="Consultez et corrigez les entrées validées ou en litige — quantités envoyées et reçues."
+      />
+
+      {/* KPI dérivés des données chargées */}
+      <div className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg border border-border/80 bg-card px-4 py-3 sm:grid-cols-3 lg:grid-cols-5">
+        <MetaStat label="Entrées" value={formatNum(listStats.total)} />
+        <MetaStat label="Validées" value={formatNum(listStats.valides)} tone="success" />
+        <MetaStat label="Litiges" value={formatNum(listStats.litiges)} tone="danger" />
+        <MetaStat label="Non payées" value={formatNum(listStats.nonPayees)} tone="warning" />
+        <MetaStat label="Valeur (reçue)" value={formatDa(listStats.valeur)} />
       </div>
 
-      {loading ? (
-        <Card>
-          <CardContent className="pt-6 text-center text-muted-foreground">
-            Chargement…
-          </CardContent>
-        </Card>
-      ) : entrees.length === 0 ? (
-        <Card>
-          <CardContent className="pt-6 text-center text-muted-foreground py-12">
-            <CheckCircle2 className="h-12 w-12 mx-auto mb-3 opacity-30" />
-            <p>Aucune entrée validée</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-3">
-          {entrees.map((entree) => {
-            const valeur = calcValeurTotale(entree.lignes);
-            return (
-              <Card
-                key={entree.entree_id}
-                className="cursor-pointer hover:border-primary/50 transition-colors"
-                onClick={() => openDetail(entree)}
-              >
-                <CardContent className="p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="space-y-1">
-                      <p className="font-semibold flex items-center gap-2">
-                        <Building2 className="h-4 w-4 text-muted-foreground" />
-                        {entree.fournisseur_nom || 'Fournisseur'}
-                      </p>
-                      <p className="text-sm text-muted-foreground flex items-center gap-2">
-                        <Calendar className="h-3 w-3" />
-                        {formatDate(entree.date)}
-                        <span>·</span>
-                        {entree.lignes?.length || 0} ligne{(entree.lignes?.length || 0) !== 1 ? 's' : ''}
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      {getStatutBadge(entree.statut)}
-                      <Badge variant={entree.paye ? 'default' : 'outline'}>
-                        {entree.paye ? 'Payé' : 'Non payé'}
-                      </Badge>
-                      <span className="font-bold text-primary ml-2">{formatDa(valeur)}</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+      {/* Recherche + filtres */}
+      <section className="flex flex-col gap-3 rounded-lg border border-border/80 bg-card px-3 py-3 sm:flex-row sm:flex-wrap sm:items-end">
+        <div className="relative min-w-[180px] flex-1 space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground" htmlFor="ve-search">
+            Recherche
+          </label>
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              id="ve-search"
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Fournisseur ou référence…"
+              className="h-9 pl-8"
+            />
+          </div>
         </div>
-      )}
-    </div>
+        <div className="min-w-[140px] space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground" htmlFor="ve-statut">
+            Statut
+          </label>
+          <select
+            id="ve-statut"
+            value={filterStatut}
+            onChange={(e) => setFilterStatut(e.target.value)}
+            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            <option value="">Tous</option>
+            <option value="valide">Validé</option>
+            <option value="litige">Litige</option>
+          </select>
+        </div>
+        <div className="min-w-[140px] space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground" htmlFor="ve-paye">
+            Paiement
+          </label>
+          <select
+            id="ve-paye"
+            value={filterPaye}
+            onChange={(e) => setFilterPaye(e.target.value)}
+            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            <option value="">Tous</option>
+            <option value="paye">Payé</option>
+            <option value="non_paye">Non payé</option>
+          </select>
+        </div>
+        {hasActiveFilters && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-9"
+            onClick={() => {
+              setSearchQuery('');
+              setFilterStatut('');
+              setFilterPaye('');
+            }}
+          >
+            Réinitialiser
+          </Button>
+        )}
+      </section>
+
+      {/* Liste */}
+      <section className="space-y-3">
+        <div>
+          <h2 className="font-display text-base font-semibold tracking-tight">
+            Liste des entrées
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            {loading
+              ? 'Chargement…'
+              : `${formatNum(filteredEntrees.length)} entrée(s)${
+                  hasActiveFilters ? ' (filtrées)' : ''
+                }`}
+          </p>
+        </div>
+
+        {loading ? (
+          <div className="rounded-lg border border-dashed border-border/80 px-4 py-12 text-center text-sm text-muted-foreground">
+            Chargement des entrées validées…
+          </div>
+        ) : filteredEntrees.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-border/80 px-4 py-12 text-center">
+            <CheckCircle2 className="mx-auto mb-3 h-8 w-8 text-muted-foreground/40" />
+            <p className="text-sm font-medium">
+              {entrees.length === 0 ? 'Aucune entrée validée' : 'Aucun résultat'}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {hasActiveFilters
+                ? 'Modifiez ou réinitialisez les filtres.'
+                : 'Les entrées validées ou en litige apparaîtront ici.'}
+            </p>
+          </div>
+        ) : (
+          <>
+            {/* Desktop table */}
+            <div className="hidden overflow-x-auto rounded-lg border border-border/80 md:block">
+              <table className="w-full min-w-[700px] text-left text-sm">
+                <thead className="border-b border-border/80 bg-muted/40 text-xs text-muted-foreground">
+                  <tr>
+                    <th className="px-3 py-2.5 font-medium">Date</th>
+                    <th className="px-3 py-2.5 font-medium">Fournisseur</th>
+                    <th className="px-3 py-2.5 font-medium">Lignes</th>
+                    <th className="px-3 py-2.5 font-medium">Statut</th>
+                    <th className="px-3 py-2.5 font-medium">Paiement</th>
+                    <th className="px-3 py-2.5 text-right font-medium">Valeur</th>
+                    <th className="w-12 px-3 py-2.5 text-right font-medium">
+                      <span className="sr-only">Actions</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredEntrees.map((entree) => {
+                    const valeur = calcValeurTotale(entree.lignes);
+                    const isLitige = entree.statut === 'litige';
+                    return (
+                      <tr
+                        key={entree.entree_id}
+                        className={cn(
+                          'border-b border-border/40 last:border-0 hover:bg-muted/20',
+                          isLitige && 'bg-[hsl(var(--danger)/0.04)]'
+                        )}
+                      >
+                        <td className="px-3 py-2.5 tabular-nums">
+                          {formatDate(entree.date)}
+                        </td>
+                        <td className="px-3 py-2.5 font-medium">
+                          {entree.fournisseur_nom || 'Fournisseur'}
+                        </td>
+                        <td className="px-3 py-2.5 tabular-nums text-muted-foreground">
+                          {entree.lignes?.length || 0}
+                        </td>
+                        <td className="px-3 py-2.5">{renderStatutBadge(entree.statut)}</td>
+                        <td className="px-3 py-2.5">{renderPayeBadge(entree.paye)}</td>
+                        <td className="px-3 py-2.5 text-right font-semibold tabular-nums">
+                          {formatDa(valeur)}
+                        </td>
+                        <td className="px-3 py-2.5 text-right">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreHorizontal className="h-4 w-4" />
+                                <span className="sr-only">Actions</span>
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-40">
+                              <DropdownMenuItem onClick={() => openDetail(entree)}>
+                                <Eye className="mr-2 h-4 w-4" />
+                                Ouvrir
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile cards */}
+            <div className="space-y-2 md:hidden">
+              {filteredEntrees.map((entree) => {
+                const valeur = calcValeurTotale(entree.lignes);
+                const isLitige = entree.statut === 'litige';
+                return (
+                  <button
+                    type="button"
+                    key={entree.entree_id}
+                    onClick={() => openDetail(entree)}
+                    className={cn(
+                      'w-full rounded-lg border border-border/80 bg-card px-3 py-3 text-left transition-colors hover:bg-muted/20',
+                      isLitige && 'border-[hsl(var(--danger)/0.4)]'
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 space-y-1">
+                        <p className="flex items-center gap-1.5 font-medium">
+                          <Building2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                          <span className="truncate">
+                            {entree.fournisseur_nom || 'Fournisseur'}
+                          </span>
+                        </p>
+                        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <Calendar className="h-3 w-3" />
+                          {formatDate(entree.date)}
+                          <span>·</span>
+                          {entree.lignes?.length || 0} ligne
+                          {(entree.lignes?.length || 0) !== 1 ? 's' : ''}
+                        </p>
+                        <div className="flex flex-wrap gap-1.5 pt-0.5">
+                          {renderStatutBadge(entree.statut)}
+                          {renderPayeBadge(entree.paye)}
+                        </div>
+                      </div>
+                      <p className="shrink-0 text-sm font-semibold tabular-nums">
+                        {formatDa(valeur)}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </section>
+    </PageSurface>
   );
 };
 
