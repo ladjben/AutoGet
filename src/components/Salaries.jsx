@@ -120,31 +120,28 @@ const SalariesList = ({ onSelectSalary }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Vérifier et réinitialiser mensuellement le 1er du mois
+  // Vérifier et clôturer automatiquement le mois précédent le 1er (snapshot, sans supprimer)
   useEffect(() => {
     const checkMonthlyReset = async () => {
-      if (!USE_SUPABASE || !dataCtx?.resetMonthlySalaries) return;
-      
+      if (!USE_SUPABASE || !dataCtx?.resetMonthlySalaries || !dataCtx?.getPreviousMonth) return;
+
       const today = new Date();
       const currentDay = today.getDate();
-      const currentHour = today.getHours();
-      
-      // Vérifier si c'est le 1er du mois et si on n'a pas déjà fait la réinitialisation aujourd'hui
-      if (currentDay === 1 && currentHour >= 0) {
+
+      if (currentDay === 1) {
         const lastReset = localStorage.getItem('last_monthly_reset');
         const todayStr = today.toISOString().split('T')[0];
-        
-        // Si on n'a pas déjà fait la réinitialisation aujourd'hui
+
         if (lastReset !== todayStr) {
           try {
-            const result = await dataCtx.resetMonthlySalaries();
+            const prevMonth = dataCtx.getPreviousMonth();
+            const result = await dataCtx.resetMonthlySalaries(prevMonth);
             if (result?.success) {
               localStorage.setItem('last_monthly_reset', todayStr);
               toast({
-                title: "Réinitialisation mensuelle",
-                description: "Les acomptes ont été réinitialisés pour le nouveau mois",
+                title: 'Clôture mensuelle',
+                description: `Mois ${result.mois_annee} archivé. Les acomptes restent en base pour impression.`,
               });
-              // Rafraîchir les données
               if (dataCtx?.fetchAcomptes) {
                 dataCtx.fetchAcomptes();
               }
@@ -157,8 +154,7 @@ const SalariesList = ({ onSelectSalary }) => {
     };
 
     checkMonthlyReset();
-    // Vérifier toutes les heures pour s'assurer de capturer le 1er du mois
-    const interval = setInterval(checkMonthlyReset, 60 * 60 * 1000); // Toutes les heures
+    const interval = setInterval(checkMonthlyReset, 60 * 60 * 1000);
     return () => clearInterval(interval);
   }, [dataCtx, toast]);
 
@@ -173,14 +169,21 @@ const SalariesList = ({ onSelectSalary }) => {
     return `${year}-${month}`;
   }, [dataCtx]);
 
-  // Helper functions - Récupérer TOUS les acomptes d'un salarié
-  const getSalaryAcomptes = useCallback((salaryId) => {
+  const getAcompteMoisKey = useCallback((a) => {
+    return a.mois_annee || (a.date ? String(a.date).substring(0, 7) : '');
+  }, []);
+
+  // Acomptes du mois en cours (solde / clôture) — l'historique reste en base
+  const getSalaryAcomptes = useCallback((salaryId, { allMonths = false } = {}) => {
+    const currentMonth = getCurrentMonth();
     let filteredAcomptes = (state.acomptes || []).filter(a => {
       const sId = a.salary_id ?? a.salaryId;
-      return sId === salaryId;
+      if (sId !== salaryId) return false;
+      if (allMonths) return true;
+      if (filters.dateStart || filters.dateEnd) return true; // filtres date manuels
+      return getAcompteMoisKey(a) === currentMonth;
     });
 
-    // Appliquer les filtres de date si présents
     if (filters.dateStart && filters.dateEnd) {
       filteredAcomptes = filteredAcomptes.filter(a => {
         const acompteDate = a.date;
@@ -189,7 +192,7 @@ const SalariesList = ({ onSelectSalary }) => {
     }
 
     return filteredAcomptes.reverse();
-  }, [state.acomptes, filters.dateStart, filters.dateEnd]);
+  }, [state.acomptes, filters.dateStart, filters.dateEnd, getCurrentMonth, getAcompteMoisKey]);
 
   const calculateTotalAcomptes = useCallback((salaryId) => {
     const acomptes = getSalaryAcomptes(salaryId);
@@ -250,43 +253,45 @@ const SalariesList = ({ onSelectSalary }) => {
   }, [state.acomptes]);
 
   const activeAcomptesStats = useMemo(() => {
-    const list = state.acomptes || [];
+    const currentMonth = getCurrentMonth();
+    const list = (state.acomptes || []).filter((a) => getAcompteMoisKey(a) === currentMonth);
     return {
       count: list.length,
       total: list.reduce((sum, a) => sum + (parseFloat(a.montant) || 0), 0),
+      mois: currentMonth,
     };
-  }, [state.acomptes]);
+  }, [state.acomptes, getCurrentMonth, getAcompteMoisKey]);
 
   const handleCloseMonth = async () => {
     if (!USE_SUPABASE || !dataCtx?.resetAllAcomptes) return;
 
-    const { count, total } = activeAcomptesStats;
+    const { count, total, mois } = activeAcomptesStats;
     setIsClosingMonth(true);
     try {
-      const result = await dataCtx.resetAllAcomptes();
+      const result = await dataCtx.resetAllAcomptes(mois);
       if (result?.success) {
-        const batch = result.batch;
-        localStorage.setItem('last_acompte_reset_batch', batch);
+        const closedMonth = result.mois_annee || mois;
+        localStorage.setItem('last_acompte_reset_batch', closedMonth);
         setShowCloseMonthDialog(false);
         if (dataCtx?.fetchAcomptes) {
           await dataCtx.fetchAcomptes();
         }
+        if (dataCtx?.fetchSalaryHistory) {
+          await dataCtx.fetchSalaryHistory();
+        }
         toast({
           title: 'Mois clôturé',
-          description: `${count} acompte(s) archivé(s) (${total.toFixed(2)} DA).`,
+          description: `${closedMonth} : ${count} acompte(s) conservés (${total.toFixed(2)} DA). Historique enregistré.`,
           action: (
             <ToastAction
               altText="Annuler"
               onClick={async () => {
                 try {
-                  await dataCtx.undoResetAcomptes(batch);
+                  await dataCtx.undoResetAcomptes(closedMonth);
                   localStorage.removeItem('last_acompte_reset_batch');
-                  if (dataCtx?.fetchAcomptes) {
-                    await dataCtx.fetchAcomptes();
-                  }
                   toast({
                     title: 'Annulation réussie',
-                    description: 'Les acomptes archivés ont été restaurés.',
+                    description: 'Le snapshot d’historique a été retiré. Les acomptes restent en base.',
                   });
                 } catch (e) {
                   toast({
@@ -597,13 +602,18 @@ const SalariesList = ({ onSelectSalary }) => {
                 <DialogHeader>
                   <DialogTitle>Clôturer le mois</DialogTitle>
                   <DialogDescription>
-                    Cette action archive tous les acomptes du mois. Ils restent récupérables en cas d&apos;erreur.
+                    Enregistre un snapshot du mois {activeAcomptesStats.mois} dans l&apos;historique.
+                    Tous les acomptes restent en base et restent imprimables plus tard.
                   </DialogDescription>
                 </DialogHeader>
                 <Card>
                   <CardContent className="pt-6 space-y-3">
                     <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Acomptes actifs</span>
+                      <span className="text-sm text-muted-foreground">Mois</span>
+                      <span className="font-semibold">{activeAcomptesStats.mois}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">Acomptes du mois</span>
                       <span className="font-semibold">{activeAcomptesStats.count}</span>
                     </div>
                     <div className="flex justify-between">
@@ -615,18 +625,17 @@ const SalariesList = ({ onSelectSalary }) => {
                   </CardContent>
                 </Card>
                 <p className="text-sm text-muted-foreground">
-                  Les acomptes ne seront pas supprimés définitivement ; vous pourrez annuler cette action depuis la notification de succès.
+                  Aucune suppression : le mois suivant démarre vide à l&apos;écran, l&apos;historique reste consultable et imprimable.
                 </p>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setShowCloseMonthDialog(false)}>
                     Annuler
                   </Button>
                   <Button
-                    variant="destructive"
                     onClick={handleCloseMonth}
                     disabled={isClosingMonth || activeAcomptesStats.count === 0}
                   >
-                    {isClosingMonth ? 'Archivage…' : 'Confirmer la clôture'}
+                    {isClosingMonth ? 'Clôture…' : 'Confirmer la clôture'}
                   </Button>
                 </DialogFooter>
               </DialogContent>

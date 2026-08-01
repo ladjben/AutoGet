@@ -59,6 +59,8 @@ const SalaryDetail = ({ salaryId, onBack }) => {
 
   const [showAcompteModal, setShowAcompteModal] = useState(false);
   const [showFichePaie, setShowFichePaie] = useState(false);
+  const [ficheMois, setFicheMois] = useState(null); // YYYY-MM — mois affiché sur la fiche
+  const [viewMois, setViewMois] = useState(null); // YYYY-MM — mois consulté à l'écran
   const [acompteData, setAcompteData] = useState({
     salaryId: salaryId,
     montant: '',
@@ -100,24 +102,13 @@ const SalaryDetail = ({ salaryId, onBack }) => {
     return `${year}-${month}`;
   }, [dataCtx]);
 
-  // Helper functions - Récupérer TOUS les acomptes du salarié
+  // Helper functions - Récupérer TOUS les acomptes du salarié (tous mois, conservés en base)
   const getSalaryAcomptes = useCallback(() => {
     return (state.acomptes || []).filter(a => {
       const sId = a.salary_id ?? a.salaryId;
       return sId === salaryId;
-    }).reverse(); // Trier du plus récent au plus ancien
+    }).reverse();
   }, [state.acomptes, salaryId]);
-
-  const calculateTotalAcomptes = useCallback(() => {
-    const acomptes = getSalaryAcomptes();
-    return acomptes.reduce((sum, a) => sum + (parseFloat(a.montant) || 0), 0);
-  }, [getSalaryAcomptes]);
-
-  const calculateSoldeRestant = useCallback(() => {
-    const salaireMensuel = parseFloat(salary.salaire_mensuel ?? salary.salaireMensuel ?? 0);
-    const totalAcomptes = calculateTotalAcomptes();
-    return salaireMensuel - totalAcomptes;
-  }, [salary, calculateTotalAcomptes]);
 
   const handleAddAcompte = async () => {
     if (!acompteData.montant || !acompteData.date) {
@@ -185,31 +176,53 @@ const SalaryDetail = ({ salaryId, onBack }) => {
     }
   };
 
-  const acomptes = getSalaryAcomptes();
-  const totalAcomptes = calculateTotalAcomptes();
-  const soldeRestant = calculateSoldeRestant();
-  const salaireMensuel = parseFloat(salary.salaire_mensuel ?? salary.salaireMensuel ?? 0);
-  const tauxPaye = salaireMensuel > 0 ? ((totalAcomptes / salaireMensuel) * 100) : 0;
-
-  const currentMonthKey = getCurrentMonth();
-  const periodeFr = (() => {
-    const [year, month] = currentMonthKey.split('-').map(Number);
+  const formatMoisLabel = (moisKey) => {
+    const [year, month] = moisKey.split('-').map(Number);
     const label = new Date(year, month - 1, 1).toLocaleDateString('fr-FR', {
       month: 'long',
       year: 'numeric',
     });
     return label.charAt(0).toUpperCase() + label.slice(1);
+  };
+
+  const getAcompteMoisKey = (a) => a.mois_annee || (a.date ? String(a.date).substring(0, 7) : '');
+
+  const allAcomptes = getSalaryAcomptes();
+  const currentMonthKey = getCurrentMonth();
+  const availableMonths = (() => {
+    const keys = new Set();
+    allAcomptes.forEach((a) => {
+      const key = getAcompteMoisKey(a);
+      if (key) keys.add(key);
+    });
+    (salaryHistory || []).forEach((h) => {
+      if (h.mois_annee) keys.add(h.mois_annee);
+    });
+    keys.add(currentMonthKey);
+    return Array.from(keys).sort().reverse();
   })();
+
+  const viewMonthKey = viewMois || currentMonthKey;
+  const acomptes = allAcomptes.filter((a) => getAcompteMoisKey(a) === viewMonthKey);
+  const totalAcomptes = acomptes.reduce((sum, a) => sum + (parseFloat(a.montant) || 0), 0);
+  const salaireMensuel = parseFloat(salary.salaire_mensuel ?? salary.salaireMensuel ?? 0);
+  const soldeRestant = salaireMensuel - totalAcomptes;
+  const tauxPaye = salaireMensuel > 0 ? ((totalAcomptes / salaireMensuel) * 100) : 0;
+
+  // Mois de la fiche : sélection, sinon mois consulté, sinon dernier avec mouvements
+  const ficheMonthKey = ficheMois
+    || viewMonthKey
+    || availableMonths.find((m) => allAcomptes.some((a) => getAcompteMoisKey(a) === m))
+    || currentMonthKey;
+
+  const periodeFr = formatMoisLabel(ficheMonthKey);
   const dateEdition = new Date().toLocaleDateString('fr-FR', {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
   });
 
-  const acomptesMois = acomptes.filter((a) => {
-    const moisAnnee = a.mois_annee || (a.date ? a.date.substring(0, 7) : '');
-    return moisAnnee === currentMonthKey || (a.date && a.date.startsWith(currentMonthKey));
-  });
+  const acomptesMois = allAcomptes.filter((a) => getAcompteMoisKey(a) === ficheMonthKey);
 
   const groupedMouvements = FICHE_CATEGORIES.reduce((acc, cat) => {
     acc[cat.key] = [];
@@ -222,15 +235,17 @@ const SalaryDetail = ({ salaryId, onBack }) => {
     }
   });
 
-  const totalDeductions = acomptes.reduce((sum, a) => {
+  const totalDeductions = acomptesMois.reduce((sum, a) => {
     const m = parseFloat(a.montant) || 0;
     return m > 0 ? sum + m : sum;
   }, 0);
 
-  const totalPrimes = acomptes.reduce((sum, a) => {
+  const totalPrimes = acomptesMois.reduce((sum, a) => {
     const m = parseFloat(a.montant) || 0;
     return m < 0 ? sum + Math.abs(m) : sum;
   }, 0);
+
+  const netAPayerFiche = salaireMensuel - totalDeductions + totalPrimes;
 
   const renderMontantCell = (acompte, category) => {
     const montant = parseFloat(acompte.montant) || 0;
@@ -250,16 +265,41 @@ const SalaryDetail = ({ salaryId, onBack }) => {
 
   return (
     <div className="space-y-6">
-      {/* Bouton retour + fiche de paie */}
+      {/* Bouton retour + mois + fiche de paie */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Button onClick={onBack} variant="outline" size="lg">
           <ArrowLeft className="mr-2 h-4 w-4" />
           Retour à la liste
         </Button>
-        <Button variant="outline" size="lg" onClick={() => setShowFichePaie(true)}>
-          <Printer className="mr-2 h-4 w-4" />
-          Imprimer fiche de paie
-        </Button>
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="flex items-center gap-2 text-sm">
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+            <span className="text-muted-foreground">Mois</span>
+            <select
+              className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              value={viewMonthKey}
+              onChange={(e) => setViewMois(e.target.value)}
+            >
+              {availableMonths.map((m) => (
+                <option key={m} value={m}>
+                  {formatMoisLabel(m)}
+                  {m === currentMonthKey ? ' (en cours)' : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+          <Button
+            variant="outline"
+            size="lg"
+            onClick={() => {
+              setFicheMois(viewMonthKey);
+              setShowFichePaie(true);
+            }}
+          >
+            <Printer className="mr-2 h-4 w-4" />
+            Imprimer fiche de paie
+          </Button>
+        </div>
       </div>
 
       {/* En-tête du salarié */}
@@ -421,16 +461,31 @@ const SalaryDetail = ({ salaryId, onBack }) => {
                         <div className="flex items-center gap-2 mb-1">
                           <Calendar className="h-4 w-4 text-primary" />
                           <span className="text-lg font-bold text-primary">
-                            {history.mois_annee}
+                            {formatMoisLabel(history.mois_annee)}
                           </span>
                         </div>
                         <p className="text-sm text-muted-foreground">
                           Nom: {history.nom}
                         </p>
                       </div>
-                      <Badge variant="outline" className="text-sm">
-                        {new Date(history.created_at).toLocaleDateString('fr-FR')}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setViewMois(history.mois_annee);
+                            setFicheMois(history.mois_annee);
+                            setShowFichePaie(true);
+                          }}
+                        >
+                          <Printer className="mr-1 h-3.5 w-3.5" />
+                          Imprimer
+                        </Button>
+                        <Badge variant="outline" className="text-sm">
+                          {new Date(history.created_at).toLocaleDateString('fr-FR')}
+                        </Badge>
+                      </div>
                     </div>
                     <div className="grid grid-cols-3 gap-3 mt-4">
                       <div className="text-center p-2 bg-white rounded">
@@ -460,15 +515,20 @@ const SalaryDetail = ({ salaryId, onBack }) => {
         </Card>
       )}
 
-      {/* Historique des acomptes (tous les acomptes) */}
+      {/* Historique des acomptes du mois sélectionné */}
       <Card>
         <CardHeader>
-          <div className="flex justify-between items-center">
-            <CardTitle className="flex items-center gap-2">
-              <CreditCard className="h-5 w-5" />
-              Tous les Acomptes ({acomptes.length})
-            </CardTitle>
-            {isAdmin() && (
+          <div className="flex flex-wrap justify-between items-center gap-3">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <CreditCard className="h-5 w-5" />
+                Acomptes — {formatMoisLabel(viewMonthKey)} ({acomptes.length})
+              </CardTitle>
+              <CardDescription className="mt-1">
+                Tous les mois restent en base. Changez le mois ci-dessus pour consulter ou imprimer l&apos;historique.
+              </CardDescription>
+            </div>
+            {isAdmin() && viewMonthKey === currentMonthKey && (
               <Button onClick={() => setShowAcompteModal(true)}>
                 <Plus className="mr-2 h-4 w-4" />
                 Ajouter un acompte
@@ -528,12 +588,34 @@ const SalaryDetail = ({ salaryId, onBack }) => {
       {/* Aperçu fiche de paie */}
       {showFichePaie && (
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 pt-16">
-          <div className="no-print fixed right-4 top-4 z-[60] flex gap-2">
+          <div className="no-print fixed right-4 top-4 z-[60] flex flex-wrap items-center justify-end gap-2">
+            <label className="flex items-center gap-2 rounded-md bg-white px-3 py-2 text-sm shadow">
+              <span className="text-muted-foreground">Mois</span>
+              <select
+                className="rounded border border-input bg-background px-2 py-1 text-sm"
+                value={ficheMonthKey}
+                onChange={(e) => setFicheMois(e.target.value)}
+              >
+                {availableMonths.map((m) => (
+                    <option key={m} value={m}>
+                      {formatMoisLabel(m)}
+                    </option>
+                  ))}
+              </select>
+            </label>
             <Button type="button" onClick={() => window.print()}>
               <Printer className="mr-2 h-4 w-4" />
               Imprimer
             </Button>
-            <Button type="button" variant="outline" className="bg-white" onClick={() => setShowFichePaie(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              className="bg-white"
+              onClick={() => {
+                setShowFichePaie(false);
+                setFicheMois(null);
+              }}
+            >
               Fermer
             </Button>
           </div>
@@ -628,7 +710,7 @@ const SalaryDetail = ({ salaryId, onBack }) => {
                 <div className="my-2 border-t border-gray-400" />
                 <div className="flex justify-between gap-4 text-base font-bold">
                   <span>NET À PAYER</span>
-                  <span className="tabular-nums">{formatDa(soldeRestant)}</span>
+                  <span className="tabular-nums">{formatDa(netAPayerFiche)}</span>
                 </div>
               </div>
             </div>

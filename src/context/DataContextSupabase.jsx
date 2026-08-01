@@ -492,26 +492,95 @@ export const DataProvider = ({ children }) => {
     }
   }
 
-  async function resetAllAcomptes() {
+  function getCurrentMonth() {
+    const now = new Date()
+    const year = now.getFullYear()
+    const month = String(now.getMonth() + 1).padStart(2, '0')
+    return `${year}-${month}`
+  }
+
+  function getPreviousMonth() {
+    const d = new Date()
+    d.setDate(0) // dernier jour du mois précédent
+    const year = d.getFullYear()
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    return `${year}-${month}`
+  }
+
+  function getAcompteMoisKey(a) {
+    return a.mois_annee || (a.date ? String(a.date).substring(0, 7) : '')
+  }
+
+  /**
+   * Clôture un mois : enregistre un snapshot dans salary_history.
+   * Les acomptes restent TOUJOURS en base (aucune suppression / soft-delete).
+   * @param {string|null} moisAnnee - YYYY-MM ; par défaut mois précédent si jour=1, sinon mois courant
+   */
+  async function resetAllAcomptes(moisAnnee = null) {
     try {
-      const batch = new Date().toISOString()
-      const { error } = await supabase.from('acomptes')
-        .update({ deleted_at: batch }).is('deleted_at', null)
-      if (error) throw error
+      const today = new Date()
+      const mois = moisAnnee || (today.getDate() === 1 ? getPreviousMonth() : getCurrentMonth())
+
+      // Charger acomptes actifs (non soft-supprimés individuellement)
+      const { data: allAcomptes, error: acompteErr } = await supabase
+        .from('acomptes')
+        .select('*')
+        .is('deleted_at', null)
+      if (acompteErr) throw acompteErr
+
+      const { data: allSalaries, error: salaryErr } = await supabase
+        .from('salaries')
+        .select('*')
+      if (salaryErr) throw salaryErr
+
+      const acomptesMois = (allAcomptes || []).filter((a) => getAcompteMoisKey(a) === mois)
+      let count = 0
+      let total = 0
+
+      for (const salary of allSalaries || []) {
+        const salaryAcomptes = acomptesMois.filter((a) => a.salary_id === salary.id)
+        const totalAcomptes = salaryAcomptes.reduce((sum, a) => sum + (parseFloat(a.montant) || 0), 0)
+        const salaireMensuel = parseFloat(salary.salaire_mensuel) || 0
+        const soldeRestant = salaireMensuel - totalAcomptes
+
+        count += salaryAcomptes.length
+        total += totalAcomptes
+
+        const { error: histErr } = await supabase
+          .from('salary_history')
+          .upsert(
+            {
+              salary_id: salary.id,
+              mois_annee: mois,
+              salaire_mensuel: salaireMensuel,
+              total_acomptes: totalAcomptes,
+              solde_restant: soldeRestant,
+              nom: salary.nom,
+            },
+            { onConflict: 'salary_id,mois_annee' }
+          )
+        if (histErr) throw histErr
+      }
+
       await fetchAcomptes()
-      return { success: true, batch }
+      await fetchSalaryHistory()
+      return { success: true, mois_annee: mois, count, total, batch: mois }
     } catch (e) {
       console.error('❌ Erreur resetAllAcomptes:', e?.message || e)
       throw e
     }
   }
 
-  async function undoResetAcomptes(batch) {
+  /** Annule une clôture : retire le snapshot salary_history du mois (les acomptes restent). */
+  async function undoResetAcomptes(moisAnnee) {
     try {
-      const { error } = await supabase.from('acomptes')
-        .update({ deleted_at: null }).eq('deleted_at', batch)
+      if (!moisAnnee) return { success: false }
+      const { error } = await supabase
+        .from('salary_history')
+        .delete()
+        .eq('mois_annee', moisAnnee)
       if (error) throw error
-      await fetchAcomptes()
+      await fetchSalaryHistory()
       return { success: true }
     } catch (e) {
       console.error('❌ Erreur undoResetAcomptes:', e?.message || e)
@@ -1208,6 +1277,7 @@ export const DataProvider = ({ children }) => {
         addAcompte, deleteAcompte,
         resetAllAcomptes, undoResetAcomptes,
         resetMonthlySalaries: resetAllAcomptes,
+        getCurrentMonth, getPreviousMonth,
       }}
     >
       {children}
