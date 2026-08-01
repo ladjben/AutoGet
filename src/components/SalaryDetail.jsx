@@ -1,3 +1,8 @@
+/**
+ * Fiche salarié — présentation uniquement.
+ * Formules, catégories, mois, snapshots, CRUD, permissions
+ * et dual-path inchangés. Salaries.jsx non modifié.
+ */
 import { useData } from '../context/UnifiedDataContext';
 import { USE_SUPABASE } from '../config';
 import { useAuth } from '../context/AuthContext';
@@ -5,10 +10,40 @@ import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
-import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Users, CreditCard, TrendingDown, TrendingUp, DollarSign, Calendar, Trash2, Phone, Briefcase, Plus, Printer } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { cn } from '@/lib/utils';
+import { PageHeader } from '@/components/PageHeader';
+import { PageSurface } from '@/components/PageSurface';
+import { StatusBadge } from '@/components/StatusBadge';
+import {
+  ArrowLeft,
+  Users,
+  CreditCard,
+  Trash2,
+  Phone,
+  Briefcase,
+  Plus,
+  Printer,
+  Calendar,
+  MoreHorizontal,
+  Clock,
+  UserX,
+  Gift,
+  AlertTriangle,
+} from 'lucide-react';
 import cosmosLogo from '../assets/cosmos-logo.svg';
 
 const SPECIAL_DESCRIPTIONS = new Set(['Retard', 'Absence', 'Bonus']);
@@ -38,6 +73,52 @@ const FICHE_CATEGORIES = [
   { key: 'absences', title: 'Absences' },
   { key: 'bonus', title: 'Primes / Bonus' },
 ];
+
+const CATEGORY_UI = {
+  avances: {
+    label: 'Acompte',
+    status: 'info',
+    Icon: CreditCard,
+    tone: 'text-[hsl(var(--info))]',
+  },
+  retards: {
+    label: 'Retard',
+    status: 'litige',
+    Icon: Clock,
+    tone: 'text-danger',
+  },
+  absences: {
+    label: 'Absence',
+    status: 'en_attente',
+    Icon: UserX,
+    tone: 'text-[hsl(var(--warning))]',
+  },
+  bonus: {
+    label: 'Bonus',
+    status: 'paye',
+    Icon: Gift,
+    tone: 'text-success',
+  },
+};
+
+function MetaStat({ label, value, tone }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-[11px] text-muted-foreground">{label}</p>
+      <p
+        className={cn(
+          'truncate text-sm font-semibold tabular-nums',
+          tone === 'danger' && 'text-danger',
+          tone === 'success' && 'text-success',
+          tone === 'warning' && 'text-[hsl(var(--warning))]',
+          tone === 'info' && 'text-[hsl(var(--info))]'
+        )}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
 
 const SalaryDetail = ({ salaryId, onBack }) => {
   const dataCtx = useData();
@@ -75,19 +156,16 @@ const SalaryDetail = ({ salaryId, onBack }) => {
 
   if (!salary) {
     return (
-      <div className="space-y-6">
-        <Button onClick={onBack} variant="outline">
+      <PageSurface className="space-y-6">
+        <Button onClick={onBack} variant="outline" size="sm">
           <ArrowLeft className="mr-2 h-4 w-4" />
           Retour
         </Button>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-center py-8 text-muted-foreground">
-              <p className="text-lg">Salarié non trouvé</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+        <div className="rounded-lg border border-dashed border-border/80 px-4 py-12 text-center">
+          <Users className="mx-auto mb-3 h-8 w-8 text-muted-foreground/40" />
+          <p className="text-sm font-medium">Salarié non trouvé</p>
+        </div>
+      </PageSurface>
     );
   }
 
@@ -247,6 +325,11 @@ const SalaryDetail = ({ salaryId, onBack }) => {
 
   const netAPayerFiche = salaireMensuel - totalDeductions + totalPrimes;
 
+  const isViewMonthClosed = (salaryHistory || []).some(
+    (h) => h.mois_annee === viewMonthKey
+  );
+  const isCurrentViewMonth = viewMonthKey === currentMonthKey;
+
   const renderMontantCell = (acompte, category) => {
     const montant = parseFloat(acompte.montant) || 0;
     if (category === 'bonus') {
@@ -263,20 +346,108 @@ const SalaryDetail = ({ salaryId, onBack }) => {
     );
   };
 
+  const operationLabel = (acompte) => {
+    const cat = getAcompteCategory(acompte);
+    if (cat && CATEGORY_UI[cat]) return CATEGORY_UI[cat];
+    return {
+      label: 'Opération',
+      status: 'info',
+      Icon: CreditCard,
+      tone: 'text-muted-foreground',
+    };
+  };
+
+  const displayMontant = (acompte) => {
+    const cat = getAcompteCategory(acompte);
+    const montant = parseFloat(acompte.montant) || 0;
+    if (cat === 'bonus') {
+      return { text: `+${formatDa(Math.abs(montant))}`, className: 'text-success' };
+    }
+    return { text: formatDa(montant), className: 'text-[hsl(var(--warning))]' };
+  };
+
   return (
-    <div className="space-y-6">
-      {/* Bouton retour + mois + fiche de paie */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Button onClick={onBack} variant="outline" size="lg">
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Retour à la liste
-        </Button>
-        <div className="flex flex-wrap items-center gap-3">
-          <label className="flex items-center gap-2 text-sm">
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-            <span className="text-muted-foreground">Mois</span>
+    <PageSurface className="space-y-6">
+      <PageHeader
+        eyebrow="Opérations · Paie"
+        title={salary.nom}
+        description={[
+          salary.poste || null,
+          salary.contact || null,
+        ]
+          .filter(Boolean)
+          .join(' · ') || 'Fiche salarié'}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button onClick={onBack} variant="outline" size="sm">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Retour à la liste
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setFicheMois(viewMonthKey);
+                setShowFichePaie(true);
+              }}
+            >
+              <Printer className="mr-2 h-4 w-4" />
+              Imprimer fiche de paie
+            </Button>
+            {isAdmin() && viewMonthKey === currentMonthKey && (
+              <Button size="sm" onClick={() => setShowAcompteModal(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Ajouter un acompte
+              </Button>
+            )}
+          </div>
+        }
+      />
+
+      {/* Identité + salaire */}
+      <section className="flex flex-col gap-3 rounded-lg border border-border/80 bg-card px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-start gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/10">
+            <Users className="h-5 w-5 text-primary" />
+          </div>
+          <div className="min-w-0 space-y-1">
+            <p className="truncate font-semibold">{salary.nom}</p>
+            <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+              {salary.poste ? (
+                <span className="inline-flex items-center gap-1">
+                  <Briefcase className="h-3 w-3" />
+                  {salary.poste}
+                </span>
+              ) : (
+                <span>Sans poste</span>
+              )}
+              {salary.contact ? (
+                <span className="inline-flex items-center gap-1">
+                  <Phone className="h-3 w-3" />
+                  {salary.contact}
+                </span>
+              ) : null}
+            </div>
+          </div>
+        </div>
+        <div className="text-right">
+          <p className="text-[11px] text-muted-foreground">Salaire mensuel</p>
+          <p className="text-lg font-semibold tabular-nums text-[hsl(var(--info))]">
+            {formatDa(salaireMensuel)}
+          </p>
+        </div>
+      </section>
+
+      {/* Mois + état */}
+      <section className="flex flex-col gap-3 rounded-lg border border-border/80 bg-card px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="min-w-[160px] space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground" htmlFor="detail-month">
+              Mois sélectionné
+            </label>
             <select
-              className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              id="detail-month"
+              className="flex h-9 w-full min-w-[200px] rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               value={viewMonthKey}
               onChange={(e) => setViewMois(e.target.value)}
             >
@@ -287,303 +458,300 @@ const SalaryDetail = ({ salaryId, onBack }) => {
                 </option>
               ))}
             </select>
-          </label>
-          <Button
-            variant="outline"
-            size="lg"
-            onClick={() => {
-              setFicheMois(viewMonthKey);
-              setShowFichePaie(true);
-            }}
-          >
-            <Printer className="mr-2 h-4 w-4" />
-            Imprimer fiche de paie
-          </Button>
-        </div>
-      </div>
-
-      {/* En-tête du salarié */}
-      <Card className="overflow-hidden border-2 border-primary">
-        <CardHeader className="bg-gradient-to-r from-primary to-primary/80 text-primary-foreground">
-          <div className="flex justify-between items-start">
-            <div className="flex items-center gap-4">
-              <div className="h-16 w-16 rounded-full bg-white/20 flex items-center justify-center">
-                <Users className="h-8 w-8" />
-              </div>
-              <div>
-                <CardTitle className="text-3xl text-primary-foreground mb-2">{salary.nom}</CardTitle>
-                <CardDescription className="text-primary-foreground/90">
-                  <div className="flex flex-col gap-1.5">
-                    {salary.poste && (
-                      <div className="flex items-center gap-2">
-                        <Briefcase className="h-4 w-4" />
-                        <span className="font-medium">{salary.poste}</span>
-                      </div>
-                    )}
-                    {salary.contact && (
-                      <div className="flex items-center gap-2">
-                        <Phone className="h-4 w-4" />
-                        <span className="font-medium">{salary.contact}</span>
-                      </div>
-                    )}
-                  </div>
-                </CardDescription>
-              </div>
-            </div>
           </div>
-        </CardHeader>
-      </Card>
-
-      {/* Statistiques rapides */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="border-2">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">Salaire Mensuel</p>
-                <p className="text-2xl font-bold">{salaireMensuel.toFixed(2)} DA</p>
-                <p className="text-xs text-muted-foreground mt-1">Montant total</p>
-              </div>
-              <DollarSign className="h-10 w-10 text-blue-500/30" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-2">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">Acomptes versés</p>
-                <p className="text-2xl font-bold">{acomptes.length}</p>
-                <p className="text-xs text-muted-foreground mt-1">Transactions</p>
-              </div>
-              <CreditCard className="h-10 w-10 text-green-500/30" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-2">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">Total versé</p>
-                <p className="text-2xl font-bold text-green-600">{totalAcomptes.toFixed(2)} DA</p>
-                <p className="text-xs text-muted-foreground mt-1">{tauxPaye.toFixed(0)}% payé</p>
-              </div>
-              <TrendingUp className="h-10 w-10 text-green-500/30" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-2">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className={`text-sm mb-1 ${soldeRestant > 0 ? 'text-orange-600' : 'text-green-600'}`}>
-                  {soldeRestant > 0 ? 'Reste à payer' : 'Surpayé'}
-                </p>
-                <p className={`text-2xl font-bold ${soldeRestant > 0 ? 'text-orange-700' : 'text-green-700'}`}>
-                  {Math.abs(soldeRestant).toFixed(2)} DA
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {soldeRestant > 0 ? 'En attente' : 'Crédit'}
-                </p>
-              </div>
-              {soldeRestant > 0 ? (
-                <TrendingDown className="h-10 w-10 text-orange-500/30" />
-              ) : (
-                <TrendingUp className="h-10 w-10 text-blue-500/30" />
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+          <div className="flex flex-wrap gap-2 pb-1">
+            {isCurrentViewMonth && !isViewMonthClosed ? (
+              <StatusBadge status="en_attente" label="Mois ouvert" />
+            ) : null}
+            {isViewMonthClosed ? (
+              <StatusBadge status="valide" label="Mois clôturé" />
+            ) : null}
+            {!isCurrentViewMonth && !isViewMonthClosed ? (
+              <StatusBadge status="info" label="Historique" />
+            ) : null}
+            {isCurrentViewMonth && isViewMonthClosed ? (
+              <StatusBadge status="info" label="Mois en cours · snapshot" />
+            ) : null}
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          <Calendar className="mr-1 inline h-3.5 w-3.5" />
+          {acomptes.length} opération(s) · {formatMoisLabel(viewMonthKey)}
+        </p>
+      </section>
 
       {/* Résumé financier */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Résumé Financier</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card className="bg-blue-50 border-blue-200">
-              <CardContent className="pt-6 text-center">
-                <p className="text-xs text-muted-foreground mb-1">Salaire Dû</p>
-                <p className="text-3xl font-bold text-blue-600">{salaireMensuel.toFixed(2)} DA</p>
-                <p className="text-xs text-muted-foreground mt-1">Salaire mensuel</p>
-              </CardContent>
-            </Card>
+      <div className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg border border-border/80 bg-card px-4 py-3 sm:grid-cols-4">
+        <MetaStat label="Salaire mensuel" value={formatDa(salaireMensuel)} tone="info" />
+        <MetaStat
+          label="Acomptes & ajustements"
+          value={formatDa(totalAcomptes)}
+          tone="warning"
+        />
+        <MetaStat
+          label={soldeRestant > 0 ? 'Solde restant' : soldeRestant < 0 ? 'Surpaiement' : 'Solde'}
+          value={formatDa(Math.abs(soldeRestant))}
+          tone={soldeRestant > 0 ? 'warning' : soldeRestant < 0 ? 'danger' : 'success'}
+        />
+        <MetaStat label="Taux versé" value={`${tauxPaye.toFixed(0)} %`} />
+      </div>
 
-            <Card className="bg-green-50 border-green-200">
-              <CardContent className="pt-6 text-center">
-                <p className="text-xs text-muted-foreground mb-1">Total Versé</p>
-                <p className="text-3xl font-bold text-green-600">{totalAcomptes.toFixed(2)} DA</p>
-                <p className="text-xs text-muted-foreground mt-1">{acomptes.length} acompte{acomptes.length > 1 ? 's' : ''}</p>
-              </CardContent>
-            </Card>
-
-            <Card className={soldeRestant > 0 ? 'bg-orange-50 border-orange-200' : 'bg-blue-50 border-blue-200'}>
-              <CardContent className="pt-6 text-center">
-                <p className={`text-xs mb-1 ${soldeRestant > 0 ? 'text-orange-600' : 'text-green-600'}`}>
-                  {soldeRestant > 0 ? 'Reste à Payer' : 'Trop Payé'}
-                </p>
-                <p className={`text-3xl font-bold ${soldeRestant > 0 ? 'text-orange-800' : 'text-green-800'}`}>
-                  {Math.abs(soldeRestant).toFixed(2)} DA
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {soldeRestant > 0 ? 'En attente' : 'Crédit'}
-                </p>
-              </CardContent>
-            </Card>
+      {soldeRestant < 0 && (
+        <div className="flex items-start gap-2 rounded-lg border border-[hsl(var(--danger)/0.35)] bg-[hsl(var(--danger)/0.08)] px-4 py-3 text-sm">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-danger" />
+          <div>
+            <p className="font-medium text-danger">Surpaiement</p>
+            <p className="text-xs text-muted-foreground">
+              Les acomptes et ajustements dépassent le salaire de{' '}
+              <span className="font-semibold tabular-nums">{formatDa(Math.abs(soldeRestant))}</span>
+              .
+            </p>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Historique mensuel des salaires */}
-      {salaryHistory && salaryHistory.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              Historique Mensuel ({salaryHistory.length} mois)
-            </CardTitle>
-            <CardDescription>
-              Historique des salaires et acomptes par mois
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {salaryHistory.map((history) => (
-                <Card key={history.id} className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2">
-                  <CardContent className="p-4">
-                    <div className="flex justify-between items-start mb-3">
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <Calendar className="h-4 w-4 text-primary" />
-                          <span className="text-lg font-bold text-primary">
-                            {formatMoisLabel(history.mois_annee)}
-                          </span>
-                        </div>
-                        <p className="text-sm text-muted-foreground">
-                          Nom: {history.nom}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setViewMois(history.mois_annee);
-                            setFicheMois(history.mois_annee);
-                            setShowFichePaie(true);
-                          }}
-                        >
-                          <Printer className="mr-1 h-3.5 w-3.5" />
-                          Imprimer
-                        </Button>
-                        <Badge variant="outline" className="text-sm">
-                          {new Date(history.created_at).toLocaleDateString('fr-FR')}
-                        </Badge>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-3 gap-3 mt-4">
-                      <div className="text-center p-2 bg-white rounded">
-                        <p className="text-xs text-muted-foreground mb-1">Salaire</p>
-                        <p className="text-lg font-bold text-blue-600">
-                          {parseFloat(history.salaire_mensuel).toFixed(2)} DA
-                        </p>
-                      </div>
-                      <div className="text-center p-2 bg-white rounded">
-                        <p className="text-xs text-muted-foreground mb-1">Acomptes</p>
-                        <p className="text-lg font-bold text-orange-600">
-                          {parseFloat(history.total_acomptes).toFixed(2)} DA
-                        </p>
-                      </div>
-                      <div className="text-center p-2 bg-white rounded">
-                        <p className="text-xs text-muted-foreground mb-1">Solde Restant</p>
-                        <p className={`text-lg font-bold ${history.solde_restant >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {parseFloat(history.solde_restant).toFixed(2)} DA
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+        </div>
       )}
 
-      {/* Historique des acomptes du mois sélectionné */}
-      <Card>
-        <CardHeader>
-          <div className="flex flex-wrap justify-between items-center gap-3">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <CreditCard className="h-5 w-5" />
-                Acomptes — {formatMoisLabel(viewMonthKey)} ({acomptes.length})
-              </CardTitle>
-              <CardDescription className="mt-1">
-                Tous les mois restent en base. Changez le mois ci-dessus pour consulter ou imprimer l&apos;historique.
-              </CardDescription>
-            </div>
-            {isAdmin() && viewMonthKey === currentMonthKey && (
-              <Button onClick={() => setShowAcompteModal(true)}>
-                <Plus className="mr-2 h-4 w-4" />
-                Ajouter un acompte
-              </Button>
-            )}
+      {/* Historique snapshots */}
+      {salaryHistory && salaryHistory.length > 0 && (
+        <section className="space-y-3">
+          <div>
+            <h2 className="font-display text-base font-semibold tracking-tight">
+              Snapshots de clôture
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              Historique mensuel ({salaryHistory.length} mois) — lecture seule
+            </p>
           </div>
-        </CardHeader>
-        <CardContent>
-          {acomptes.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <CreditCard className="h-12 w-12 mx-auto mb-2 opacity-30" />
-              <p>Aucun acompte enregistré ce mois</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {acomptes.map((acompte) => (
-                <Card key={acompte.id} className="bg-green-50 border-green-200">
-                  <CardContent className="p-4">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <Calendar className="h-4 w-4 text-muted-foreground" />
-                          <span className="font-medium">{acompte.date}</span>
-                          {acompte.mois_annee && (
-                            <Badge variant="outline" className="text-xs">
+          <div className="space-y-2">
+            {salaryHistory.map((history) => (
+              <div
+                key={history.id}
+                className="rounded-lg border border-border/80 bg-card px-4 py-3"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <p className="font-medium">
+                      {formatMoisLabel(history.mois_annee)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {history.nom}
+                      {history.created_at
+                        ? ` · ${new Date(history.created_at).toLocaleDateString('fr-FR')}`
+                        : ''}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <StatusBadge status="valide" label="Clôturé" />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setViewMois(history.mois_annee);
+                        setFicheMois(history.mois_annee);
+                        setShowFichePaie(true);
+                      }}
+                    >
+                      <Printer className="mr-1 h-3.5 w-3.5" />
+                      Imprimer
+                    </Button>
+                  </div>
+                </div>
+                <div className="mt-3 grid grid-cols-3 gap-2 border-t border-border/50 pt-3 text-xs">
+                  <div>
+                    <p className="text-muted-foreground">Salaire</p>
+                    <p className="font-semibold tabular-nums text-[hsl(var(--info))]">
+                      {formatDa(parseFloat(history.salaire_mensuel))}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Acomptes</p>
+                    <p className="font-semibold tabular-nums text-[hsl(var(--warning))]">
+                      {formatDa(parseFloat(history.total_acomptes))}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Solde</p>
+                    <p
+                      className={cn(
+                        'font-semibold tabular-nums',
+                        history.solde_restant >= 0 ? 'text-success' : 'text-danger'
+                      )}
+                    >
+                      {formatDa(parseFloat(history.solde_restant))}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Opérations du mois */}
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <h2 className="font-display text-base font-semibold tracking-tight">
+              Opérations — {formatMoisLabel(viewMonthKey)}
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              Acomptes, retards, absences et bonus du mois sélectionné
+            </p>
+          </div>
+          {isAdmin() && viewMonthKey === currentMonthKey && (
+            <Button size="sm" variant="outline" onClick={() => setShowAcompteModal(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Ajouter un acompte
+            </Button>
+          )}
+        </div>
+
+        {acomptes.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-border/80 px-4 py-12 text-center">
+            <CreditCard className="mx-auto mb-3 h-8 w-8 text-muted-foreground/40" />
+            <p className="text-sm font-medium">Aucune opération ce mois</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Aucun acompte, retard, absence ou bonus pour {formatMoisLabel(viewMonthKey)}
+            </p>
+          </div>
+        ) : (
+          <>
+            {/* Desktop table */}
+            <div className="hidden overflow-x-auto rounded-lg border border-border/80 md:block">
+              <table className="w-full min-w-[640px] text-left text-sm">
+                <thead className="border-b border-border/80 bg-muted/40 text-xs text-muted-foreground">
+                  <tr>
+                    <th className="px-3 py-2.5 font-medium">Date</th>
+                    <th className="px-3 py-2.5 font-medium">Type</th>
+                    <th className="px-3 py-2.5 font-medium">Description</th>
+                    <th className="px-3 py-2.5 text-right font-medium">Montant</th>
+                    {isAdmin() && (
+                      <th className="w-12 px-3 py-2.5 text-right font-medium">
+                        <span className="sr-only">Actions</span>
+                      </th>
+                    )}
+                  </tr>
+                </thead>
+                <tbody>
+                  {acomptes.map((acompte) => {
+                    const ui = operationLabel(acompte);
+                    const mt = displayMontant(acompte);
+                    const Icon = ui.Icon;
+                    return (
+                      <tr
+                        key={acompte.id}
+                        className="border-b border-border/40 last:border-0 hover:bg-muted/20"
+                      >
+                        <td className="px-3 py-2.5 tabular-nums">
+                          {formatDateFr(acompte.date)}
+                          {acompte.mois_annee ? (
+                            <span className="ml-2 text-[10px] text-muted-foreground">
                               {acompte.mois_annee}
-                            </Badge>
+                            </span>
+                          ) : null}
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <span className="inline-flex items-center gap-1.5">
+                            <Icon className={cn('h-3.5 w-3.5', ui.tone)} />
+                            <StatusBadge status={ui.status} label={ui.label} />
+                          </span>
+                        </td>
+                        <td className="max-w-[240px] truncate px-3 py-2.5 text-muted-foreground">
+                          {acompte.description || '—'}
+                        </td>
+                        <td
+                          className={cn(
+                            'px-3 py-2.5 text-right font-semibold tabular-nums',
+                            mt.className
                           )}
-                        </div>
-                        {acompte.description && (
-                          <p className="text-sm text-muted-foreground">{acompte.description}</p>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge className="bg-green-600 text-lg px-3 py-1">
-                          {parseFloat(acompte.montant).toFixed(2)} DA
-                        </Badge>
+                        >
+                          {mt.text}
+                        </td>
                         {isAdmin() && (
-                          <Button
-                            onClick={() => handleDeleteAcompte(acompte.id)}
-                            variant="ghost"
-                            size="sm"
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
+                          <td className="px-3 py-2.5 text-right">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                  <span className="sr-only">Actions</span>
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-40">
+                                <DropdownMenuItem
+                                  className="text-destructive focus:text-destructive"
+                                  onClick={() => handleDeleteAcompte(acompte.id)}
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Supprimer
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile cards */}
+            <div className="space-y-2 md:hidden">
+              {acomptes.map((acompte) => {
+                const ui = operationLabel(acompte);
+                const mt = displayMontant(acompte);
+                const Icon = ui.Icon;
+                return (
+                  <div
+                    key={acompte.id}
+                    className="rounded-lg border border-border/80 bg-card px-3 py-3"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 space-y-1.5">
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <Calendar className="h-3 w-3" />
+                          {formatDateFr(acompte.date)}
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Icon className={cn('h-3.5 w-3.5', ui.tone)} />
+                          <StatusBadge status={ui.status} label={ui.label} />
+                        </div>
+                        <p className="text-sm text-foreground line-clamp-2">
+                          {acompte.description || 'Sans description'}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 items-start gap-1">
+                        <p className={cn('text-base font-semibold tabular-nums', mt.className)}>
+                          {mt.text}
+                        </p>
+                        {isAdmin() && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreHorizontal className="h-4 w-4" />
+                                <span className="sr-only">Actions</span>
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-40">
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive"
+                                onClick={() => handleDeleteAcompte(acompte.id)}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Supprimer
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         )}
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
+                  </div>
+                );
+              })}
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </>
+        )}
+      </section>
 
       {/* Aperçu fiche de paie */}
       {showFichePaie && (
@@ -741,7 +909,7 @@ const SalaryDetail = ({ salaryId, onBack }) => {
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium mb-2 block">Montant (DA) *</label>
+              <label className="mb-2 block text-sm font-medium">Montant (DA) *</label>
               <Input
                 type="number"
                 step="0.01"
@@ -751,7 +919,7 @@ const SalaryDetail = ({ salaryId, onBack }) => {
               />
             </div>
             <div>
-              <label className="text-sm font-medium mb-2 block">Date *</label>
+              <label className="mb-2 block text-sm font-medium">Date *</label>
               <Input
                 type="date"
                 value={acompteData.date}
@@ -759,7 +927,7 @@ const SalaryDetail = ({ salaryId, onBack }) => {
               />
             </div>
             <div>
-              <label className="text-sm font-medium mb-2 block">Description (optionnel)</label>
+              <label className="mb-2 block text-sm font-medium">Description (optionnel)</label>
               <Input
                 type="text"
                 placeholder="Ex: Acompte du mois..."
@@ -778,9 +946,8 @@ const SalaryDetail = ({ salaryId, onBack }) => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageSurface>
   );
 };
 
 export default SalaryDetail;
-
