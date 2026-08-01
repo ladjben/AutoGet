@@ -8,9 +8,19 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card'
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { Plus, Package, TrendingUp, TrendingDown, Calendar, Building2, Trash2, ChevronDown, ChevronRight } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { Plus, Package, TrendingUp, TrendingDown, Calendar, Building2, Trash2, ChevronDown, ChevronRight, ChevronsUpDown, Check, X } from 'lucide-react'
 
 const Entries = () => {
   const dataCtx = useData()
@@ -25,6 +35,8 @@ const Entries = () => {
     lignes: [],
   })
   const [currentLigne, setCurrentLigne] = useState({ produitId: '', quantite: '' })
+  const [produitPickerOpen, setProduitPickerOpen] = useState(false)
+  const [produitSearch, setProduitSearch] = useState('')
   const [detail, setDetail] = useState({ openFor: null, rows: [] })
   const [creating, setCreating] = useState(false)
   const [checkingDoublon, setCheckingDoublon] = useState(false)
@@ -89,8 +101,26 @@ const Entries = () => {
 
   const resetForm = () => {
     setFormData({ fournisseurId: '', date: new Date().toISOString().split('T')[0], lignes: [] })
+    setCurrentLigne({ produitId: '', quantite: '' })
+    setProduitPickerOpen(false)
+    setProduitSearch('')
     setDoublonAlert(null)
   }
+
+  const selectedProduit = useMemo(
+    () => produits.find((p) => p.id === currentLigne.produitId) || null,
+    [produits, currentLigne.produitId]
+  )
+
+  const filteredProduitsForPicker = useMemo(() => {
+    const q = produitSearch.trim().toLowerCase()
+    if (!q) return produits
+    return produits.filter((p) => {
+      const nom = String(p.nom || '').toLowerCase()
+      const ref = String(p.reference || '').toLowerCase()
+      return nom.includes(q) || ref.includes(q)
+    })
+  }, [produits, produitSearch])
 
   const calculateEntreeValueLocal = (entree) => {
     let total = 0
@@ -116,6 +146,8 @@ const Entries = () => {
     }
     setFormData((prev) => ({ ...prev, lignes: [...prev.lignes, ligne] }))
     setCurrentLigne({ produitId: '', quantite: '' })
+    setProduitSearch('')
+    setProduitPickerOpen(false)
   }
 
   const handleDeleteLigne = (index) => {
@@ -415,19 +447,101 @@ const Entries = () => {
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <label className="text-sm font-medium">Produit</label>
-                      <select
-                        value={currentLigne.produitId}
-                        onChange={(e) => setCurrentLigne({ ...currentLigne, produitId: e.target.value })}
-                        className="w-full h-10 rounded-lg border-2 border-input bg-background px-4 py-2 text-sm font-medium transition-all hover:border-ring focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-50"
+                      <label className="text-sm font-medium" htmlFor="entree-produit-picker">
+                        Produit
+                      </label>
+                      <Popover
+                        modal
+                        open={produitPickerOpen}
+                        onOpenChange={(open) => {
+                          setProduitPickerOpen(open)
+                          if (!open) setProduitSearch('')
+                        }}
                       >
-                        <option value="">Sélectionner un produit...</option>
-                        {produits.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.nom} • {(p.prix_achat ?? p.prixAchat ?? 0)} DA
-                          </option>
-                        ))}
-                      </select>
+                        <PopoverTrigger asChild>
+                          <Button
+                            id="entree-produit-picker"
+                            type="button"
+                            variant="outline"
+                            role="combobox"
+                            aria-expanded={produitPickerOpen}
+                            className="h-10 w-full justify-between border-2 px-3 font-medium"
+                          >
+                            <span className="truncate text-left">
+                              {selectedProduit
+                                ? `${selectedProduit.nom}${selectedProduit.reference ? ` · ${selectedProduit.reference}` : ''} · ${(selectedProduit.prix_achat ?? selectedProduit.prixAchat ?? 0)} DA`
+                                : 'Sélectionner un produit...'}
+                            </span>
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent
+                          className="w-[var(--radix-popover-trigger-width)] p-0"
+                          align="start"
+                          onOpenAutoFocus={(e) => e.preventDefault()}
+                        >
+                          <Command shouldFilter={false}>
+                            <div className="flex items-center">
+                              <div className="min-w-0 flex-1">
+                                <CommandInput
+                                  placeholder="Rechercher nom ou référence…"
+                                  value={produitSearch}
+                                  onValueChange={setProduitSearch}
+                                />
+                              </div>
+                              {produitSearch ? (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="mr-1 h-8 w-8 shrink-0"
+                                  aria-label="Effacer la recherche"
+                                  onClick={() => setProduitSearch('')}
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              ) : null}
+                            </div>
+                            <CommandList>
+                              <CommandEmpty>Aucun produit trouvé</CommandEmpty>
+                              <CommandGroup>
+                                {filteredProduitsForPicker.map((p) => {
+                                  const prix = p.prix_achat ?? p.prixAchat ?? 0
+                                  return (
+                                    <CommandItem
+                                      key={p.id}
+                                      value={`${p.nom || ''} ${p.reference || ''} ${p.id}`}
+                                      onSelect={() => {
+                                        setCurrentLigne((prev) => ({
+                                          ...prev,
+                                          produitId: p.id,
+                                        }))
+                                        setProduitSearch('')
+                                        setProduitPickerOpen(false)
+                                      }}
+                                    >
+                                      <Check
+                                        className={cn(
+                                          'mr-2 h-4 w-4 shrink-0',
+                                          currentLigne.produitId === p.id ? 'opacity-100' : 'opacity-0'
+                                        )}
+                                      />
+                                      <div className="min-w-0 flex-1">
+                                        <p className="truncate font-medium">{p.nom}</p>
+                                        <p className="truncate text-xs text-muted-foreground">
+                                          {p.reference ? `Réf. ${p.reference}` : 'Sans référence'}
+                                          {' · '}
+                                          {prix} DA
+                                        </p>
+                                      </div>
+                                    </CommandItem>
+                                  )
+                                })}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
                     </div>
 
                     <div className="space-y-2">
