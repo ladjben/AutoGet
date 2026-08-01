@@ -20,52 +20,53 @@ import {
   Sheet,
   SheetContent,
 } from '@/components/ui/sheet';
+import cosmosLogo from '../assets/cosmos-logo.svg';
 
 const adminNavSections = [
   {
-    title: 'MAIN',
+    title: 'Principal',
     items: [
-      { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { id: 'dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
     ],
   },
   {
-    title: 'INVENTORY MANAGEMENT',
+    title: 'Inventaire',
     items: [
-      { id: 'products', label: 'Products', icon: Package },
-      { id: 'entries', label: 'Inventory', icon: ArrowDownLeft },
+      { id: 'products', label: 'Produits', icon: Package },
+      { id: 'entries', label: 'Entrées stock', icon: ArrowDownLeft },
       { id: 'validated-entries', label: 'Entrées validées', icon: ListChecks },
-      { id: 'suppliers', label: 'Suppliers', icon: Building2 },
+      { id: 'suppliers', label: 'Fournisseurs', icon: Building2 },
     ],
   },
   {
-    title: 'OPERATIONS',
+    title: 'Opérations',
     items: [
       { id: 'depenses', label: 'Dépenses', icon: PiggyBank },
-      { id: 'colis', label: 'Colis Envoyés', icon: Boxes },
+      { id: 'colis', label: 'Colis envoyés', icon: Boxes },
       { id: 'salaries', label: 'Salariés', icon: Users },
     ],
   },
   {
-    title: 'FOURNISSEURS',
+    title: 'Réception',
     items: [
-      { id: 'employee-validation', label: 'Réception', icon: ClipboardCheck },
-      { id: 'supplier-access', label: 'Accès & Assignation', icon: Link2 },
+      { id: 'employee-validation', label: 'Valider réception', icon: ClipboardCheck },
+      { id: 'supplier-access', label: 'Accès & assignation', icon: Link2 },
     ],
   },
 ];
 
 const fournisseurNavSections = [
   {
-    title: 'MON ESPACE',
+    title: 'Mon espace',
     items: [
-      { id: 'supplier-portal', label: 'Mon espace', icon: Store },
+      { id: 'supplier-portal', label: 'Portail fournisseur', icon: Store },
     ],
   },
 ];
 
 const employeNavSections = [
   {
-    title: 'RÉCEPTION',
+    title: 'Réception',
     items: [
       { id: 'employee-validation', label: 'Valider la marchandise', icon: ClipboardCheck },
     ],
@@ -91,10 +92,10 @@ const Sidebar = ({
       : adminNavSections;
 
   const subtitle = isFournisseur?.()
-    ? 'Portail Fournisseur'
+    ? 'Portail fournisseur'
     : isEmploye?.()
-      ? 'Réception'
-      : 'Admin Dashboard';
+      ? 'Réception marchandise'
+      : 'Espace administration';
 
   const handleNavClick = (viewId) => {
     setActiveView(viewId);
@@ -104,43 +105,45 @@ const Sidebar = ({
   };
 
   const SidebarContent = () => (
-    <div className="flex flex-col h-full">
-      {/* Logo et titre */}
-      <div className="p-6 border-b border-border">
+    <div className="flex h-full flex-col">
+      <div className="border-b border-border/80 px-5 py-5">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-lg bg-primary flex items-center justify-center">
-            <span className="text-primary-foreground font-bold text-xl">C</span>
+          <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-lg border border-primary/30 bg-primary/10">
+            <img src={cosmosLogo} alt="Cosmos" className="h-7 w-auto" />
           </div>
-          <div className="flex flex-col">
-            <h1 className="text-lg font-bold text-foreground">COSMOS ALGÉRIE</h1>
-            <span className="text-xs text-muted-foreground">{subtitle}</span>
+          <div className="min-w-0 flex-col">
+            <h1 className="font-display truncate text-base font-semibold tracking-wide text-foreground">
+              COSMOS ALGÉRIE
+            </h1>
+            <span className="text-[11px] text-muted-foreground">{subtitle}</span>
           </div>
         </div>
       </div>
 
-      {/* Navigation */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-6">
+      <div className="flex-1 space-y-6 overflow-y-auto px-3 py-4">
         {navSections.map((section) => (
           <div key={section.title}>
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-3">
+            <h3 className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
               {section.title}
             </h3>
-            <div className="space-y-1">
+            <div className="space-y-0.5">
               {section.items.map((item) => {
                 const Icon = item.icon;
                 const isActive = activeView === item.id;
                 return (
-                  <Button
+          <Button
                     key={item.id}
-                    variant={isActive ? 'secondary' : 'ghost'}
+                    variant="ghost"
                     className={cn(
-                      'w-full justify-start gap-3 h-10',
-                      isActive && 'bg-sidebar-accent text-sidebar-foreground'
+                      'h-10 w-full justify-start gap-3 rounded-md px-3 font-medium focus-visible:ring-2 focus-visible:ring-ring',
+                      isActive
+                        ? 'bg-primary/15 text-primary hover:bg-primary/20 hover:text-primary'
+                        : 'text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'
                     )}
                     onClick={() => handleNavClick(item.id)}
                   >
-                    <Icon className="h-4 w-4" />
-                    <span>{item.label}</span>
+                    <Icon className={cn('h-4 w-4', isActive && 'text-primary')} />
+                    <span className="truncate">{item.label}</span>
                   </Button>
                 );
               })}
@@ -149,31 +152,33 @@ const Sidebar = ({
         ))}
       </div>
 
-      {/* User info et logout en bas */}
-      <div className="p-4 border-t border-border space-y-2">
-        <div className="px-3 py-2 rounded-md bg-sidebar-accent">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-foreground">{user?.name}</span>
+      <div className="space-y-2 border-t border-border/80 p-3">
+        <div className="rounded-md border border-border/60 bg-sidebar-accent/80 px-3 py-2.5">
+          <div className="mb-1 flex items-center justify-between gap-2">
+            <span className="truncate text-sm font-medium text-foreground">{user?.name}</span>
             {isAdmin?.() && (
-              <Badge variant="secondary" className="text-xs">
+              <Badge variant="secondary" className="shrink-0 text-[10px]">
                 Admin
               </Badge>
             )}
             {isFournisseur?.() && (
-              <Badge variant="secondary" className="text-xs">
+              <Badge variant="secondary" className="shrink-0 text-[10px]">
                 Fournisseur
               </Badge>
             )}
             {isEmploye?.() && (
-              <Badge variant="secondary" className="text-xs">
+              <Badge variant="secondary" className="shrink-0 text-[10px]">
                 Employé
               </Badge>
             )}
           </div>
+          {user?.username ? (
+            <p className="truncate text-[11px] text-muted-foreground">@{user.username}</p>
+          ) : null}
         </div>
         <Button
           variant="ghost"
-          className="w-full justify-start gap-3 text-destructive hover:text-destructive hover:bg-destructive/10"
+          className="w-full justify-start gap-3 text-destructive hover:bg-destructive/10 hover:text-destructive"
           onClick={logout}
         >
           <LogOut className="h-4 w-4" />
@@ -183,20 +188,18 @@ const Sidebar = ({
     </div>
   );
 
-  // Mobile: Sheet (drawer)
   if (isMobile) {
     return (
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-        <SheetContent side="left" className="w-[280px] p-0 bg-sidebar border-r border-border">
+        <SheetContent side="left" className="w-[280px] border-r border-border bg-sidebar p-0">
           <SidebarContent />
         </SheetContent>
       </Sheet>
     );
   }
 
-  // Desktop: Sidebar fixe
   return (
-    <aside className="w-64 border-r border-border bg-sidebar flex-shrink-0 h-screen sticky top-0">
+    <aside className="sticky top-0 flex h-screen w-64 flex-shrink-0 border-r border-border bg-sidebar">
       <SidebarContent />
     </aside>
   );

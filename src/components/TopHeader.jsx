@@ -7,45 +7,57 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { VIEW_TITLES } from '@/constants/viewTitles';
 
-const TopHeader = ({ user, isAdmin, isMobile, onMenuClick }) => {
+/**
+ * Header commun. Badge « Admin » conservé tel quel (risque R12 — hors scope).
+ */
+const TopHeader = ({ user, isAdmin: _isAdmin, isMobile, onMenuClick, activeView }) => {
+  const pageTitle = VIEW_TITLES[activeView] || 'COSMOS ALGÉRIE';
+  // Badge « Admin » volontairement hardcodé (R12 hors scope redesign).
+  void _isAdmin;
+
   return (
-    <header className="h-16 border-b border-border bg-card sticky top-0 z-40">
-      <div className="h-full px-6 flex items-center justify-between">
-        {/* Left: Menu button (mobile) */}
-        <div className="flex items-center gap-4">
+    <header className="sticky top-0 z-40 h-14 border-b border-border/80 bg-card/90 backdrop-blur-md">
+      <div className="flex h-full items-center justify-between px-4 sm:px-6">
+        <div className="flex min-w-0 items-center gap-3">
           {isMobile && (
             <Button
               variant="ghost"
               size="icon"
               onClick={onMenuClick}
-              className="h-9 w-9"
+              className="h-9 w-9 shrink-0"
             >
               <Menu className="h-5 w-5" />
             </Button>
           )}
-          <div className="flex items-center gap-3">
-            <h2 className="text-lg font-semibold text-foreground">COSMOS ALGÉRIE</h2>
-            {!isMobile && (
-              <Badge variant="secondary" className="text-xs">
-                Admin
-              </Badge>
-            )}
+          <div className="min-w-0">
+            <p className="truncate font-display text-base font-semibold tracking-tight text-foreground sm:text-lg">
+              {pageTitle}
+            </p>
+            <p className="hidden text-[11px] text-muted-foreground sm:block">
+              Cosmos Algérie · AutoGet
+            </p>
           </div>
+          {!isMobile && (
+            <Badge variant="secondary" className="ml-1 shrink-0 text-[10px]">
+              Admin
+            </Badge>
+          )}
         </div>
 
-        {/* Right: User */}
-        <div className="flex items-center gap-3">
-          {/* User Dropdown */}
+        <div className="flex items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="gap-2 h-9">
-                <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center">
-                  <span className="text-primary-foreground text-sm font-semibold">
+              <Button variant="ghost" className="h-9 gap-2 px-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                  <span className="text-sm font-semibold">
                     {user?.name?.charAt(0)?.toUpperCase() || 'U'}
                   </span>
                 </div>
-                <span className="hidden sm:inline text-sm">{user?.name}</span>
+                <span className="hidden max-w-[140px] truncate text-sm sm:inline">
+                  {user?.name}
+                </span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
@@ -62,4 +74,3 @@ const TopHeader = ({ user, isAdmin, isMobile, onMenuClick }) => {
 };
 
 export default TopHeader;
-
