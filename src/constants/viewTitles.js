@@ -3,6 +3,7 @@ export const VIEW_TITLES = {
   dashboard: 'Tableau de bord',
   products: 'Produits',
   entries: 'Entrées stock',
+  'pending-entries': 'En attente de validation',
   'validated-entries': 'Entrées validées',
   suppliers: 'Fournisseurs',
   depenses: 'Dépenses',

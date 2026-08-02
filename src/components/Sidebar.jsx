@@ -12,6 +12,7 @@ import {
   Link2,
   Store,
   ListChecks,
+  Clock,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -35,6 +36,12 @@ const adminNavSections = [
     items: [
       { id: 'products', label: 'Produits', icon: Package },
       { id: 'entries', label: 'Entrées stock', icon: ArrowDownLeft },
+      {
+        id: 'pending-entries',
+        label: 'En attente de validation',
+        icon: Clock,
+        adminOnly: true,
+      },
       { id: 'validated-entries', label: 'Entrées validées', icon: ListChecks },
       { id: 'suppliers', label: 'Fournisseurs', icon: Building2 },
     ],
@@ -128,7 +135,9 @@ const Sidebar = ({
               {section.title}
             </h3>
             <div className="space-y-0.5">
-              {section.items.map((item) => {
+              {section.items
+                .filter((item) => !item.adminOnly || isAdmin?.())
+                .map((item) => {
                 const Icon = item.icon;
                 const isActive = activeView === item.id;
                 return (

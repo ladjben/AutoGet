@@ -21,6 +21,7 @@ import SupplierPortal from './components/SupplierPortal'
 import EmployeeValidation from './components/EmployeeValidation'
 import SupplierAccess from './components/SupplierAccess'
 import ValidatedEntries from './components/ValidatedEntries'
+import PendingEntries from './components/PendingEntries'
 import PageSurface from './components/PageSurface'
 
 /**
@@ -63,6 +64,8 @@ const AppContent = () => {
         return <Products />
       case 'entries':
         return <Entries />
+      case 'pending-entries':
+        return <PendingEntries />
       case 'validated-entries':
         return <ValidatedEntries />
       case 'suppliers':
