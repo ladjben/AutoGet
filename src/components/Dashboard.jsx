@@ -1,14 +1,99 @@
-import { useData, ActionTypes } from '../context/UnifiedDataContext';
+/**
+ * Dashboard — présentation uniquement.
+ * Calculs, requêtes, filtres en_attente/paye et gates isAdmin inchangés.
+ */
+import { useData } from '../context/UnifiedDataContext';
 import { USE_SUPABASE } from '../config';
 import { useMemo, useState, useEffect } from 'react';
 import { filterByPeriod } from '../utils/dateUtils';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '@/components/ui/button';
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
-import { Download, Package, TrendingDown, TrendingUp, DollarSign, CreditCard, ShoppingCart } from 'lucide-react';
+import {
+  Download,
+  Package,
+  TrendingDown,
+  TrendingUp,
+  ShoppingCart,
+} from 'lucide-react';
+import { PageHeader } from '@/components/PageHeader';
+import { StatusBadge } from '@/components/StatusBadge';
+import { cn } from '@/lib/utils';
+
+const formatDa = (n) => `${Number(n || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DA`;
+const formatNum = (n) => Number(n || 0).toLocaleString('fr-FR');
+
+/** Tuile KPI purement visuelle */
+function KpiTile({ label, value, hint, icon: Icon, tone = 'default', className }) {
+  const tones = {
+    default: 'text-foreground',
+    danger: 'text-danger',
+    success: 'text-success',
+    info: 'text-info',
+    muted: 'text-muted-foreground',
+  };
+  return (
+    <div
+      className={cn(
+        'rounded-lg border border-border/80 bg-card px-4 py-3',
+        className
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 space-y-1">
+          <p className="text-xs font-medium text-muted-foreground">{label}</p>
+          <p className={cn('truncate text-xl font-semibold tracking-tight sm:text-2xl', tones[tone])}>
+            {value}
+          </p>
+          {hint ? <p className="text-[11px] text-muted-foreground">{hint}</p> : null}
+        </div>
+        {Icon ? (
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted/60">
+            <Icon className={cn('h-4 w-4', tones[tone] === 'text-foreground' ? 'text-muted-foreground' : tones[tone])} />
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+/** Indicateur secondaire compact */
+function MetaStat({ label, value, tone }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-[11px] text-muted-foreground">{label}</p>
+      <p
+        className={cn(
+          'truncate text-sm font-semibold tabular-nums',
+          tone === 'danger' && 'text-danger',
+          tone === 'success' && 'text-success'
+        )}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function EmptyBlock({ message }) {
+  return (
+    <div className="rounded-lg border border-dashed border-border/80 px-4 py-10 text-center text-sm text-muted-foreground">
+      {message}
+    </div>
+  );
+}
+
+function Section({ title, description, children, className }) {
+  return (
+    <section className={cn('space-y-3', className)}>
+      <div>
+        <h2 className="font-display text-base font-semibold tracking-tight text-foreground">{title}</h2>
+        {description ? <p className="text-xs text-muted-foreground">{description}</p> : null}
+      </div>
+      {children}
+    </section>
+  );
+}
 
 const Dashboard = () => {
   const dataCtx = useData();
@@ -293,442 +378,313 @@ const Dashboard = () => {
     };
   }, [state.entrees, state.paiements, state.depenses]);
 
+  const periodColumns = [
+    { key: 'today', label: "Aujourd'hui" },
+    { key: 'week', label: 'Cette semaine' },
+    { key: 'month', label: 'Ce mois' },
+  ];
+
+  const categoriesSorted = Object.entries(allStats.depensesParCategorie).sort(
+    (a, b) => b[1].total - a[1].total
+  );
+
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-foreground">Tableau de Bord</h1>
-        <Button onClick={handleExport} variant="outline">
-          <Download className="h-4 w-4 mr-2" />
-          Exporter les Données
-        </Button>
+    <div className="space-y-8">
+      <PageHeader
+        eyebrow="Vue d'ensemble"
+        title="Tableau de bord"
+        description="Pilotage stock, fournisseurs, paiements et dépenses — Cosmos Algérie."
+        actions={
+          <Button onClick={handleExport} variant="outline" size="sm">
+            <Download className="mr-2 h-4 w-4" />
+            Exporter les données
+          </Button>
+        }
+      />
+
+      {/* KPI prioritaires — admin */}
+      {isAdmin() && (
+        <Section title="Indicateurs clés" description="Valeurs consolidées (hors entrées en attente en mode Supabase).">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <KpiTile
+              label="Valeur totale des entrées"
+              value={formatDa(allStats.totalValeurEntrees)}
+              hint={`${formatNum(allStats.totalProduitsReçus)} paires reçues`}
+              icon={Package}
+              tone="info"
+            />
+            <KpiTile
+              label="Montant restant dû"
+              value={formatDa(allStats.totalValeurEntreesNonPayees)}
+              hint={`${formatNum(allStats.totalEntreesNonPayees)} entrées non payées`}
+              icon={TrendingDown}
+              tone="danger"
+            />
+            <KpiTile
+              label="Paiements effectués"
+              value={formatDa(allStats.totalMontantPaiements)}
+              hint={`${formatNum(allStats.totalPaiements)} paiements`}
+              icon={TrendingUp}
+              tone="success"
+            />
+            <KpiTile
+              label="Dépenses"
+              value={formatDa(allStats.totalMontantDepenses)}
+              hint={`${formatNum(allStats.totalDepenses)} enregistrements`}
+              icon={ShoppingCart}
+            />
+          </div>
+
+          {/* Secondaires compacts */}
+          <div className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg border border-border/80 bg-card/50 px-4 py-3 sm:grid-cols-3 lg:grid-cols-5">
+            <MetaStat label="Produits" value={formatNum(allStats.totalProduits)} />
+            <MetaStat label="Fournisseurs" value={formatNum(allStats.totalFournisseurs)} />
+            <MetaStat label="Entrées" value={formatNum(allStats.totalEntrees)} />
+            <MetaStat label="Qté reçues" value={formatNum(allStats.totalProduitsReçus)} />
+            <MetaStat label="Taux paiement" value={`${allStats.tauxPaiementEntrees.toFixed(1)} %`} />
+          </div>
+
+          {/* Détails financiers — données préservées */}
+          <div className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg border border-border/60 px-4 py-3 sm:grid-cols-3 lg:grid-cols-6">
+            <MetaStat label="Entrées payées" value={formatNum(allStats.totalEntreesPayees)} tone="success" />
+            <MetaStat label="Entrées non payées" value={formatNum(allStats.totalEntreesNonPayees)} tone="danger" />
+            <MetaStat label="Valeur payée" value={formatDa(allStats.totalValeurEntreesPayees)} />
+            <MetaStat label="Moy. paiement" value={formatDa(allStats.moyennePaiement)} />
+            <MetaStat label="Moy. dépense" value={formatDa(allStats.moyenneDepense)} />
+            <MetaStat
+              label="Solde global"
+              value={formatDa(allStats.soldeGlobal)}
+              tone={allStats.soldeGlobal >= 0 ? 'success' : 'danger'}
+            />
+            <MetaStat label="Prix moyen produits" value={formatDa(allStats.prixMoyenProduits)} />
+            <MetaStat label="Taux entrées payées" value={`${allStats.tauxEntreesPayees.toFixed(1)} %`} />
+            <MetaStat label="Valeur catalogue" value={formatDa(allStats.valeurTotaleProduits)} />
+            <MetaStat label="Avec référence" value={formatNum(allStats.produitsAvecReference)} />
+            <MetaStat label="Catégories dépenses" value={formatNum(allStats.nombreCategories)} />
+          </div>
+        </Section>
+      )}
+
+      {/* Périodes — admin */}
+      {isAdmin() && (
+        <Section title="Activité récente" description="Comparaison aujourd'hui / semaine / mois.">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            {periodColumns.map(({ key, label }) => {
+              const p = periodStats[key];
+              return (
+                <div key={key} className="rounded-lg border border-border/80 bg-card px-4 py-3">
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {label}
+                  </p>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between gap-2">
+                      <span className="text-muted-foreground">Entrées</span>
+                      <span className="font-medium tabular-nums">{p.entrees.count}</span>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <span className="text-muted-foreground">Paiements</span>
+                      <span className="font-medium tabular-nums text-right">
+                        {p.paiements.count}
+                        <span className="ml-1 text-xs text-muted-foreground">
+                          ({formatDa(p.paiements.total)})
+                        </span>
+                      </span>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <span className="text-muted-foreground">Dépenses</span>
+                      <span className="font-medium tabular-nums text-right">
+                        {p.depenses.count}
+                        <span className="ml-1 text-xs text-muted-foreground">
+                          ({formatDa(p.depenses.total)})
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Section>
+      )}
+
+      {/* Produits aperçu */}
+      <Section
+        title="Produits"
+        description={`${allStats.totalProduits} produit(s) · aperçu des 6 derniers`}
+      >
+        {(state.produits || []).length === 0 ? (
+          <EmptyBlock message="Aucun produit enregistré" />
+        ) : (
+          <div className="overflow-x-auto rounded-lg border border-border/80">
+            <table className="w-full min-w-[480px] text-left text-sm">
+              <thead className="border-b border-border/80 bg-muted/40 text-xs text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2 font-medium">Nom</th>
+                  <th className="px-3 py-2 font-medium">Référence</th>
+                  <th className="px-3 py-2 text-right font-medium">Prix achat</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(state.produits || []).slice(0, 6).map((produit) => (
+                  <tr key={produit.id} className="border-b border-border/40 last:border-0">
+                    <td className="px-3 py-2.5 font-medium">{produit.nom}</td>
+                    <td className="px-3 py-2.5 text-muted-foreground">{produit.reference || '—'}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums">
+                      {formatDa(produit.prix_achat ?? produit.prixAchat ?? 0)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Section>
+
+      <div className="grid grid-cols-1 gap-8 xl:grid-cols-2">
+        {/* Entrées récentes */}
+        <Section title="Entrées récentes" description={`${allStats.totalEntrees} au total`}>
+          {(state.entrees || []).length === 0 ? (
+            <EmptyBlock message="Aucune entrée enregistrée" />
+          ) : (
+            <div className="overflow-x-auto rounded-lg border border-border/80">
+              <table className="w-full min-w-[360px] text-left text-sm">
+                <thead className="border-b border-border/80 bg-muted/40 text-xs text-muted-foreground">
+                  <tr>
+                    <th className="px-3 py-2 font-medium">Date</th>
+                    {isAdmin() && <th className="px-3 py-2 font-medium">Fournisseur</th>}
+                    <th className="px-3 py-2 font-medium">Statut</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allStats.entreesRecent.map((entree) => (
+                    <tr key={entree.id} className="border-b border-border/40 last:border-0">
+                      <td className="px-3 py-2.5 tabular-nums">{entree.date}</td>
+                      {isAdmin() && (
+                        <td className="px-3 py-2.5 text-muted-foreground">
+                          {getFournisseurName(entree)}
+                        </td>
+                      )}
+                      <td className="px-3 py-2.5">
+                        <StatusBadge
+                          status={entree.paye ? 'paye' : 'litige'}
+                          label={entree.paye ? 'Payé' : 'Non payé'}
+                        />
+                        {!USE_SUPABASE && entree.lignes ? (
+                          <span className="ml-2 text-[11px] text-muted-foreground">
+                            {entree.lignes.length} ligne(s)
+                          </span>
+                        ) : null}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Section>
+
+        {/* Paiements récents */}
+        <Section title="Paiements récents" description={`${allStats.totalPaiements} au total`}>
+          {(state.paiements || []).length === 0 ? (
+            <EmptyBlock message="Aucun paiement enregistré" />
+          ) : (
+            <div className="overflow-x-auto rounded-lg border border-border/80">
+              <table className="w-full min-w-[360px] text-left text-sm">
+                <thead className="border-b border-border/80 bg-muted/40 text-xs text-muted-foreground">
+                  <tr>
+                    <th className="px-3 py-2 font-medium">Date</th>
+                    {isAdmin() && <th className="px-3 py-2 font-medium">Fournisseur</th>}
+                    <th className="px-3 py-2 text-right font-medium">Montant</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allStats.paiementsRecent.map((paiement) => (
+                    <tr key={paiement.id} className="border-b border-border/40 last:border-0">
+                      <td className="px-3 py-2.5 tabular-nums">{paiement.date}</td>
+                      {isAdmin() && (
+                        <td className="max-w-[160px] truncate px-3 py-2.5 text-muted-foreground">
+                          {getFournisseurName(paiement.fournisseur_id ?? paiement.fournisseurId)}
+                          {paiement.description ? (
+                            <span className="block truncate text-[11px]">{paiement.description}</span>
+                          ) : null}
+                        </td>
+                      )}
+                      <td className="px-3 py-2.5 text-right font-medium tabular-nums text-success">
+                        {formatDa(paiement.montant)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Section>
       </div>
 
-      {/* Vue d'Ensemble Globale - Admin seulement */}
-      {isAdmin() && (
-      <Card>
-        <CardHeader>
-          <CardTitle>Vue d'Ensemble Globale</CardTitle>
-          <CardDescription>Statistiques complètes de votre activité</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Cartes principales */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Valeur Stock Total</p>
-                    <p className="text-3xl font-bold">{allStats.totalValeurEntrees.toFixed(2)} DA</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {allStats.totalProduitsReçus} produits reçus
-                    </p>
-                  </div>
-                  <Package className="h-8 w-8 text-blue-500" />
-                </div>
-              </CardContent>
-            </Card>
-            
-            {isAdmin() && (
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Dû aux Fournisseurs</p>
-                    <p className="text-3xl font-bold text-destructive">{allStats.totalValeurEntreesNonPayees.toFixed(2)} DA</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {allStats.totalEntreesNonPayees} entrées non payées
-                    </p>
-                  </div>
-                  <TrendingDown className="h-8 w-8 text-destructive" />
-                </div>
-              </CardContent>
-            </Card>
-            )}
-            
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Total Payé</p>
-                    <p className="text-3xl font-bold text-green-600">{allStats.totalMontantPaiements.toFixed(2)} DA</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {allStats.totalPaiements} paiements effectués
-                    </p>
-                  </div>
-                  <TrendingUp className="h-8 w-8 text-green-600" />
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Total Dépenses</p>
-                    <p className="text-3xl font-bold">{allStats.totalMontantDepenses.toFixed(2)} DA</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {allStats.totalDepenses} dépenses enregistrées
-                    </p>
-                  </div>
-                  <ShoppingCart className="h-8 w-8 text-primary" />
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+      {/* Dépenses + catégories */}
+      <Section
+        title="Dépenses"
+        description={`${allStats.totalDepenses} dépense(s) · ${allStats.nombreCategories} catégorie(s)`}
+      >
+        {(state.depenses || []).length === 0 ? (
+          <EmptyBlock message="Aucune dépense enregistrée" />
+        ) : (
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
+            <div className="overflow-x-auto rounded-lg border border-border/80 lg:col-span-3">
+              <table className="w-full min-w-[360px] text-left text-sm">
+                <thead className="border-b border-border/80 bg-muted/40 text-xs text-muted-foreground">
+                  <tr>
+                    <th className="px-3 py-2 font-medium">Date</th>
+                    <th className="px-3 py-2 font-medium">Catégorie</th>
+                    <th className="px-3 py-2 text-right font-medium">Montant</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allStats.depensesRecent.map((depense) => (
+                    <tr key={depense.id} className="border-b border-border/40 last:border-0">
+                      <td className="px-3 py-2.5 tabular-nums">{depense.date}</td>
+                      <td className="px-3 py-2.5">
+                        <span className="text-muted-foreground">
+                          {depense.depense_categories?.nom || depense.nom || '—'}
+                        </span>
+                        {depense.description ? (
+                          <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
+                            {depense.description}
+                          </span>
+                        ) : null}
+                      </td>
+                      <td className="px-3 py-2.5 text-right font-medium tabular-nums">
+                        {formatDa(depense.montant)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
-          <Separator />
-
-          {/* Statistiques détaillées */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            <div className="text-center">
-              <p className="text-sm text-muted-foreground">Total Produits</p>
-              <p className="text-xl font-bold">{allStats.totalProduits}</p>
-            </div>
-            <div className="text-center">
-              <p className="text-sm text-muted-foreground">Total Entrées</p>
-              <p className="text-xl font-bold">{allStats.totalEntrees}</p>
-            </div>
-            <div className="text-center">
-              <p className="text-sm text-muted-foreground">Entrées Payées</p>
-              <p className="text-xl font-bold text-green-600">{allStats.totalEntreesPayees}</p>
-            </div>
-            <div className="text-center">
-              <p className="text-sm text-muted-foreground">Entrées Non Payées</p>
-              <p className="text-xl font-bold text-destructive">{allStats.totalEntreesNonPayees}</p>
-            </div>
-            {isAdmin() && (
-            <div className="text-center">
-              <p className="text-sm text-muted-foreground">Total Fournisseurs</p>
-              <p className="text-xl font-bold">{allStats.totalFournisseurs}</p>
-            </div>
-            )}
-            <div className="text-center">
-              <p className="text-sm text-muted-foreground">Taux Paiement</p>
-              <p className="text-xl font-bold">{allStats.tauxPaiementEntrees.toFixed(1)}%</p>
-            </div>
-          </div>
-
-          <Separator />
-
-          {/* Statistiques financières */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            <div className="text-center">
-              <p className="text-sm text-muted-foreground">Valeur Entrées Payées</p>
-              <p className="text-xl font-bold">{allStats.totalValeurEntreesPayees.toFixed(2)} DA</p>
-            </div>
-            <div className="text-center">
-              <p className="text-sm text-muted-foreground">Moyenne Paiement</p>
-              <p className="text-xl font-bold">{allStats.moyennePaiement.toFixed(2)} DA</p>
-            </div>
-            <div className="text-center">
-              <p className="text-sm text-muted-foreground">Moyenne Dépense</p>
-              <p className="text-xl font-bold">{allStats.moyenneDepense.toFixed(2)} DA</p>
-            </div>
-            <div className="text-center">
-              <p className="text-sm text-muted-foreground">Solde Global</p>
-              <p className={`text-xl font-bold ${allStats.soldeGlobal >= 0 ? 'text-green-600' : 'text-destructive'}`}>
-                {allStats.soldeGlobal.toFixed(2)} DA
+            <div className="rounded-lg border border-border/80 bg-card px-4 py-3 lg:col-span-2">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Répartition par catégorie
               </p>
-            </div>
-            <div className="text-center">
-              <p className="text-sm text-muted-foreground">Prix Moyen Produits</p>
-              <p className="text-xl font-bold">{allStats.prixMoyenProduits.toFixed(2)} DA</p>
-            </div>
-            <div className="text-center">
-              <p className="text-sm text-muted-foreground">Taux Entrées Payées</p>
-              <p className="text-xl font-bold">{allStats.tauxEntreesPayees.toFixed(1)}%</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-      )}
-
-      {/* Statistiques par Période - Admin seulement */}
-      {isAdmin() && (
-      <Card>
-        <CardHeader>
-          <CardTitle>Statistiques par Période</CardTitle>
-          <CardDescription>Vue détaillée par jour, semaine et mois</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Aujourd'hui */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Aujourd'hui</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Entrées:</span>
-                  <span className="text-sm font-semibold">{periodStats.today.entrees.count}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Paiements:</span>
-                  <span className="text-sm font-semibold">
-                    {periodStats.today.paiements.count} ({periodStats.today.paiements.total.toFixed(2)} DA)
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Dépenses:</span>
-                  <span className="text-sm font-semibold">
-                    {periodStats.today.depenses.count} ({periodStats.today.depenses.total.toFixed(2)} DA)
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Cette Semaine */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Cette Semaine</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Entrées:</span>
-                  <span className="text-sm font-semibold">{periodStats.week.entrees.count}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Paiements:</span>
-                  <span className="text-sm font-semibold">
-                    {periodStats.week.paiements.count} ({periodStats.week.paiements.total.toFixed(2)} DA)
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Dépenses:</span>
-                  <span className="text-sm font-semibold">
-                    {periodStats.week.depenses.count} ({periodStats.week.depenses.total.toFixed(2)} DA)
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Ce Mois */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Ce Mois</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Entrées:</span>
-                  <span className="text-sm font-semibold">{periodStats.month.entrees.count}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Paiements:</span>
-                  <span className="text-sm font-semibold">
-                    {periodStats.month.paiements.count} ({periodStats.month.paiements.total.toFixed(2)} DA)
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Dépenses:</span>
-                  <span className="text-sm font-semibold">
-                    {periodStats.month.depenses.count} ({periodStats.month.depenses.total.toFixed(2)} DA)
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </CardContent>
-      </Card>
-      )}
-
-      {/* Produits */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Produits</CardTitle>
-          <CardDescription>{allStats.totalProduits} produit(s) enregistré(s)</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {/* Résumé Global - Admin seulement */}
-          {isAdmin() && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <Card>
-              <CardContent className="pt-6">
-                <p className="text-sm text-muted-foreground mb-1">Valeur Totale</p>
-                <p className="text-2xl font-bold">{allStats.valeurTotaleProduits.toFixed(2)} DA</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-6">
-                <p className="text-sm text-muted-foreground mb-1">Prix Moyen</p>
-                <p className="text-2xl font-bold">{allStats.prixMoyenProduits.toFixed(2)} DA</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-6">
-                <p className="text-sm text-muted-foreground mb-1">Avec Référence</p>
-                <p className="text-2xl font-bold">{allStats.produitsAvecReference}</p>
-              </CardContent>
-            </Card>
-          </div>
-          )}
-          {(state.produits || []).length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              Aucun produit enregistré
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {(state.produits || []).slice(0, 6).map((produit) => (
-                <Card key={produit.id}>
-                  <CardContent className="pt-6">
-                    <h3 className="font-semibold">{produit.nom}</h3>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Prix: {produit.prix_achat ?? produit.prixAchat ?? 0} DA
-                    </p>
-                    {produit.reference && (
-                      <p className="text-xs text-muted-foreground mt-1">Réf: {produit.reference}</p>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Entrées Récentes */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Entrées Récentes</CardTitle>
-          <CardDescription>{allStats.totalEntrees} entrée(s) au total</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {(state.entrees || []).length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              Aucune entrée enregistrée
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {allStats.entreesRecent.map((entree) => (
-                <Card key={entree.id}>
-                  <CardContent className="pt-6">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="font-semibold">Date: {entree.date}</p>
-                        {isAdmin() && (
-                        <p className="text-sm text-muted-foreground">
-                          Fournisseur: {getFournisseurName(entree)}
-                        </p>
-                        )}
-                        {!USE_SUPABASE && entree.lignes && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {entree.lignes.length} ligne(s) de produit
-                          </p>
-                        )}
-                      </div>
-                      <Badge variant={entree.paye ? "default" : "destructive"}>
-                        {entree.paye ? 'Payé' : 'Non Payé'}
-                      </Badge>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Paiements Récents */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Paiements Récents</CardTitle>
-          <CardDescription>{allStats.totalPaiements} paiement(s) au total</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {(state.paiements || []).length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              Aucun paiement enregistré
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {allStats.paiementsRecent.map((paiement) => (
-                <Card key={paiement.id}>
-                  <CardContent className="pt-6">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="font-semibold">
-                          {parseFloat(paiement.montant || 0).toFixed(2)} DA
-                        </p>
-                        {isAdmin() && (
-                        <p className="text-sm text-muted-foreground">
-                          Fournisseur: {getFournisseurName(paiement.fournisseur_id ?? paiement.fournisseurId)}
-                        </p>
-                        )}
-                        <p className="text-xs text-muted-foreground mt-1">Date: {paiement.date}</p>
-                        {paiement.description && (
-                          <p className="text-xs text-muted-foreground mt-1">{paiement.description}</p>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Dépenses Récentes */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Dépenses Récentes</CardTitle>
-          <CardDescription>
-            {allStats.totalDepenses} dépense(s) - {allStats.nombreCategories} catégorie(s)
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {(state.depenses || []).length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              Aucune dépense enregistrée
-            </div>
-          ) : (
-            <>
-              <div className="space-y-3 mb-4">
-                {allStats.depensesRecent.map((depense) => (
-                  <Card key={depense.id}>
-                    <CardContent className="pt-6">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <p className="font-semibold">
-                            {depense.montant.toFixed(2)} DA
-                          </p>
-                          {(depense.nom || depense.depense_categories?.nom) && (
-                            <Badge variant="outline" className="mt-2">
-                              {depense.depense_categories?.nom || depense.nom}
-                            </Badge>
-                          )}
-                          <p className="text-xs text-muted-foreground mt-2">Date: {depense.date}</p>
-                          {depense.description && (
-                            <p className="text-xs text-muted-foreground mt-1">{depense.description}</p>
-                          )}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-              {Object.keys(allStats.depensesParCategorie).length > 0 && (
-                <>
-                  <Separator className="my-4" />
-                  <div>
-                    <h3 className="text-sm font-semibold mb-3">Répartition par Catégorie</h3>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                      {Object.entries(allStats.depensesParCategorie).map(([nom, data]) => (
-                        <Card key={nom}>
-                          <CardContent className="pt-6 text-center">
-                            <p className="text-xs text-muted-foreground font-medium">{nom}</p>
-                            <p className="text-sm font-bold">{data.total.toFixed(2)} DA</p>
-                            <p className="text-xs text-muted-foreground">{data.count} fois</p>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  </div>
-                </>
+              {categoriesSorted.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Aucune catégorie</p>
+              ) : (
+                <ul className="max-h-64 space-y-2 overflow-y-auto">
+                  {categoriesSorted.map(([nom, data]) => (
+                    <li key={nom} className="flex items-baseline justify-between gap-2 text-sm">
+                      <span className="min-w-0 truncate text-muted-foreground">
+                        {nom}
+                        <span className="ml-1 text-[11px]">×{data.count}</span>
+                      </span>
+                      <span className="shrink-0 font-medium tabular-nums">{formatDa(data.total)}</span>
+                    </li>
+                  ))}
+                </ul>
               )}
-            </>
-          )}
-        </CardContent>
-      </Card>
+            </div>
+          </div>
+        )}
+      </Section>
     </div>
   );
 };

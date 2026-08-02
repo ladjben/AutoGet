@@ -1,3 +1,8 @@
+/**
+ * Dépenses — présentation uniquement.
+ * Formules, filtres temporels, regroupement, CRUD, protection catégories,
+ * permissions et modes Supabase/localStorage inchangés.
+ */
 import { useData, ActionTypes } from '../context/UnifiedDataContext';
 import { USE_SUPABASE } from '../config';
 import { useAuth } from '../context/AuthContext';
@@ -7,11 +12,68 @@ import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
-import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogTrigger,
+  DialogDescription,
+} from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
-import { Plus, ShoppingCart, Calendar, Edit, Trash2, TrendingUp, List, X } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { cn } from '@/lib/utils';
+import { PageHeader } from '@/components/PageHeader';
+import { PageSurface } from '@/components/PageSurface';
+import {
+  Plus,
+  ShoppingCart,
+  Calendar,
+  Edit,
+  Trash2,
+  List,
+  X,
+  Search,
+  MoreHorizontal,
+  AlertTriangle,
+} from 'lucide-react';
+
+const formatDa = (value) =>
+  `${Number(parseFloat(value || 0).toFixed(2)).toLocaleString('fr-FR')} DA`;
+
+const formatNum = (n) => Number(n || 0).toLocaleString('fr-FR');
+
+const formatDate = (dateStr) => {
+  if (!dateStr) return '—';
+  const d = new Date(`${dateStr}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return dateStr;
+  return d.toLocaleDateString('fr-FR');
+};
+
+function MetaStat({ label, value, tone }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-[11px] text-muted-foreground">{label}</p>
+      <p
+        className={cn(
+          'truncate text-sm font-semibold tabular-nums',
+          tone === 'danger' && 'text-danger',
+          tone === 'success' && 'text-success',
+          tone === 'warning' && 'text-[hsl(var(--warning))]',
+          tone === 'info' && 'text-[hsl(var(--info))]'
+        )}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
 
 const Depenses = () => {
   const dataCtx = useData();
@@ -43,6 +105,7 @@ const Depenses = () => {
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
   const [showCategoriesModal, setShowCategoriesModal] = useState(false);
   const [newCategory, setNewCategory] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     if (USE_SUPABASE && fetchDepenseCategories) {
@@ -91,6 +154,17 @@ const Depenses = () => {
   };
 
   const filteredDepenses = getFilteredDepenses();
+
+  // Recherche textuelle présentationnelle — n’altère pas le filtre temporel ni le regroupement
+  const displayedDepenses = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return filteredDepenses;
+    return filteredDepenses.filter((d) => {
+      const nom = (d.depense_categories?.nom || d.nom || '').toLowerCase();
+      const desc = (d.description || '').toLowerCase();
+      return nom.includes(q) || desc.includes(q);
+    });
+  }, [filteredDepenses, searchQuery]);
 
   const calculateTotal = () => {
     return filteredDepenses.reduce((sum, d) => sum + (d.montant || 0), 0);
@@ -340,559 +414,608 @@ const Depenses = () => {
     };
   }, [state.depenses]);
 
+  const hasActiveFilters =
+    searchType !== 'all' || Boolean(searchQuery.trim());
+
+  const resetFilters = () => {
+    setSearchType('all');
+    setSingleDate('');
+    setDateRange({ start: '', end: '' });
+    setSearchQuery('');
+  };
+
+  const openCreateModal = () => {
+    setEditingDepense(null);
+    resetForm();
+    setShowModal(true);
+  };
+
+  const categoryName = (depense) =>
+    depense.depense_categories?.nom || depense.nom || 'Sans nom';
+
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-foreground">Dépenses</h1>
-        <div className="flex gap-3">
-          <Dialog open={showCategoriesModal} onOpenChange={setShowCategoriesModal}>
-            <DialogTrigger asChild>
-              <Button variant="outline">
-                <List className="h-4 w-4 mr-2" />
-                Gérer les Catégories
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Gérer les Catégories de Dépenses</DialogTitle>
-                <DialogDescription>
-                  Créez et gérez vos catégories de dépenses
-                </DialogDescription>
-              </DialogHeader>
-              
-              <div className="space-y-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">Créer une nouvelle catégorie</CardTitle>
-                  </CardHeader>
-                  <CardContent>
+    <PageSurface className="space-y-6">
+      <PageHeader
+        eyebrow="Opérations"
+        title="Dépenses"
+        description="Suivi des dépenses — montants, catégories et périodes."
+        actions={
+          <>
+            <Dialog open={showCategoriesModal} onOpenChange={setShowCategoriesModal}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <List className="mr-2 h-4 w-4" />
+                  Catégories
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Gérer les catégories</DialogTitle>
+                  <DialogDescription>
+                    Créez et gérez vos catégories de dépenses
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4">
+                  <div className="rounded-lg border border-border/80 bg-muted/20 px-3 py-3">
+                    <p className="mb-2 text-sm font-medium">Nouvelle catégorie</p>
                     <div className="flex gap-2">
                       <Input
                         type="text"
                         value={newCategory}
                         onChange={(e) => setNewCategory(e.target.value)}
-                        placeholder="Ex: Transport, Loyer, Nourriture..."
+                        placeholder="Ex: Transport, Loyer, Nourriture…"
                         onKeyPress={(e) => e.key === 'Enter' && handleAddCategory()}
                       />
-                      <Button onClick={handleAddCategory}>
-                        <Plus className="h-4 w-4 mr-2" />
+                      <Button onClick={handleAddCategory} size="sm">
+                        <Plus className="mr-2 h-4 w-4" />
                         Ajouter
                       </Button>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-2">
-                      {USE_SUPABASE 
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      {USE_SUPABASE
                         ? 'La catégorie sera créée immédiatement dans la base de données.'
-                        : 'En mode local, créez une dépense avec ce nom pour créer la catégorie.'
-                      }
+                        : 'En mode local, créez une dépense avec ce nom pour créer la catégorie.'}
                     </p>
-                  </CardContent>
-                </Card>
+                  </div>
 
-                <div>
-                  <h4 className="text-sm font-semibold mb-3">
-                    Catégories existantes ({depenseCategories.length})
-                  </h4>
-                  {depenseCategories.length === 0 ? (
-                    <Card>
-                      <CardContent className="pt-6">
-                        <div className="text-center text-muted-foreground py-4">
-                          <p className="text-sm">Aucune catégorie créée encore</p>
-                          <p className="text-xs mt-1">Créez votre première dépense pour voir la catégorie apparaître ici</p>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ) : (
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                      {depenseCategories.map((cat) => {
-                        const count = (state.depenses || []).filter(d => 
-                          USE_SUPABASE 
-                            ? (d.categorie_id === cat.id || d.depense_categories?.id === cat.id)
-                            : d.nom === cat.nom
-                        ).length;
-                        const total = (state.depenses || []).filter(d => 
-                          USE_SUPABASE 
-                            ? (d.categorie_id === cat.id || d.depense_categories?.id === cat.id)
-                            : d.nom === cat.nom
-                        ).reduce((sum, d) => sum + (d.montant || 0), 0);
-                        return (
-                          <Card key={cat.id || cat.nom}>
-                            <CardContent className="pt-6">
-                              <div className="flex items-center justify-between mb-2">
-                                <h5 className="font-semibold text-sm">{cat.nom}</h5>
-                                {USE_SUPABASE && isAdmin() && (
-                                  <Button
-                                    onClick={() => handleDeleteCategory(cat.id)}
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-6 w-6 p-0"
-                                  >
-                                    <X className="h-3 w-3" />
-                                  </Button>
-                                )}
+                  <div>
+                    <h4 className="mb-3 text-sm font-semibold">
+                      Catégories existantes ({depenseCategories.length})
+                    </h4>
+                    {depenseCategories.length === 0 ? (
+                      <div className="rounded-lg border border-dashed border-border/80 px-4 py-8 text-center text-sm text-muted-foreground">
+                        <p>Aucune catégorie créée encore</p>
+                        <p className="mt-1 text-xs">
+                          Créez votre première dépense pour voir la catégorie apparaître ici
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        {depenseCategories.map((cat) => {
+                          const count = (state.depenses || []).filter(d => 
+                            USE_SUPABASE 
+                              ? (d.categorie_id === cat.id || d.depense_categories?.id === cat.id)
+                              : d.nom === cat.nom
+                          ).length;
+                          const total = (state.depenses || []).filter(d => 
+                            USE_SUPABASE 
+                              ? (d.categorie_id === cat.id || d.depense_categories?.id === cat.id)
+                              : d.nom === cat.nom
+                          ).reduce((sum, d) => sum + (d.montant || 0), 0);
+                          return (
+                            <div
+                              key={cat.id || cat.nom}
+                              className="flex items-start justify-between gap-2 rounded-lg border border-border/80 bg-card px-3 py-2.5"
+                            >
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-semibold">{cat.nom}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {count} {count === 1 ? 'dépense' : 'dépenses'}
+                                </p>
+                                <p className="text-sm font-semibold tabular-nums">
+                                  {formatDa(total)}
+                                </p>
                               </div>
-                              <p className="text-xs text-muted-foreground mb-1">{count} {count === 1 ? 'dépense' : 'dépenses'}</p>
-                              <p className="text-sm font-semibold">{total.toFixed(2)} DA</p>
-                            </CardContent>
-                          </Card>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
-
-          <Dialog open={showModal} onOpenChange={(open) => {
-            setShowModal(open);
-            if (!open) {
-              setEditingDepense(null);
-              resetForm();
-            }
-          }}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Nouvelle Dépense
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>{editingDepense ? 'Modifier la Dépense' : 'Nouvelle Dépense'}</DialogTitle>
-                <DialogDescription>
-                  {editingDepense ? 'Modifiez les informations de la dépense' : 'Ajoutez une nouvelle dépense'}
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium mb-2 block">
-                    Nom de la dépense (Catégorie) *
-                  </label>
-                  <div className="relative">
-                    <Input
-                      type="text"
-                      list="categories-list"
-                      value={formData.nom}
-                      onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
-                      placeholder="Tapez un nom ou sélectionnez une catégorie existante..."
-                      required
-                    />
-                    {categoriesExistantes.length > 0 && (
-                      <datalist id="categories-list">
-                        {categoriesExistantes.map((cat) => (
-                          <option key={cat} value={cat} />
-                        ))}
-                      </datalist>
-                    )}
-                  </div>
-                  <div className="mt-2 flex items-center gap-2">
-                    <Button
-                      type="button"
-                      variant="link"
-                      size="sm"
-                      onClick={() => {
-                        setShowModal(false);
-                        setShowCategoriesModal(true);
-                      }}
-                      className="h-auto p-0 text-xs"
-                    >
-                      <List className="h-3 w-3 mr-1" />
-                      Gérer les catégories
-                    </Button>
-                    {categoriesExistantes.length > 0 && (
-                      <span className="text-xs text-muted-foreground">
-                        {categoriesExistantes.length} {categoriesExistantes.length === 1 ? 'catégorie' : 'catégories'} disponible{categoriesExistantes.length > 1 ? 's' : ''}
-                      </span>
+                              {USE_SUPABASE && isAdmin() && (
+                                <Button
+                                  onClick={() => handleDeleteCategory(cat.id)}
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 shrink-0"
+                                  aria-label={`Supprimer ${cat.nom}`}
+                                >
+                                  <X className="h-3.5 w-3.5 text-destructive" />
+                                </Button>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
                     )}
                   </div>
                 </div>
+              </DialogContent>
+            </Dialog>
 
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Montant (DA) *</label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={formData.montant}
-                    onChange={(e) => setFormData({ ...formData, montant: e.target.value })}
-                    required
-                  />
-                </div>
+            <Button size="sm" onClick={openCreateModal}>
+              <Plus className="mr-2 h-4 w-4" />
+              Nouvelle dépense
+            </Button>
+          </>
+        }
+      />
 
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Date *</label>
-                  <Input
-                    type="date"
-                    value={formData.date}
-                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Description/Commentaire</label>
-                  <Textarea
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    rows={3}
-                    placeholder="Détails supplémentaires de la dépense..."
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setShowModal(false);
-                    setEditingDepense(null);
-                    resetForm();
-                  }}
-                >
-                  Annuler
-                </Button>
-                <Button onClick={editingDepense ? handleUpdateDepense : handleAddDepense}>
-                  {editingDepense ? 'Modifier' : 'Ajouter'}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        </div>
+      {/* KPI principaux */}
+      <div className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg border border-border/80 bg-card px-4 py-3 sm:grid-cols-4">
+        <MetaStat label="Montant total" value={formatDa(globalStats.total)} tone="danger" />
+        <MetaStat label="Dépenses" value={formatNum(globalStats.count)} />
+        <MetaStat label="Moyenne" value={formatDa(globalStats.moyenne)} />
+        <MetaStat label="Catégories" value={formatNum(globalStats.nombreCategories)} />
       </div>
 
-      {/* Search Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Recherche par Date</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="text-sm font-medium mb-2 block">Type de recherche</label>
-              <select
-                value={searchType}
-                onChange={(e) => {
-                  setSearchType(e.target.value);
-                  setSingleDate('');
-                  setDateRange({ start: '', end: '' });
-                }}
-                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <option value="all">Toutes les dépenses</option>
-                <option value="single">Date unique</option>
-                <option value="range">Période (Du...au...)</option>
-              </select>
-            </div>
-
-            {searchType === 'single' && (
+      {/* Comparaison périodes */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {[
+          { key: 'today', label: "Aujourd'hui", stats: periodStats.today },
+          { key: 'week', label: 'Cette semaine', stats: periodStats.week },
+          { key: 'month', label: 'Ce mois', stats: periodStats.month },
+        ].map(({ key, label, stats }) => (
+          <div
+            key={key}
+            className="rounded-lg border border-border/80 bg-card px-4 py-3"
+          >
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              {label}
+            </p>
+            <p className="text-lg font-semibold tabular-nums">{formatDa(stats.total)}</p>
+            <div className="mt-2 grid grid-cols-3 gap-2 text-xs text-muted-foreground">
               <div>
-                <label className="text-sm font-medium mb-2 block">Date</label>
-                <Input
-                  type="date"
-                  value={singleDate}
-                  onChange={(e) => setSingleDate(e.target.value)}
-                />
+                <p>Nb</p>
+                <p className="font-medium tabular-nums text-foreground">
+                  {formatNum(stats.count)}
+                </p>
               </div>
-            )}
-
-            {searchType === 'range' && (
-              <>
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Date début</label>
-                  <Input
-                    type="date"
-                    value={dateRange.start}
-                    onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Date fin</label>
-                  <Input
-                    type="date"
-                    value={dateRange.end}
-                    onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
-                  />
-                </div>
-              </>
-            )}
-          </div>
-
-          {filteredDepenses.length > 0 && (
-            <Card className="mt-4">
-              <CardContent className="pt-6">
-                <div className="flex justify-between items-center">
-                  <span className="text-lg font-semibold flex items-center gap-2">
-                    <TrendingUp className="h-5 w-5" />
-                    Total dépenses ({filteredDepenses.length}):
-                  </span>
-                  <span className="text-2xl font-bold">
-                    {calculateTotal().toFixed(2)} DA
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Résumé Global */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Vue d'Ensemble Globale</CardTitle>
-          <CardDescription>Statistiques sur toutes vos dépenses</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Total Dépenses</p>
-                    <p className="text-3xl font-bold">{globalStats.total.toFixed(2)} DA</p>
-                    <p className="text-xs text-muted-foreground mt-1">{globalStats.count} dépense(s)</p>
-                  </div>
-                  <ShoppingCart className="h-8 w-8 text-primary" />
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Nombre de Catégories</p>
-                    <p className="text-3xl font-bold">{globalStats.nombreCategories}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Catégories actives</p>
-                  </div>
-                  <List className="h-8 w-8 text-purple-500" />
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Dépense Moyenne</p>
-                    <p className="text-3xl font-bold">{globalStats.moyenne.toFixed(2)} DA</p>
-                    <p className="text-xs text-muted-foreground mt-1">Par dépense</p>
-                  </div>
-                  <TrendingUp className="h-8 w-8 text-green-600" />
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Total Entrées</p>
-                    <p className="text-3xl font-bold">{globalStats.count}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Dépenses enregistrées</p>
-                  </div>
-                  <Calendar className="h-8 w-8 text-blue-500" />
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Statistiques par Période */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Statistiques par Période</CardTitle>
-          <CardDescription>Vue détaillée par jour, semaine et mois</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Aujourd'hui</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Nombre:</span>
-                  <span className="text-sm font-semibold">{periodStats.today.count}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Total:</span>
-                  <span className="text-sm font-semibold">{periodStats.today.total.toFixed(2)} DA</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Moyenne:</span>
-                  <span className="text-sm font-semibold">{periodStats.today.moyenne.toFixed(2)} DA</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Catégories:</span>
-                  <span className="text-sm font-semibold">{periodStats.today.categories}</span>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Cette Semaine</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Nombre:</span>
-                  <span className="text-sm font-semibold">{periodStats.week.count}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Total:</span>
-                  <span className="text-sm font-semibold">{periodStats.week.total.toFixed(2)} DA</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Moyenne:</span>
-                  <span className="text-sm font-semibold">{periodStats.week.moyenne.toFixed(2)} DA</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Catégories:</span>
-                  <span className="text-sm font-semibold">{periodStats.week.categories}</span>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Ce Mois</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Nombre:</span>
-                  <span className="text-sm font-semibold">{periodStats.month.count}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Total:</span>
-                  <span className="text-sm font-semibold">{periodStats.month.total.toFixed(2)} DA</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Moyenne:</span>
-                  <span className="text-sm font-semibold">{periodStats.month.moyenne.toFixed(2)} DA</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Catégories:</span>
-                  <span className="text-sm font-semibold">{periodStats.month.categories}</span>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Résumé par Catégorie */}
-      {depensesParNom.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Résumé par Catégorie</CardTitle>
-            <CardDescription>Répartition des dépenses par catégorie</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {depensesParNom.map((groupe) => (
-                <Card key={groupe.nom}>
-                  <CardContent className="pt-6">
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="font-semibold text-sm">{groupe.nom}</h3>
-                      <Badge variant="outline">
-                        {groupe.count} {groupe.count === 1 ? 'fois' : 'fois'}
-                      </Badge>
-                    </div>
-                    <p className="text-2xl font-bold">{groupe.total.toFixed(2)} DA</p>
-                    <Separator className="my-2" />
-                    <p className="text-xs text-muted-foreground">
-                      Moyenne: {(groupe.total / groupe.count).toFixed(2)} DA
-                    </p>
-                  </CardContent>
-                </Card>
-              ))}
+              <div>
+                <p>Moy.</p>
+                <p className="font-medium tabular-nums text-foreground">
+                  {formatDa(stats.moyenne)}
+                </p>
+              </div>
+              <div>
+                <p>Cat.</p>
+                <p className="font-medium tabular-nums text-foreground">
+                  {formatNum(stats.categories)}
+                </p>
+              </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        ))}
+      </div>
+
+      {/* Recherche + filtres temporels */}
+      <section className="flex flex-col gap-3 rounded-lg border border-border/80 bg-card px-3 py-3 sm:flex-row sm:flex-wrap sm:items-end">
+        <div className="relative min-w-[180px] flex-1 space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground" htmlFor="dep-search">
+            Recherche
+          </label>
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              id="dep-search"
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Catégorie ou description…"
+              className="h-9 pl-8"
+            />
+          </div>
+        </div>
+        <div className="min-w-[160px] space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground" htmlFor="dep-type">
+            Période
+          </label>
+          <select
+            id="dep-type"
+            value={searchType}
+            onChange={(e) => {
+              setSearchType(e.target.value);
+              setSingleDate('');
+              setDateRange({ start: '', end: '' });
+            }}
+            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[hsl(var(--ring))] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          >
+            <option value="all">Toutes les dépenses</option>
+            <option value="single">Date unique</option>
+            <option value="range">Période (Du…au…)</option>
+          </select>
+        </div>
+
+        {searchType === 'single' && (
+          <div className="min-w-[140px] space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground" htmlFor="dep-single">
+              Date
+            </label>
+            <Input
+              id="dep-single"
+              type="date"
+              value={singleDate}
+              onChange={(e) => setSingleDate(e.target.value)}
+              className="h-9"
+            />
+          </div>
+        )}
+
+        {searchType === 'range' && (
+          <>
+            <div className="min-w-[140px] space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground" htmlFor="dep-start">
+                Date début
+              </label>
+              <Input
+                id="dep-start"
+                type="date"
+                value={dateRange.start}
+                onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
+                className="h-9"
+              />
+            </div>
+            <div className="min-w-[140px] space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground" htmlFor="dep-end">
+                Date fin
+              </label>
+              <Input
+                id="dep-end"
+                type="date"
+                value={dateRange.end}
+                onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
+                className="h-9"
+              />
+            </div>
+          </>
+        )}
+
+        {hasActiveFilters && (
+          <Button type="button" variant="outline" size="sm" className="h-9" onClick={resetFilters}>
+            Réinitialiser
+          </Button>
+        )}
+      </section>
+
+      {filteredDepenses.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/60 bg-muted/20 px-4 py-2.5">
+          <span className="text-sm text-muted-foreground">
+            Total filtré ({formatNum(filteredDepenses.length)} dépense
+            {filteredDepenses.length !== 1 ? 's' : ''})
+          </span>
+          <span className="text-base font-semibold tabular-nums">
+            {formatDa(calculateTotal())}
+          </span>
+        </div>
       )}
 
-      {/* Depenses List */}
-      <div className="space-y-4">
+      {/* Résumé par catégorie */}
+      {depensesParNom.length > 0 && (
+        <section className="space-y-3">
+          <div>
+            <h2 className="font-display text-base font-semibold tracking-tight">
+              Par catégorie
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              Total, nombre et moyenne — selon le filtre temporel actif
+            </p>
+          </div>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {depensesParNom.map((groupe) => (
+              <div
+                key={groupe.nom}
+                className="rounded-lg border border-border/80 bg-card px-3 py-3"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <p className="truncate text-sm font-semibold">{groupe.nom}</p>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {formatNum(groupe.count)}×
+                  </span>
+                </div>
+                <p className="mt-1 text-lg font-semibold tabular-nums">
+                  {formatDa(groupe.total)}
+                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Moyenne : {formatDa(groupe.total / groupe.count)}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Liste des dépenses */}
+      <section className="space-y-3">
+        <div>
+          <h2 className="font-display text-base font-semibold tracking-tight">
+            Liste des dépenses
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            {(!state.depenses || state.depenses.length === 0)
+              ? 'Aucune dépense'
+              : `${formatNum(displayedDepenses.length)} dépense(s)${
+                  hasActiveFilters || searchQuery.trim() ? ' (filtrées)' : ''
+                }`}
+          </p>
+        </div>
+
         {(!state.depenses || state.depenses.length === 0) ? (
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-center py-8 text-muted-foreground">
-                <p className="text-lg">Aucune dépense enregistrée</p>
-              </div>
-            </CardContent>
-          </Card>
+          <div className="rounded-lg border border-dashed border-border/80 px-4 py-12 text-center">
+            <ShoppingCart className="mx-auto mb-3 h-8 w-8 text-muted-foreground/40" />
+            <p className="text-sm font-medium">Aucune dépense enregistrée</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Créez votre première dépense pour démarrer le suivi.
+            </p>
+            <Button className="mt-4" size="sm" onClick={openCreateModal}>
+              <Plus className="mr-2 h-4 w-4" />
+              Nouvelle dépense
+            </Button>
+          </div>
         ) : filteredDepenses.length === 0 ? (
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-center py-8 text-muted-foreground">
-                <p className="text-lg">Aucune dépense trouvée pour les critères sélectionnés</p>
-              </div>
-            </CardContent>
-          </Card>
+          <div className="rounded-lg border border-dashed border-border/80 px-4 py-12 text-center">
+            <AlertTriangle className="mx-auto mb-3 h-8 w-8 text-muted-foreground/40" />
+            <p className="text-sm font-medium">Aucun résultat</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Aucune dépense trouvée pour les critères sélectionnés
+            </p>
+          </div>
+        ) : displayedDepenses.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-border/80 px-4 py-10 text-center text-sm text-muted-foreground">
+            Aucune dépense ne correspond à « {searchQuery.trim()} »
+          </div>
         ) : (
-          filteredDepenses.map((depense) => (
-            <Card key={depense.id}>
-              <CardHeader>
-                <div className="flex justify-between items-start">
-                  <div className="flex items-center gap-3">
-                    <div className="bg-primary/10 p-3 rounded-lg">
-                      <ShoppingCart className="h-5 w-5 text-primary" />
+          <>
+            {/* Desktop table */}
+            <div className="hidden overflow-x-auto rounded-lg border border-border/80 md:block">
+              <table className="w-full min-w-[640px] text-left text-sm">
+                <thead className="border-b border-border/80 bg-muted/40 text-xs text-muted-foreground">
+                  <tr>
+                    <th className="px-3 py-2.5 font-medium">Date</th>
+                    <th className="px-3 py-2.5 font-medium">Catégorie</th>
+                    <th className="px-3 py-2.5 font-medium">Description</th>
+                    <th className="px-3 py-2.5 text-right font-medium">Montant</th>
+                    {isAdmin() && (
+                      <th className="w-12 px-3 py-2.5 text-right font-medium">
+                        <span className="sr-only">Actions</span>
+                      </th>
+                    )}
+                  </tr>
+                </thead>
+                <tbody>
+                  {displayedDepenses.map((depense) => (
+                    <tr
+                      key={depense.id}
+                      className="border-b border-border/40 last:border-0 hover:bg-muted/20"
+                    >
+                      <td className="px-3 py-2.5 tabular-nums">
+                        {formatDate(depense.date)}
+                      </td>
+                      <td className="px-3 py-2.5 font-medium">
+                        {categoryName(depense)}
+                      </td>
+                      <td className="max-w-[240px] truncate px-3 py-2.5 text-muted-foreground">
+                        {depense.description || '—'}
+                      </td>
+                      <td className="px-3 py-2.5 text-right font-semibold tabular-nums text-danger">
+                        {formatDa(depense.montant)}
+                      </td>
+                      {isAdmin() && (
+                        <td className="px-3 py-2.5 text-right">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreHorizontal className="h-4 w-4" />
+                                <span className="sr-only">Actions</span>
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-40">
+                              <DropdownMenuItem onClick={() => openEditModal(depense)}>
+                                <Edit className="mr-2 h-4 w-4" />
+                                Modifier
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive"
+                                onClick={() => handleDeleteDepense(depense.id)}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Supprimer
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile cards */}
+            <div className="space-y-2 md:hidden">
+              {displayedDepenses.map((depense) => (
+                <div
+                  key={depense.id}
+                  className="rounded-lg border border-border/80 bg-card px-3 py-3"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 space-y-1">
+                      <p className="font-medium">{categoryName(depense)}</p>
+                      <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Calendar className="h-3 w-3" />
+                        {formatDate(depense.date)}
+                      </p>
+                      {depense.description ? (
+                        <p className="text-xs text-muted-foreground line-clamp-2">
+                          {depense.description}
+                        </p>
+                      ) : null}
                     </div>
-                    <div>
-                      <CardTitle className="text-xl">{depense.montant.toFixed(2)} DA</CardTitle>
-                      {(depense.nom || depense.depense_categories?.nom) && (
-                        <Badge variant="secondary" className="mt-1">
-                          {depense.depense_categories?.nom || depense.nom}
-                        </Badge>
+                    <div className="flex shrink-0 items-start gap-1">
+                      <p className="text-sm font-semibold tabular-nums text-danger">
+                        {formatDa(depense.montant)}
+                      </p>
+                      {isAdmin() && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreHorizontal className="h-4 w-4" />
+                              <span className="sr-only">Actions</span>
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-40">
+                            <DropdownMenuItem onClick={() => openEditModal(depense)}>
+                              <Edit className="mr-2 h-4 w-4" />
+                              Modifier
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={() => handleDeleteDepense(depense.id)}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Supprimer
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       )}
                     </div>
                   </div>
-                  {isAdmin() && (
-                    <div className="flex gap-2">
-                      <Button
-                        onClick={() => openEditModal(depense)}
-                        variant="outline"
-                        size="sm"
-                      >
-                        <Edit className="h-4 w-4 mr-2" />
-                        Éditer
-                      </Button>
-                      <Button
-                        onClick={() => handleDeleteDepense(depense.id)}
-                        variant="destructive"
-                        size="sm"
-                      >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Supprimer
-                      </Button>
-                    </div>
-                  )}
                 </div>
-              </CardHeader>
-              <CardContent>
-                {depense.description && (
-                  <p className="text-sm text-muted-foreground mb-4">{depense.description}</p>
-                )}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
-                      <Calendar className="h-3 w-3" />
-                      Date
-                    </p>
-                    <p className="font-semibold">{depense.date}</p>
-                  </div>
-                  {depense.description && (
-                    <div>
-                      <p className="text-xs text-muted-foreground mb-1">Description</p>
-                      <p className="text-sm">{depense.description}</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))
+              ))}
+            </div>
+          </>
         )}
-      </div>
-    </div>
+      </section>
+
+      {/* Dialog dépense */}
+      <Dialog
+        open={showModal}
+        onOpenChange={(open) => {
+          setShowModal(open);
+          if (!open) {
+            setEditingDepense(null);
+            resetForm();
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {editingDepense ? 'Modifier la dépense' : 'Nouvelle dépense'}
+            </DialogTitle>
+            <DialogDescription>
+              {editingDepense
+                ? 'Modifiez les informations de la dépense'
+                : 'Ajoutez une nouvelle dépense'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="mb-2 block text-sm font-medium" htmlFor="dep-nom">
+                Nom de la dépense (catégorie) *
+              </label>
+              <Input
+                id="dep-nom"
+                type="text"
+                list="categories-list"
+                value={formData.nom}
+                onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
+                placeholder="Tapez un nom ou sélectionnez une catégorie existante…"
+                required
+              />
+              {categoriesExistantes.length > 0 && (
+                <datalist id="categories-list">
+                  {categoriesExistantes.map((cat) => (
+                    <option key={cat} value={cat} />
+                  ))}
+                </datalist>
+              )}
+              <div className="mt-2 flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="link"
+                  size="sm"
+                  onClick={() => {
+                    setShowModal(false);
+                    setShowCategoriesModal(true);
+                  }}
+                  className="h-auto p-0 text-xs"
+                >
+                  <List className="mr-1 h-3 w-3" />
+                  Gérer les catégories
+                </Button>
+                {categoriesExistantes.length > 0 && (
+                  <span className="text-xs text-muted-foreground">
+                    {categoriesExistantes.length}{' '}
+                    {categoriesExistantes.length === 1 ? 'catégorie' : 'catégories'}{' '}
+                    disponible{categoriesExistantes.length > 1 ? 's' : ''}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium" htmlFor="dep-montant">
+                Montant (DA) *
+              </label>
+              <Input
+                id="dep-montant"
+                type="number"
+                step="0.01"
+                value={formData.montant}
+                onChange={(e) => setFormData({ ...formData, montant: e.target.value })}
+                required
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium" htmlFor="dep-date">
+                Date *
+              </label>
+              <Input
+                id="dep-date"
+                type="date"
+                value={formData.date}
+                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                required
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium" htmlFor="dep-desc">
+                Description / commentaire
+              </label>
+              <Textarea
+                id="dep-desc"
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                rows={3}
+                placeholder="Détails supplémentaires de la dépense…"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowModal(false);
+                setEditingDepense(null);
+                resetForm();
+              }}
+            >
+              Annuler
+            </Button>
+            <Button onClick={editingDepense ? handleUpdateDepense : handleAddDepense}>
+              {editingDepense ? 'Modifier' : 'Ajouter'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </PageSurface>
   );
 };
 

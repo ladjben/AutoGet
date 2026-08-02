@@ -1,6 +1,11 @@
 // --- AJOUTER DANS DataContextSupabase.jsx (garde le reste) ---
 import { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from '../config/supabaseClient'
+import {
+  assertCanMutateAcompte,
+  assertCanRestoreAcompte,
+} from '../utils/acompteAuditActor'
+import { translateAcompteRpcError } from '../utils/acompteRpcErrors'
 
 const DataContext = createContext()
 
@@ -453,42 +458,130 @@ export const DataProvider = ({ children }) => {
     }
   }
 
-  async function addAcompte(salary_id, montant, date, description) {
+  /**
+   * Création via RPC create_acompte (pas d'INSERT direct).
+   * @param {object} actor — buildAcompteAuditActor(user)
+   */
+  async function addAcompte(salary_id, montant, date, description, actor) {
     try {
-      const dateFormatted = date ? date.split('T')[0] : new Date().toISOString().split('T')[0]
-      // Calculer mois_annee au format YYYY-MM
-      const mois_annee = dateFormatted.substring(0, 7)
-      
-      const { error } = await supabase
-        .from('acomptes')
-        .insert([{
-          salary_id,
-          montant: parseFloat(montant),
-          date: dateFormatted,
-          mois_annee: mois_annee,
-          description: description || ''
-        }])
-      if (error) throw error
+      assertCanMutateAcompte(actor)
+      const dateFormatted = date ? String(date).split('T')[0] : null
+      if (!dateFormatted) {
+        throw new Error('Date invalide : la date est obligatoire.')
+      }
+
+      const { data, error } = await supabase.rpc('create_acompte', {
+        p_salary_id: salary_id,
+        p_montant: parseFloat(montant),
+        p_date: dateFormatted,
+        p_description: description || '',
+        p_actor_account_id: actor.account_id,
+        p_actor_username: actor.username,
+        p_actor_name: actor.name,
+        p_actor_role: actor.role,
+      })
+      if (error) throw new Error(translateAcompteRpcError(error))
+
       await fetchAcomptes()
-      return { success: true }
+      return { success: true, data }
     } catch (e) {
-      console.error('❌ Erreur addAcompte:', e?.message || e)
-      throw e
+      const message = translateAcompteRpcError(e)
+      console.error('❌ Erreur addAcompte:', message)
+      throw new Error(message)
     }
   }
 
-  async function deleteAcompte(id) {
+  /**
+   * Soft delete via RPC soft_delete_acompte (pas d'UPDATE/DELETE direct).
+   * Horodatage officiel = now() PostgreSQL côté RPC.
+   */
+  async function deleteAcompte(id, reason, actor) {
     try {
-      const { error } = await supabase
-        .from('acomptes')
-        .update({ deleted_at: new Date().toISOString() })
-        .eq('id', id)
-      if (error) throw error
+      assertCanMutateAcompte(actor)
+      const motif = String(reason || '').trim()
+      if (!motif) {
+        throw new Error('Le motif de la suppression est obligatoire.')
+      }
+
+      const { data, error } = await supabase.rpc('soft_delete_acompte', {
+        p_acompte_id: id,
+        p_actor_account_id: actor.account_id,
+        p_actor_username: actor.username,
+        p_actor_name: actor.name,
+        p_actor_role: actor.role,
+        p_reason: motif,
+      })
+      if (error) throw new Error(translateAcompteRpcError(error))
+
       await fetchAcomptes()
-      return { success: true }
+      return { success: true, data }
     } catch (e) {
-      console.error('❌ Erreur deleteAcompte:', e?.message || e)
-      throw e
+      const message = translateAcompteRpcError(e)
+      console.error('❌ Erreur deleteAcompte:', message)
+      throw new Error(message)
+    }
+  }
+
+  /** Restauration admin via RPC restore_acompte */
+  async function restoreAcompte(id, actor) {
+    try {
+      assertCanRestoreAcompte(actor)
+
+      const { data, error } = await supabase.rpc('restore_acompte', {
+        p_acompte_id: id,
+        p_actor_account_id: actor.account_id,
+        p_actor_username: actor.username,
+        p_actor_name: actor.name,
+        p_actor_role: actor.role,
+      })
+      if (error) throw new Error(translateAcompteRpcError(error))
+
+      await fetchAcomptes()
+      return { success: true, data }
+    } catch (e) {
+      const message = translateAcompteRpcError(e)
+      console.error('❌ Erreur restoreAcompte:', message)
+      throw new Error(message)
+    }
+  }
+
+  /**
+   * Journal admin via RPC fetch_acompte_audit_logs.
+   * @param {object} filters
+   * @param {object} actor — rôle admin requis (falsifiable sans Auth JWT)
+   */
+  async function fetchAcompteAuditLogs(filters = {}, actor) {
+    try {
+      assertCanRestoreAcompte(actor) // admin only (même règle que le journal)
+
+      const {
+        limit = 50,
+        offset = 0,
+        action = null,
+        actorUsername = null,
+        salaryId = null,
+        dateFrom = null,
+        dateTo = null,
+        deletedOnly = false,
+      } = filters
+
+      const { data, error } = await supabase.rpc('fetch_acompte_audit_logs', {
+        p_caller_role: actor.role,
+        p_limit: limit,
+        p_offset: offset,
+        p_action: action,
+        p_actor_username: actorUsername,
+        p_salary_id: salaryId,
+        p_date_from: dateFrom,
+        p_date_to: dateTo,
+        p_deleted_only: deletedOnly,
+      })
+      if (error) throw new Error(translateAcompteRpcError(error))
+      return { success: true, data: data || [] }
+    } catch (e) {
+      const message = translateAcompteRpcError(e)
+      console.error('❌ Erreur fetchAcompteAuditLogs:', message)
+      throw new Error(message)
     }
   }
 
@@ -1274,7 +1367,7 @@ export const DataProvider = ({ children }) => {
         assignProduit, unassignProduit, validateEntree, markNotificationRead, createCompte,
         addColis, updateColis, deleteColis,
         addSalary, updateSalary, deleteSalary,
-        addAcompte, deleteAcompte,
+        addAcompte, deleteAcompte, restoreAcompte, fetchAcompteAuditLogs,
         resetAllAcomptes, undoResetAcomptes,
         resetMonthlySalaries: resetAllAcomptes,
         getCurrentMonth, getPreviousMonth,

@@ -21,6 +21,8 @@ import SupplierPortal from './components/SupplierPortal'
 import EmployeeValidation from './components/EmployeeValidation'
 import SupplierAccess from './components/SupplierAccess'
 import ValidatedEntries from './components/ValidatedEntries'
+import PendingEntries from './components/PendingEntries'
+import PageSurface from './components/PageSurface'
 
 /**
  * Garde ce composant simple : AppHeader reçoit
@@ -62,6 +64,8 @@ const AppContent = () => {
         return <Products />
       case 'entries':
         return <Entries />
+      case 'pending-entries':
+        return <PendingEntries />
       case 'validated-entries':
         return <ValidatedEntries />
       case 'suppliers':
@@ -118,12 +122,15 @@ const AppContent = () => {
           user={user}
           isAdmin={isAdmin?.()}
           isMobile={isMobile}
+          activeView={activeView}
           onMenuClick={() => setSidebarOpen(true)}
         />
 
-        {/* Content */}
-        <main className="flex-1 overflow-y-auto p-6 bg-background">
-          {renderView()}
+        {/* Content — fondations shell uniquement ; pages métier inchangées */}
+        <main className="flex-1 overflow-y-auto bg-background">
+          <PageSurface className="p-4 sm:p-6">
+            {renderView()}
+          </PageSurface>
         </main>
       </div>
     </div>

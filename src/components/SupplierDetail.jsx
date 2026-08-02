@@ -1,15 +1,73 @@
+/**
+ * Détail fournisseur — présentation uniquement.
+ * Formules, exclusion en_attente, qté reçues, fetchEntreeDetails,
+ * paiements et permissions inchangés. Pas de filtres période (aucun existant).
+ */
 import { useData } from '../context/UnifiedDataContext';
 import { USE_SUPABASE } from '../config';
 import { useAuth } from '../context/AuthContext';
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, Fragment } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
-import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
-import { ArrowLeft, Building2, CreditCard, TrendingDown, TrendingUp, Package, DollarSign, Calendar, Trash2, Phone, MapPin, ChevronRight, ChevronDown, Plus } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { PageHeader } from '@/components/PageHeader';
+import { PageSurface } from '@/components/PageSurface';
+import { StatusBadge } from '@/components/StatusBadge';
+import {
+  ArrowLeft,
+  Building2,
+  CreditCard,
+  Package,
+  Calendar,
+  Trash2,
+  Phone,
+  MapPin,
+  ChevronRight,
+  ChevronDown,
+  Plus,
+  AlertTriangle,
+} from 'lucide-react';
+
+const formatDa = (value) =>
+  `${Number(parseFloat(value || 0).toFixed(2)).toLocaleString('fr-FR')} DA`;
+
+const formatNum = (n) => Number(n || 0).toLocaleString('fr-FR');
+
+const formatDate = (dateStr) => {
+  if (!dateStr) return '—';
+  const d = new Date(`${dateStr}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return dateStr;
+  return d.toLocaleDateString('fr-FR');
+};
+
+function MetaStat({ label, value, tone }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-[11px] text-muted-foreground">{label}</p>
+      <p
+        className={cn(
+          'truncate text-sm font-semibold tabular-nums',
+          tone === 'danger' && 'text-danger',
+          tone === 'success' && 'text-success',
+          tone === 'warning' && 'text-[hsl(var(--warning))]',
+          tone === 'info' && 'text-[hsl(var(--info))]'
+        )}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
 
 const SupplierDetail = ({ supplierId, onBack }) => {
   const dataCtx = useData();
@@ -38,24 +96,6 @@ const SupplierDetail = ({ supplierId, onBack }) => {
   const fournisseur = useMemo(() => {
     return (state.fournisseurs || []).find(f => f.id === supplierId);
   }, [state.fournisseurs, supplierId]);
-
-  if (!fournisseur) {
-    return (
-      <div className="space-y-6">
-        <Button onClick={onBack} variant="outline">
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Retour
-        </Button>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-center py-8 text-muted-foreground">
-              <p className="text-lg">Fournisseur non trouvé</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
 
   // Helper functions
   const getProduitPrixAchat = useCallback((produitId) => {
@@ -249,6 +289,29 @@ const SupplierDetail = ({ supplierId, onBack }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supplierId]);
 
+  if (!fournisseur) {
+    return (
+      <PageSurface className="space-y-6">
+        <Button onClick={onBack} variant="outline" size="sm">
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Retour à la liste
+        </Button>
+        <PageHeader
+          eyebrow="Inventaire"
+          title="Fournisseur"
+          description="Fiche introuvable."
+        />
+        <div className="rounded-lg border border-dashed border-border/80 px-4 py-12 text-center">
+          <AlertTriangle className="mx-auto mb-3 h-8 w-8 text-muted-foreground/40" />
+          <p className="text-sm font-medium">Fournisseur non trouvé</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Ce fournisseur n’existe pas ou n’est plus accessible.
+          </p>
+        </div>
+      </PageSurface>
+    );
+  }
+
   const entrees = getFournisseurEntrees();
   const paiements = getFilteredPaiements();
   const totalDue = calculateTotalDue();
@@ -258,368 +321,493 @@ const SupplierDetail = ({ supplierId, onBack }) => {
   const entreesNonPayees = entrees.filter(e => !e.paye).length;
   const totalMarchandise = entrees.reduce((sum, e) => sum + calculateEntreeValue(e), 0);
 
+  // Affichage uniquement — mêmes helpers qté / exclusion en_attente
+  const totalQteRecues = entrees.reduce((sum, entree) => {
+    if (!isEntreeComptable(entree)) return sum;
+    const lignes = getEntreeLignes(entree);
+    return sum + lignes.reduce((s, ligne) => s + getLigneQteRecue(ligne), 0);
+  }, 0);
+
+  const isDisabled = Boolean(fournisseur.deleted_at);
+  const hasDebt = reste > 0;
+  const isCredit = reste < 0;
+
+  const renderPayeBadge = (paye, amount) =>
+    paye ? (
+      <StatusBadge status="paye" />
+    ) : (
+      <StatusBadge
+        status="litige"
+        label={amount != null ? `Non payé · ${formatDa(amount)}` : 'Non payé'}
+      />
+    );
+
+  const renderStatutBadge = (statut) => {
+    if (!statut) return null;
+    if (statut === 'en_attente') return <StatusBadge status="en_attente" />;
+    if (statut === 'litige') return <StatusBadge status="litige" />;
+    if (statut === 'valide') return <StatusBadge status="valide" label="Validé" />;
+    return <StatusBadge status="info" label={statut} />;
+  };
+
+  const renderLignesDetail = (entree) => {
+    const lignes = getEntreeLignes(entree);
+    const isLoading = loadingDetails[entree.id];
+
+    if (isLoading) {
+      return (
+        <p className="py-3 text-center text-sm text-muted-foreground">Chargement…</p>
+      );
+    }
+    if (lignes.length === 0) {
+      return (
+        <p className="py-3 text-center text-sm text-muted-foreground">Aucune ligne</p>
+      );
+    }
+
+    return (
+      <div className="space-y-1.5">
+        {lignes.map((ligne, idx) => {
+          let produitNom, quantite, prix;
+          if (USE_SUPABASE) {
+            produitNom = ligne.produit_id?.nom || 'Inconnu';
+            quantite = ligne.quantite || 0;
+            prix = ligne.produit_id?.prix_achat || 0;
+          } else {
+            const p = state.produits.find(pr => pr.id === ligne.produitId);
+            produitNom = p?.nom || 'Inconnu';
+            quantite = ligne.quantite || 0;
+            prix = getProduitPrixAchat(ligne.produitId);
+          }
+          const sousTotal = quantite * prix;
+
+          return (
+            <div
+              key={idx}
+              className="flex items-center justify-between gap-3 rounded-md bg-muted/30 px-2.5 py-2"
+            >
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium">{produitNom}</p>
+                <p className="text-xs text-muted-foreground">
+                  Qté: {quantite} × {formatDa(prix)}
+                </p>
+              </div>
+              <p className="shrink-0 text-sm font-semibold tabular-nums">
+                {formatDa(sousTotal)}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   return (
-    <div className="space-y-6">
-      {/* Bouton retour */}
-      <Button onClick={onBack} variant="outline" size="lg">
+    <PageSurface className="space-y-6">
+      <Button onClick={onBack} variant="outline" size="sm">
         <ArrowLeft className="mr-2 h-4 w-4" />
         Retour à la liste
       </Button>
 
-      {/* Indicateur de chargement */}
-      {loadingPage && (
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-              <p className="text-muted-foreground">Chargement des données...</p>
+      <PageHeader
+        eyebrow="Inventaire"
+        title={fournisseur.nom}
+        description="Compte fournisseur — entrées, paiements et solde."
+        actions={
+          isAdmin() ? (
+            <Button size="sm" onClick={() => setShowPaiementModal(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Ajouter un paiement
+            </Button>
+          ) : null
+        }
+      />
+
+      {/* Identité */}
+      <section className="flex flex-col gap-3 rounded-lg border border-border/80 bg-card px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex min-w-0 items-start gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-muted">
+            <Building2 className="h-5 w-5 text-muted-foreground" />
+          </div>
+          <div className="min-w-0 space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="font-display text-lg font-semibold tracking-tight">
+                {fournisseur.nom}
+              </p>
+              {isDisabled && <StatusBadge status="litige" label="Désactivé" />}
+              {!hasDebt && !isCredit && <StatusBadge status="paye" label="Soldé" />}
+              {hasDebt && <StatusBadge status="en_attente" label="À payer" />}
+              {isCredit && <StatusBadge status="info" label="Crédit" />}
             </div>
-          </CardContent>
-        </Card>
+            {fournisseur.contact ? (
+              <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                <Phone className="h-3.5 w-3.5" />
+                {fournisseur.contact}
+              </p>
+            ) : null}
+            {fournisseur.adresse ? (
+              <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                <MapPin className="h-3.5 w-3.5" />
+                {fournisseur.adresse}
+              </p>
+            ) : null}
+          </div>
+        </div>
+      </section>
+
+      {loadingPage && (
+        <div className="rounded-lg border border-dashed border-border/80 px-4 py-10 text-center text-sm text-muted-foreground">
+          Chargement des données…
+        </div>
       )}
 
-      {/* En-tête du fournisseur */}
-      <Card className="overflow-hidden border-2 border-primary">
-        <CardHeader className="bg-gradient-to-r from-primary to-primary/80 text-primary-foreground">
-          <div className="flex justify-between items-start">
-            <div className="flex items-center gap-4">
-              <div className="h-16 w-16 rounded-full bg-white/20 flex items-center justify-center">
-                <Building2 className="h-8 w-8" />
-              </div>
-              <div>
-                <CardTitle className="text-3xl text-primary-foreground mb-2">{fournisseur.nom}</CardTitle>
-                <CardDescription className="text-primary-foreground/90">
-                  <div className="flex flex-col gap-1.5">
-                    {fournisseur.contact && (
-                      <div className="flex items-center gap-2">
-                        <Phone className="h-4 w-4" />
-                        <span className="font-medium">{fournisseur.contact}</span>
-                      </div>
+      {/* KPI financiers prioritaires */}
+      <div className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg border border-border/80 bg-card px-4 py-3 sm:grid-cols-4">
+        <MetaStat label="Total dû" value={formatDa(totalDue)} tone="danger" />
+        <MetaStat label="Total payé" value={formatDa(totalPaye)} tone="success" />
+        <MetaStat
+          label={hasDebt ? 'Reste à payer' : isCredit ? 'Crédit' : 'Reste'}
+          value={formatDa(Math.abs(reste))}
+          tone={hasDebt ? 'warning' : isCredit ? 'info' : 'success'}
+        />
+        <MetaStat label="Marchandise" value={formatDa(totalMarchandise)} />
+      </div>
+
+      {/* Indicateurs opérationnels */}
+      <div className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg border border-border/60 bg-muted/20 px-4 py-3 sm:grid-cols-4">
+        <MetaStat
+          label="Entrées"
+          value={`${formatNum(entrees.length)} · ${formatNum(entreesPayees)} payées / ${formatNum(entreesNonPayees)} non`}
+        />
+        <MetaStat label="Paiements" value={formatNum(paiements.length)} />
+        <MetaStat label="Qté reçues" value={formatNum(totalQteRecues)} />
+        <MetaStat
+          label="Non payées"
+          value={formatNum(entreesNonPayees)}
+          tone={entreesNonPayees > 0 ? 'warning' : undefined}
+        />
+      </div>
+
+      {/* Historique des entrées */}
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <h2 className="font-display text-base font-semibold tracking-tight">
+              Historique des entrées
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              {formatNum(entrees.length)} entrée(s)
+              {entrees.length > 0 ? ` · ${formatDa(totalMarchandise)}` : ''}
+            </p>
+          </div>
+        </div>
+
+        {entrees.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-border/80 px-4 py-12 text-center">
+            <Package className="mx-auto mb-3 h-8 w-8 text-muted-foreground/40" />
+            <p className="text-sm font-medium">Aucune entrée enregistrée</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Les entrées de stock de ce fournisseur apparaîtront ici.
+            </p>
+          </div>
+        ) : (
+          <>
+            {/* Desktop */}
+            <div className="hidden overflow-x-auto rounded-lg border border-border/80 md:block">
+              <table className="w-full min-w-[720px] text-left text-sm">
+                <thead className="border-b border-border/80 bg-muted/40 text-xs text-muted-foreground">
+                  <tr>
+                    <th className="w-8 px-3 py-2.5" />
+                    <th className="px-3 py-2.5 font-medium">Date</th>
+                    <th className="px-3 py-2.5 font-medium">Réf.</th>
+                    <th className="px-3 py-2.5 font-medium">Statut</th>
+                    <th className="px-3 py-2.5 font-medium">Paiement</th>
+                    <th className="px-3 py-2.5 text-right font-medium">Valeur</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {entrees.map((entree) => {
+                    const entreeValue = calculateEntreeValue(entree);
+                    const isExpanded = expandedEntrees[entree.id];
+                    const lignes = getEntreeLignes(entree);
+
+                    return (
+                      <Fragment key={entree.id}>
+                        <tr
+                          className={cn(
+                            'border-b border-border/40 hover:bg-muted/20',
+                            !entree.paye && 'bg-[hsl(var(--warning)/0.03)]'
+                          )}
+                        >
+                          <td className="px-2 py-2.5">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => toggleEntreeDetails(entree.id)}
+                              aria-expanded={isExpanded}
+                              aria-label={isExpanded ? 'Replier' : 'Développer'}
+                            >
+                              {isExpanded ? (
+                                <ChevronDown className="h-4 w-4" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </td>
+                          <td className="px-3 py-2.5 tabular-nums">
+                            {formatDate(entree.date)}
+                          </td>
+                          <td className="px-3 py-2.5 font-mono text-xs text-muted-foreground">
+                            {entree.id?.substring(0, 8) || '—'}
+                          </td>
+                          <td className="px-3 py-2.5">
+                            {renderStatutBadge(entree.statut) || (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2.5">
+                            {renderPayeBadge(entree.paye)}
+                          </td>
+                          <td className="px-3 py-2.5 text-right font-semibold tabular-nums">
+                            {formatDa(entreeValue)}
+                          </td>
+                        </tr>
+                        {isExpanded && (
+                          <tr className="border-b border-border/40 bg-muted/10">
+                            <td colSpan={6} className="px-4 py-3">
+                              <p className="mb-2 text-xs text-muted-foreground">
+                                Lignes ({lignes.length})
+                                {lignes.length > 0
+                                  ? ` — ${lignes
+                                      .map((l) =>
+                                        USE_SUPABASE
+                                          ? l.produit_id?.nom || 'Inconnu'
+                                          : state.produits.find((pr) => pr.id === l.produitId)
+                                              ?.nom || 'Inconnu'
+                                      )
+                                      .join(', ')}`
+                                  : ''}
+                              </p>
+                              {renderLignesDetail(entree)}
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile cards */}
+            <div className="space-y-2 md:hidden">
+              {entrees.map((entree) => {
+                const entreeValue = calculateEntreeValue(entree);
+                const isExpanded = expandedEntrees[entree.id];
+                const lignes = getEntreeLignes(entree);
+
+                return (
+                  <div
+                    key={entree.id}
+                    className={cn(
+                      'rounded-lg border border-border/80 bg-card',
+                      !entree.paye && 'border-[hsl(var(--warning)/0.35)]'
                     )}
-                    {fournisseur.adresse && (
-                      <div className="flex items-center gap-2">
-                        <MapPin className="h-4 w-4" />
-                        <span className="font-medium">{fournisseur.adresse}</span>
+                  >
+                    <button
+                      type="button"
+                      onClick={() => toggleEntreeDetails(entree.id)}
+                      className="flex w-full items-start justify-between gap-2 px-3 py-3 text-left"
+                    >
+                      <div className="min-w-0 space-y-1">
+                        <p className="flex items-center gap-1.5 text-sm font-medium">
+                          <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                          {formatDate(entree.date)}
+                        </p>
+                        <p className="font-mono text-[11px] text-muted-foreground">
+                          {entree.id?.substring(0, 8)}
+                        </p>
+                        <div className="flex flex-wrap gap-1.5 pt-0.5">
+                          {renderStatutBadge(entree.statut)}
+                          {renderPayeBadge(entree.paye)}
+                        </div>
+                        {lignes.length > 0 && (
+                          <p className="text-xs text-muted-foreground">
+                            {lignes.length} produit{lignes.length !== 1 ? 's' : ''}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1">
+                        <span className="text-sm font-semibold tabular-nums">
+                          {formatDa(entreeValue)}
+                        </span>
+                        {isExpanded ? (
+                          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </div>
+                    </button>
+                    {isExpanded && (
+                      <div className="border-t border-border/50 px-3 py-3">
+                        {renderLignesDetail(entree)}
                       </div>
                     )}
                   </div>
-                </CardDescription>
-              </div>
-            </div>
-          </div>
-        </CardHeader>
-      </Card>
-
-      {/* Statistiques rapides */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="border-2">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">Entrées totales</p>
-                <p className="text-2xl font-bold">{entrees.length}</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {entreesPayees} payées / {entreesNonPayees} non payées
-                </p>
-              </div>
-              <Package className="h-10 w-10 text-primary/30" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-2">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">Paiements</p>
-                <p className="text-2xl font-bold">{paiements.length}</p>
-                <p className="text-xs text-muted-foreground mt-1">Transactions</p>
-              </div>
-              <CreditCard className="h-10 w-10 text-green-500/30" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-2">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">Marchandise totale</p>
-                <p className="text-2xl font-bold">{totalMarchandise.toFixed(2)} DA</p>
-                <p className="text-xs text-muted-foreground mt-1">Valeur reçue</p>
-              </div>
-              <DollarSign className="h-10 w-10 text-blue-500/30" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-2">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className={`text-sm mb-1 ${reste > 0 ? 'text-orange-600' : 'text-blue-600'}`}>
-                  {reste > 0 ? 'À payer' : 'Crédit'}
-                </p>
-                <p className={`text-2xl font-bold ${reste > 0 ? 'text-orange-700' : 'text-blue-700'}`}>
-                  {Math.abs(reste).toFixed(2)} DA
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {reste > 0 ? 'En attente' : 'Surpayé'}
-                </p>
-              </div>
-              {reste > 0 ? (
-                <TrendingDown className="h-10 w-10 text-orange-500/30" />
-              ) : (
-                <TrendingUp className="h-10 w-10 text-blue-500/30" />
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Résumé financier */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Résumé Financier</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card className="bg-red-50 border-red-200">
-              <CardContent className="pt-6 text-center">
-                <p className="text-xs text-muted-foreground mb-1">Total Dû</p>
-                <p className="text-3xl font-bold text-destructive">{totalDue.toFixed(2)} DA</p>
-                <p className="text-xs text-muted-foreground mt-1">{entreesNonPayees} entrée{entreesNonPayees !== 1 ? 's' : ''} non payée{entreesNonPayees !== 1 ? 's' : ''}</p>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-green-50 border-green-200">
-              <CardContent className="pt-6 text-center">
-                <p className="text-xs text-muted-foreground mb-1">Total Payé</p>
-                <p className="text-3xl font-bold text-green-600">{totalPaye.toFixed(2)} DA</p>
-                <p className="text-xs text-muted-foreground mt-1">{paiements.length} paiement{paiements.length !== 1 ? 's' : ''}</p>
-              </CardContent>
-            </Card>
-
-            <Card className={reste > 0 ? 'bg-orange-50 border-orange-200' : 'bg-blue-50 border-blue-200'}>
-              <CardContent className="pt-6 text-center">
-                <p className={`text-xs mb-1 ${reste > 0 ? 'text-orange-600' : 'text-green-600'}`}>
-                  {reste > 0 ? 'Reste à Payer' : 'Solde Positif'}
-                </p>
-                <p className={`text-3xl font-bold ${reste > 0 ? 'text-orange-800' : 'text-green-800'}`}>
-                  {Math.abs(reste).toFixed(2)} DA
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {reste > 0 ? 'En dette' : 'À jour'}
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Entrées de stock */}
-      <Card>
-        <CardHeader>
-          <div className="flex justify-between items-center">
-            <CardTitle className="flex items-center gap-2">
-              <Package className="h-5 w-5" />
-              Entrées de Stock ({entrees.length})
-            </CardTitle>
-            {entrees.length > 0 && (
-              <Badge variant="secondary" className="text-base px-3 py-1">
-                {totalMarchandise.toFixed(2)} DA
-              </Badge>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent>
-          {entrees.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Package className="h-12 w-12 mx-auto mb-2 opacity-30" />
-              <p>Aucune entrée enregistrée</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {entrees.map((entree) => {
-                const entreeValue = calculateEntreeValue(entree);
-                const lignes = getEntreeLignes(entree);
-                const isExpanded = expandedEntrees[entree.id];
-                const isLoading = loadingDetails[entree.id];
-
-                return (
-                  <Card key={entree.id} className={`border-l-4 ${entree.paye ? 'border-l-green-500' : 'border-l-orange-500'}`}>
-                    <CardContent className="p-4">
-                      <button
-                        onClick={() => toggleEntreeDetails(entree.id)}
-                        className="w-full text-left"
-                      >
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-2">
-                              <Calendar className="h-4 w-4 text-muted-foreground" />
-                              <span className="font-medium">{entree.date}</span>
-                              <Badge variant="outline" className="text-xs">
-                                ID: {entree.id?.substring(0, 8)}
-                              </Badge>
-                            </div>
-
-                            {lignes.length > 0 && (
-                              <p className="text-sm text-muted-foreground mb-1">
-                                Produits ({lignes.length}): {lignes.map(l => {
-                                  if (USE_SUPABASE) {
-                                    return l.produit_id?.nom || 'Inconnu';
-                                  }
-                                  const p = state.produits.find(pr => pr.id === l.produitId);
-                                  return p?.nom || 'Inconnu';
-                                }).join(', ')}
-                              </p>
-                            )}
-
-                            <div className="flex items-center gap-4 text-sm">
-                              <span>Total de l'entrée: <strong>{entreeValue.toFixed(2)} DA</strong></span>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            <Badge className={entree.paye ? 'bg-green-600' : 'bg-orange-600'}>
-                              {entree.paye ? 'Payé' : `Non Payé: ${entreeValue.toFixed(2)} DA`}
-                            </Badge>
-                            {isExpanded ? (
-                              <ChevronDown className="h-5 w-5 text-muted-foreground" />
-                            ) : (
-                              <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                            )}
-                          </div>
-                        </div>
-                      </button>
-
-                      {isExpanded && (
-                        <div className="mt-4 pt-4 border-t space-y-2">
-                          {isLoading ? (
-                            <p className="text-sm text-muted-foreground text-center py-4">Chargement...</p>
-                          ) : lignes.length === 0 ? (
-                            <p className="text-sm text-muted-foreground text-center py-4">Aucune ligne</p>
-                          ) : (
-                            lignes.map((ligne, idx) => {
-                              let produitNom, quantite, prix;
-                              if (USE_SUPABASE) {
-                                produitNom = ligne.produit_id?.nom || 'Inconnu';
-                                quantite = ligne.quantite || 0;
-                                prix = ligne.produit_id?.prix_achat || 0;
-                              } else {
-                                const p = state.produits.find(pr => pr.id === ligne.produitId);
-                                produitNom = p?.nom || 'Inconnu';
-                                quantite = ligne.quantite || 0;
-                                prix = getProduitPrixAchat(ligne.produitId);
-                              }
-                              const sousTotal = quantite * prix;
-
-                              return (
-                                <div key={idx} className="flex justify-between items-center p-2 bg-muted/30 rounded">
-                                  <div>
-                                    <p className="font-medium text-sm">{produitNom}</p>
-                                    <p className="text-xs text-muted-foreground">Qté: {quantite} × {prix.toFixed(2)} DA</p>
-                                  </div>
-                                  <p className="font-bold">{sousTotal.toFixed(2)} DA</p>
-                                </div>
-                              );
-                            })
-                          )}
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
                 );
               })}
-
-              {entreesNonPayees > 0 && (
-                <Card className="bg-orange-50 border-orange-200">
-                  <CardContent className="pt-6">
-                    <div className="flex justify-between items-center">
-                      <span className="font-semibold">Reste à Payer:</span>
-                      <span className="text-2xl font-bold text-orange-700">{totalDue.toFixed(2)} DA</span>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
             </div>
-          )}
-        </CardContent>
-      </Card>
+
+            {entreesNonPayees > 0 && (
+              <div className="flex items-center justify-between rounded-lg border border-[hsl(var(--warning)/0.35)] bg-[hsl(var(--warning)/0.08)] px-4 py-3">
+                <span className="text-sm font-medium">Reste à payer</span>
+                <span className="text-lg font-bold tabular-nums text-[hsl(var(--warning))]">
+                  {formatDa(totalDue)}
+                </span>
+              </div>
+            )}
+          </>
+        )}
+      </section>
+
+      <Separator className="opacity-60" />
 
       {/* Historique des paiements */}
-      <Card>
-        <CardHeader>
-          <div className="flex justify-between items-center">
-            <CardTitle className="flex items-center gap-2">
-              <CreditCard className="h-5 w-5" />
-              Historique des Paiements ({paiements.length})
-            </CardTitle>
-            {isAdmin() && (
-              <Button onClick={() => setShowPaiementModal(true)}>
-                <Plus className="mr-2 h-4 w-4" />
-                Ajouter un paiement
-              </Button>
-            )}
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <h2 className="font-display text-base font-semibold tracking-tight">
+              Historique des paiements
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              {formatNum(paiements.length)} paiement(s)
+              {paiements.length > 0 ? ` · ${formatDa(totalPaye)}` : ''}
+            </p>
           </div>
-        </CardHeader>
-        <CardContent>
-          {paiements.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <CreditCard className="h-12 w-12 mx-auto mb-2 opacity-30" />
-              <p>Aucun paiement enregistré</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {paiements.map((paiement) => (
-                <Card key={paiement.id} className="bg-green-50 border-green-200">
-                  <CardContent className="p-4">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <Calendar className="h-4 w-4 text-muted-foreground" />
-                          <span className="font-medium">{paiement.date}</span>
-                        </div>
-                        {paiement.description && (
-                          <p className="text-sm text-muted-foreground">{paiement.description}</p>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge className="bg-green-600 text-lg px-3 py-1">
-                          {parseFloat(paiement.montant).toFixed(2)} DA
-                        </Badge>
-                        {isAdmin() && (
+          {isAdmin() && (
+            <Button size="sm" variant="outline" onClick={() => setShowPaiementModal(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Ajouter un paiement
+            </Button>
+          )}
+        </div>
+
+        {paiements.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-border/80 px-4 py-12 text-center">
+            <CreditCard className="mx-auto mb-3 h-8 w-8 text-muted-foreground/40" />
+            <p className="text-sm font-medium">Aucun paiement enregistré</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Les paiements versés à ce fournisseur apparaîtront ici.
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="hidden overflow-x-auto rounded-lg border border-border/80 md:block">
+              <table className="w-full min-w-[520px] text-left text-sm">
+                <thead className="border-b border-border/80 bg-muted/40 text-xs text-muted-foreground">
+                  <tr>
+                    <th className="px-3 py-2.5 font-medium">Date</th>
+                    <th className="px-3 py-2.5 font-medium">Description</th>
+                    <th className="px-3 py-2.5 text-right font-medium">Montant</th>
+                    {isAdmin() && (
+                      <th className="w-12 px-3 py-2.5 text-right font-medium">
+                        <span className="sr-only">Actions</span>
+                      </th>
+                    )}
+                  </tr>
+                </thead>
+                <tbody>
+                  {paiements.map((paiement) => (
+                    <tr
+                      key={paiement.id}
+                      className="border-b border-border/40 last:border-0 hover:bg-muted/20"
+                    >
+                      <td className="px-3 py-2.5 tabular-nums">
+                        {formatDate(paiement.date)}
+                      </td>
+                      <td className="px-3 py-2.5 text-muted-foreground">
+                        {paiement.description || '—'}
+                      </td>
+                      <td className="px-3 py-2.5 text-right font-semibold tabular-nums text-success">
+                        {formatDa(paiement.montant)}
+                      </td>
+                      {isAdmin() && (
+                        <td className="px-3 py-2.5 text-right">
                           <Button
+                            type="button"
                             onClick={() => handleDeletePaiement(paiement.id)}
                             variant="ghost"
-                            size="sm"
+                            size="icon"
+                            className="h-8 w-8"
+                            aria-label="Supprimer le paiement"
                           >
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="space-y-2 md:hidden">
+              {paiements.map((paiement) => (
+                <div
+                  key={paiement.id}
+                  className="flex items-start justify-between gap-2 rounded-lg border border-border/80 bg-card px-3 py-3"
+                >
+                  <div className="min-w-0 space-y-1">
+                    <p className="flex items-center gap-1.5 text-sm font-medium">
+                      <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                      {formatDate(paiement.date)}
+                    </p>
+                    {paiement.description ? (
+                      <p className="text-xs text-muted-foreground">{paiement.description}</p>
+                    ) : null}
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <span className="text-sm font-semibold tabular-nums text-success">
+                      {formatDa(paiement.montant)}
+                    </span>
+                    {isAdmin() && (
+                      <Button
+                        type="button"
+                        onClick={() => handleDeletePaiement(paiement.id)}
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        aria-label="Supprimer le paiement"
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
               ))}
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </>
+        )}
+      </section>
 
-      {/* Modal Paiement */}
+      {/* Modal Paiement — logique inchangée */}
       <Dialog open={showPaiementModal} onOpenChange={setShowPaiementModal}>
         <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Enregistrer un Paiement</DialogTitle>
+            <DialogTitle>Enregistrer un paiement</DialogTitle>
             <DialogDescription>
               Ajouter un paiement pour {fournisseur.nom}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium mb-2 block">Montant (DA) *</label>
+              <label className="mb-2 block text-sm font-medium" htmlFor="sd-montant">
+                Montant (DA) *
+              </label>
               <Input
+                id="sd-montant"
                 type="number"
                 step="0.01"
                 placeholder="Ex: 50000"
@@ -628,16 +816,22 @@ const SupplierDetail = ({ supplierId, onBack }) => {
               />
             </div>
             <div>
-              <label className="text-sm font-medium mb-2 block">Date *</label>
+              <label className="mb-2 block text-sm font-medium" htmlFor="sd-date">
+                Date *
+              </label>
               <Input
+                id="sd-date"
                 type="date"
                 value={paiementData.date}
                 onChange={(e) => setPaiementData({ ...paiementData, date: e.target.value })}
               />
             </div>
             <div>
-              <label className="text-sm font-medium mb-2 block">Description (optionnel)</label>
+              <label className="mb-2 block text-sm font-medium" htmlFor="sd-desc">
+                Description (optionnel)
+              </label>
               <Input
+                id="sd-desc"
                 type="text"
                 placeholder="Ex: Paiement partiel..."
                 value={paiementData.description}
@@ -655,9 +849,8 @@ const SupplierDetail = ({ supplierId, onBack }) => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageSurface>
   );
 };
 
 export default SupplierDetail;
-

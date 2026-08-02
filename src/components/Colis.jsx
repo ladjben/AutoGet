@@ -1,3 +1,8 @@
+/**
+ * Colis envoyés — présentation uniquement.
+ * Formules, filtres temporels, CRUD, permissions et dual-path
+ * Supabase/localStorage inchangés.
+ */
 import { useData, ActionTypes } from '../context/UnifiedDataContext';
 import { USE_SUPABASE } from '../config';
 import { useAuth } from '../context/AuthContext';
@@ -7,10 +12,61 @@ import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
-import { Separator } from '@/components/ui/separator';
-import { Plus, Package, Calendar, TrendingUp, TrendingDown, Edit, Trash2 } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { cn } from '@/lib/utils';
+import { PageHeader } from '@/components/PageHeader';
+import { PageSurface } from '@/components/PageSurface';
+import {
+  Plus,
+  Package,
+  Calendar,
+  Edit,
+  Trash2,
+  Search,
+  MoreHorizontal,
+  AlertTriangle,
+} from 'lucide-react';
+
+const formatNum = (n) => Number(n || 0).toLocaleString('fr-FR');
+
+const formatDate = (dateStr) => {
+  if (!dateStr) return '—';
+  const d = new Date(`${dateStr}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return dateStr;
+  return d.toLocaleDateString('fr-FR');
+};
+
+function MetaStat({ label, value, tone }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-[11px] text-muted-foreground">{label}</p>
+      <p
+        className={cn(
+          'truncate text-sm font-semibold tabular-nums',
+          tone === 'danger' && 'text-danger',
+          tone === 'success' && 'text-success',
+          tone === 'warning' && 'text-[hsl(var(--warning))]',
+          tone === 'info' && 'text-[hsl(var(--info))]'
+        )}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
 
 const Colis = () => {
   const dataCtx = useData();
@@ -32,6 +88,7 @@ const Colis = () => {
 
   const [showModal, setShowModal] = useState(false);
   const [editingColis, setEditingColis] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState({
     dateStart: '',
     dateEnd: ''
@@ -59,6 +116,17 @@ const Colis = () => {
     
     return filtered;
   }, [state.colis, filters]);
+
+  // Recherche présentationnelle — n’altère pas filteredColis ni les stats
+  const displayedColis = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return filteredColis;
+    return filteredColis.filter((c) => {
+      const desc = (c.description || '').toLowerCase();
+      const nombre = String(c.nombre ?? '');
+      return desc.includes(q) || nombre.includes(q);
+    });
+  }, [filteredColis, searchQuery]);
 
   const calculateStatsColis = (colisList) => {
     const totalColis = colisList.reduce((sum, c) => sum + (parseInt(c.nombre) || 0), 0);
@@ -216,376 +284,398 @@ const Colis = () => {
     setFormData({ nombre: '', date: new Date().toISOString().split('T')[0], description: '' });
   };
 
+  const openCreateModal = () => {
+    setEditingColis(null);
+    resetForm();
+    setShowModal(true);
+  };
+
+  const hasActiveFilters =
+    Boolean(filters.dateStart || filters.dateEnd) || Boolean(searchQuery.trim());
+
+  const resetFilters = () => {
+    setFilters({ dateStart: '', dateEnd: '' });
+    setSearchQuery('');
+  };
+
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-foreground">Colis Envoyés</h1>
-        <Dialog open={showModal} onOpenChange={(open) => {
+    <PageSurface className="space-y-6">
+      <PageHeader
+        eyebrow="Opérations"
+        title="Colis envoyés"
+        description="Suivi des volumes d’envois — dates, quantités et descriptions."
+        actions={
+          <Button size="sm" onClick={openCreateModal}>
+            <Plus className="mr-2 h-4 w-4" />
+            Nouveau colis
+          </Button>
+        }
+      />
+
+      {/* KPI compacts */}
+      <div className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg border border-border/80 bg-card px-4 py-3 sm:grid-cols-4">
+        <MetaStat label="Total des colis" value={formatNum(stats.totalColis)} tone="info" />
+        <MetaStat label="Enregistrements" value={formatNum(stats.nombreJours)} />
+        <MetaStat label="Jours avec activité" value={formatNum(stats.joursAvecActivite)} tone="success" />
+        <MetaStat
+          label="Moyenne / jour"
+          value={Number(stats.moyenneParJour || 0).toLocaleString('fr-FR', {
+            maximumFractionDigits: 1,
+            minimumFractionDigits: 0,
+          })}
+        />
+      </div>
+
+      {/* Comparaison périodes */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {[
+          { key: 'today', label: "Aujourd'hui", stats: periodStats.today },
+          { key: 'week', label: 'Cette semaine', stats: periodStats.week },
+          { key: 'month', label: 'Ce mois', stats: periodStats.month },
+        ].map(({ key, label, stats: ps }) => (
+          <div
+            key={key}
+            className="rounded-lg border border-border/80 bg-card px-4 py-3"
+          >
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              {label}
+            </p>
+            <p className="text-lg font-semibold tabular-nums">
+              {formatNum(ps.totalColis)}{' '}
+              <span className="text-sm font-normal text-muted-foreground">colis</span>
+            </p>
+            <div className="mt-2 grid grid-cols-3 gap-2 text-xs text-muted-foreground">
+              <div>
+                <p>Jours</p>
+                <p className="font-medium tabular-nums text-foreground">
+                  {formatNum(ps.nombreJours)}
+                </p>
+              </div>
+              <div>
+                <p>Moy.</p>
+                <p className="font-medium tabular-nums text-foreground">
+                  {Number(ps.moyenneParJour || 0).toLocaleString('fr-FR', {
+                    maximumFractionDigits: 1,
+                  })}
+                </p>
+              </div>
+              <div>
+                <p>Max</p>
+                <p className="font-medium tabular-nums text-foreground">
+                  {formatNum(ps.maxColis)}
+                </p>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Recherche + filtres */}
+      <section className="flex flex-col gap-3 rounded-lg border border-border/80 bg-card px-3 py-3 sm:flex-row sm:flex-wrap sm:items-end">
+        <div className="relative min-w-[180px] flex-1 space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground" htmlFor="colis-search">
+            Recherche
+          </label>
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              id="colis-search"
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Description ou nombre…"
+              className="h-9 pl-8"
+            />
+          </div>
+        </div>
+        <div className="min-w-[140px] space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground" htmlFor="colis-start">
+            Date début
+          </label>
+          <Input
+            id="colis-start"
+            type="date"
+            value={filters.dateStart}
+            onChange={(e) => setFilters({ ...filters, dateStart: e.target.value })}
+            className="h-9"
+          />
+        </div>
+        <div className="min-w-[140px] space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground" htmlFor="colis-end">
+            Date fin
+          </label>
+          <Input
+            id="colis-end"
+            type="date"
+            value={filters.dateEnd}
+            onChange={(e) => setFilters({ ...filters, dateEnd: e.target.value })}
+            className="h-9"
+          />
+        </div>
+        {hasActiveFilters && (
+          <Button type="button" variant="outline" size="sm" className="h-9" onClick={resetFilters}>
+            Réinitialiser
+          </Button>
+        )}
+      </section>
+
+      {/* Liste */}
+      <section className="space-y-3">
+        <div>
+          <h2 className="font-display text-base font-semibold tracking-tight">
+            Historique des envois
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            {(!state.colis || state.colis.length === 0)
+              ? 'Aucun enregistrement'
+              : `${formatNum(displayedColis.length)} enregistrement(s)${
+                  hasActiveFilters ? ' (filtrés)' : ''
+                } · ${formatNum(stats.totalColis)} colis`}
+          </p>
+        </div>
+
+        {(!state.colis || state.colis.length === 0) ? (
+          <div className="rounded-lg border border-dashed border-border/80 px-4 py-12 text-center">
+            <Package className="mx-auto mb-3 h-8 w-8 text-muted-foreground/40" />
+            <p className="text-sm font-medium">Aucun enregistrement de colis</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Commencez par ajouter votre premier envoi
+            </p>
+            <Button className="mt-4" size="sm" onClick={openCreateModal}>
+              <Plus className="mr-2 h-4 w-4" />
+              Nouveau colis
+            </Button>
+          </div>
+        ) : filteredColis.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-border/80 px-4 py-12 text-center">
+            <AlertTriangle className="mx-auto mb-3 h-8 w-8 text-muted-foreground/40" />
+            <p className="text-sm font-medium">Aucun colis trouvé</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Aucun résultat pour les critères sélectionnés
+            </p>
+          </div>
+        ) : displayedColis.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-border/80 px-4 py-10 text-center text-sm text-muted-foreground">
+            Aucun enregistrement ne correspond à « {searchQuery.trim()} »
+          </div>
+        ) : (
+          <>
+            {/* Desktop table */}
+            <div className="hidden overflow-x-auto rounded-lg border border-border/80 md:block">
+              <table className="w-full min-w-[560px] text-left text-sm">
+                <thead className="border-b border-border/80 bg-muted/40 text-xs text-muted-foreground">
+                  <tr>
+                    <th className="px-3 py-2.5 font-medium">Date</th>
+                    <th className="px-3 py-2.5 text-right font-medium">Nombre</th>
+                    <th className="px-3 py-2.5 font-medium">Description</th>
+                    {isAdmin() && (
+                      <th className="w-12 px-3 py-2.5 text-right font-medium">
+                        <span className="sr-only">Actions</span>
+                      </th>
+                    )}
+                  </tr>
+                </thead>
+                <tbody>
+                  {displayedColis.map((colis) => {
+                    const n = parseInt(colis.nombre, 10) || 0;
+                    return (
+                      <tr
+                        key={colis.id}
+                        className="border-b border-border/40 last:border-0 hover:bg-muted/20"
+                      >
+                        <td className="px-3 py-2.5 tabular-nums">
+                          {formatDate(colis.date)}
+                        </td>
+                        <td className="px-3 py-2.5 text-right">
+                          <span className="text-base font-semibold tabular-nums text-[hsl(var(--info))]">
+                            {formatNum(n)}
+                          </span>
+                          <span className="ml-1 text-xs text-muted-foreground">
+                            colis
+                          </span>
+                        </td>
+                        <td className="max-w-[280px] truncate px-3 py-2.5 text-muted-foreground">
+                          {colis.description || '—'}
+                        </td>
+                        {isAdmin() && (
+                          <td className="px-3 py-2.5 text-right">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                  <span className="sr-only">Actions</span>
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-40">
+                                <DropdownMenuItem onClick={() => openEditModal(colis)}>
+                                  <Edit className="mr-2 h-4 w-4" />
+                                  Modifier
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  className="text-destructive focus:text-destructive"
+                                  onClick={() => handleDeleteColis(colis.id)}
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Supprimer
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile cards */}
+            <div className="space-y-2 md:hidden">
+              {displayedColis.map((colis) => {
+                const n = parseInt(colis.nombre, 10) || 0;
+                return (
+                  <div
+                    key={colis.id}
+                    className="rounded-lg border border-border/80 bg-card px-3 py-3"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 space-y-1">
+                        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <Calendar className="h-3 w-3" />
+                          {formatDate(colis.date)}
+                        </p>
+                        {colis.description ? (
+                          <p className="text-sm text-foreground line-clamp-2">
+                            {colis.description}
+                          </p>
+                        ) : (
+                          <p className="text-sm text-muted-foreground">Sans description</p>
+                        )}
+                      </div>
+                      <div className="flex shrink-0 items-start gap-1">
+                        <div className="text-right">
+                          <p className="text-lg font-semibold tabular-nums text-[hsl(var(--info))]">
+                            {formatNum(n)}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {n > 1 ? 'colis' : 'colis'}
+                          </p>
+                        </div>
+                        {isAdmin() && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreHorizontal className="h-4 w-4" />
+                                <span className="sr-only">Actions</span>
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-40">
+                              <DropdownMenuItem onClick={() => openEditModal(colis)}>
+                                <Edit className="mr-2 h-4 w-4" />
+                                Modifier
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive"
+                                onClick={() => handleDeleteColis(colis.id)}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Supprimer
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </section>
+
+      {/* Dialog création / modification */}
+      <Dialog
+        open={showModal}
+        onOpenChange={(open) => {
           setShowModal(open);
           if (!open) {
             setEditingColis(null);
             resetForm();
           }
-        }}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Nouveau Colis
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{editingColis ? 'Modifier le Colis' : 'Nouveau Colis'}</DialogTitle>
-              <DialogDescription>
-                {editingColis ? 'Modifiez les informations du colis' : 'Ajoutez un nouvel envoi de colis'}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-medium mb-2 block">Nombre de colis *</label>
-                <Input
-                  type="number"
-                  min="1"
-                  value={formData.nombre}
-                  onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                  placeholder="Ex: 5"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="text-sm font-medium mb-2 block">Date d'envoi *</label>
-                <Input
-                  type="date"
-                  value={formData.date}
-                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="text-sm font-medium mb-2 block">Description/Commentaire</label>
-                <Textarea
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  rows={4}
-                  placeholder="Détails supplémentaires de l'envoi..."
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowModal(false);
-                  setEditingColis(null);
-                  resetForm();
-                }}
-              >
-                Annuler
-              </Button>
-              <Button onClick={editingColis ? handleUpdateColis : handleAddColis}>
-                {editingColis ? 'Modifier' : 'Enregistrer'}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      {/* Résumé Global */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Vue d'Ensemble Globale</CardTitle>
-          <CardDescription>Statistiques sur les colis envoyés</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Total Colis</p>
-                    <p className="text-3xl font-bold">{stats.totalColis}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Colis envoyés au total</p>
-                  </div>
-                  <Package className="h-8 w-8 text-primary" />
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Jours Suivis</p>
-                    <p className="text-3xl font-bold">{stats.nombreJours}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Jours avec enregistrements</p>
-                  </div>
-                  <Calendar className="h-8 w-8 text-green-600" />
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Moyenne/Jour</p>
-                    <p className="text-3xl font-bold">{stats.moyenneParJour.toFixed(1)}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Colis en moyenne</p>
-                  </div>
-                  <TrendingUp className="h-8 w-8 text-purple-500" />
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Maximum</p>
-                    <p className="text-3xl font-bold">{stats.maxColis}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Plus grand envoi</p>
-                  </div>
-                  <TrendingUp className="h-8 w-8 text-orange-500" />
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Minimum</p>
-                    <p className="text-3xl font-bold">{stats.minColis}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Plus petit envoi</p>
-                  </div>
-                  <TrendingDown className="h-8 w-8 text-indigo-500" />
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <Separator />
-
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="text-center">
-              <p className="text-xs text-muted-foreground mb-1">Total Jours</p>
-              <p className="text-2xl font-bold">{stats.nombreJours}</p>
-            </div>
-            <div className="text-center">
-              <p className="text-xs text-muted-foreground mb-1">Jours avec Activité</p>
-              <p className="text-2xl font-bold">{stats.joursAvecActivite}</p>
-            </div>
-            <div className="text-center">
-              <p className="text-xs text-muted-foreground mb-1">Taux d'Activité</p>
-              <p className="text-2xl font-bold">{stats.tauxActivite}</p>
-            </div>
-            <div className="text-center">
-              <p className="text-xs text-muted-foreground mb-1">Moyenne par Jour Actif</p>
-              <p className="text-2xl font-bold">
-                {stats.joursAvecActivite > 0 ? (stats.totalColis / stats.joursAvecActivite).toFixed(1) : '0'}
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Statistiques par Période */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Statistiques par Période</CardTitle>
-          <CardDescription>Vue détaillée par jour, semaine et mois</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Aujourd'hui</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Nombre:</span>
-                  <span className="text-sm font-semibold">{periodStats.today.totalColis}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Jours:</span>
-                  <span className="text-sm font-semibold">{periodStats.today.nombreJours}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Moyenne:</span>
-                  <span className="text-sm font-semibold">{periodStats.today.moyenneParJour.toFixed(1)}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Max:</span>
-                  <span className="text-sm font-semibold">{periodStats.today.maxColis}</span>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Cette Semaine</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Nombre:</span>
-                  <span className="text-sm font-semibold">{periodStats.week.totalColis}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Jours:</span>
-                  <span className="text-sm font-semibold">{periodStats.week.nombreJours}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Moyenne:</span>
-                  <span className="text-sm font-semibold">{periodStats.week.moyenneParJour.toFixed(1)}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Max:</span>
-                  <span className="text-sm font-semibold">{periodStats.week.maxColis}</span>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Ce Mois</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Nombre:</span>
-                  <span className="text-sm font-semibold">{periodStats.month.totalColis}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Jours:</span>
-                  <span className="text-sm font-semibold">{periodStats.month.nombreJours}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Moyenne:</span>
-                  <span className="text-sm font-semibold">{periodStats.month.moyenneParJour.toFixed(1)}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Max:</span>
-                  <span className="text-sm font-semibold">{periodStats.month.maxColis}</span>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Filtres */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Filtres de Recherche</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {editingColis ? 'Modifier le colis' : 'Nouveau colis'}
+            </DialogTitle>
+            <DialogDescription>
+              {editingColis
+                ? 'Modifiez les informations du colis'
+                : 'Ajoutez un nouvel envoi de colis'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium mb-2 block">Date début</label>
+              <label className="mb-2 block text-sm font-medium" htmlFor="colis-nombre">
+                Nombre de colis *
+              </label>
               <Input
-                type="date"
-                value={filters.dateStart}
-                onChange={(e) => setFilters({ ...filters, dateStart: e.target.value })}
+                id="colis-nombre"
+                type="number"
+                min="1"
+                value={formData.nombre}
+                onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
+                placeholder="Ex: 5"
+                required
               />
             </div>
+
             <div>
-              <label className="text-sm font-medium mb-2 block">Date fin</label>
+              <label className="mb-2 block text-sm font-medium" htmlFor="colis-date">
+                Date d&apos;envoi *
+              </label>
               <Input
+                id="colis-date"
                 type="date"
-                value={filters.dateEnd}
-                onChange={(e) => setFilters({ ...filters, dateEnd: e.target.value })}
+                value={formData.date}
+                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                required
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium" htmlFor="colis-desc">
+                Description / commentaire
+              </label>
+              <Textarea
+                id="colis-desc"
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                rows={4}
+                placeholder="Détails supplémentaires de l'envoi…"
               />
             </div>
           </div>
-          {(filters.dateStart || filters.dateEnd) && (
+          <DialogFooter>
             <Button
-              onClick={() => setFilters({ dateStart: '', dateEnd: '' })}
               variant="outline"
-              className="mt-4"
+              onClick={() => {
+                setShowModal(false);
+                setEditingColis(null);
+                resetForm();
+              }}
             >
-              Réinitialiser les filtres
+              Annuler
             </Button>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Liste des colis */}
-      <div className="space-y-4">
-        {(!state.colis || state.colis.length === 0) ? (
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-center py-8 text-muted-foreground">
-                <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p className="text-lg font-semibold">Aucun enregistrement de colis</p>
-                <p className="text-sm mt-2">Commencez par ajouter votre premier envoi</p>
-              </div>
-            </CardContent>
-          </Card>
-        ) : filteredColis.length === 0 ? (
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-center py-8 text-muted-foreground">
-                <p className="text-lg font-semibold">Aucun colis trouvé</p>
-                <p className="text-sm mt-2">Aucun résultat pour les critères sélectionnés</p>
-              </div>
-            </CardContent>
-          </Card>
-        ) : (
-          filteredColis.map((colis) => (
-            <Card key={colis.id}>
-              <CardHeader>
-                <div className="flex justify-between items-start">
-                  <div>
-                    <CardTitle className="text-2xl">{colis.nombre} {colis.nombre > 1 ? 'colis envoyés' : 'colis envoyé'}</CardTitle>
-                    {colis.description && (
-                      <CardDescription className="mt-2">{colis.description}</CardDescription>
-                    )}
-                  </div>
-                  {isAdmin() && (
-                    <div className="flex gap-2">
-                      <Button
-                        onClick={() => openEditModal(colis)}
-                        variant="outline"
-                        size="sm"
-                      >
-                        <Edit className="h-4 w-4 mr-2" />
-                        Éditer
-                      </Button>
-                      <Button
-                        onClick={() => handleDeleteColis(colis.id)}
-                        variant="destructive"
-                        size="sm"
-                      >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Supprimer
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
-                      <Calendar className="h-3 w-3" />
-                      Date d'envoi
-                    </p>
-                    <p className="font-semibold">{colis.date}</p>
-                  </div>
-                  {colis.description && (
-                    <div>
-                      <p className="text-xs text-muted-foreground mb-1">Description</p>
-                      <p className="text-sm">{colis.description}</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))
-        )}
-      </div>
-    </div>
+            <Button onClick={editingColis ? handleUpdateColis : handleAddColis}>
+              {editingColis ? 'Modifier' : 'Enregistrer'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </PageSurface>
   );
 };
 
