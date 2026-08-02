@@ -1,3 +1,8 @@
+/**
+ * Validation réception — présentation uniquement.
+ * Formules manque, qteRecue initiale, validateEntree, payload,
+ * règle valide/litige et notification fournisseur inchangés.
+ */
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useData } from '../context/UnifiedDataContext';
 import { useAuth } from '../context/AuthContext';
@@ -5,9 +10,19 @@ import { USE_SUPABASE } from '../config';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { cn } from '@/lib/utils';
+import { PageHeader } from '@/components/PageHeader';
+import { PageSurface } from '@/components/PageSurface';
+import { StatusBadge } from '@/components/StatusBadge';
 import {
   ArrowLeft,
   Package,
@@ -16,6 +31,7 @@ import {
   CheckCircle2,
   AlertTriangle,
   ClipboardCheck,
+  Loader2,
 } from 'lucide-react';
 
 const formatDa = (value) =>
@@ -36,6 +52,46 @@ const formatDate = (dateStr) => {
   return d.toLocaleDateString('fr-FR');
 };
 
+function MetaStat({ label, value, tone }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-[11px] text-muted-foreground">{label}</p>
+      <p
+        className={cn(
+          'truncate text-sm font-semibold tabular-nums sm:text-base',
+          tone === 'danger' && 'text-danger',
+          tone === 'success' && 'text-success',
+          tone === 'warning' && 'text-[hsl(var(--warning))]',
+          tone === 'info' && 'text-[hsl(var(--info))]'
+        )}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function LoadingBlock({ label }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border/80 px-4 py-12 text-muted-foreground">
+      <Loader2 className="h-6 w-6 animate-spin opacity-60" />
+      <p className="text-sm">{label}</p>
+    </div>
+  );
+}
+
+function EmptyBlock({ icon: Icon, title, description }) {
+  return (
+    <div className="rounded-lg border border-dashed border-border/80 px-4 py-12 text-center">
+      {Icon ? <Icon className="mx-auto mb-3 h-8 w-8 text-muted-foreground/40" /> : null}
+      <p className="text-sm font-medium">{title}</p>
+      {description ? (
+        <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+      ) : null}
+    </div>
+  );
+}
+
 const EmployeeValidation = () => {
   const dataCtx = useData();
   const { user } = useAuth();
@@ -48,6 +104,7 @@ const EmployeeValidation = () => {
   const [loadingList, setLoadingList] = useState(false);
   const [loadingLignes, setLoadingLignes] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const loadEntreesEnAttente = useCallback(async () => {
     if (!dataCtx?.fetchEntreesEnAttente) return;
@@ -126,6 +183,7 @@ const EmployeeValidation = () => {
   }, [lignes]);
 
   const hasManque = totals.manquePaires > 0;
+  const statutPrevu = hasManque ? 'litige' : 'valide';
 
   const handleConfirm = async () => {
     if (!selectedEntree || !user?.id) return;
@@ -151,6 +209,7 @@ const EmployeeValidation = () => {
         variant: isLitige ? 'destructive' : 'default',
       });
 
+      setConfirmOpen(false);
       setScreen('list');
       setSelectedEntree(null);
       setLignes([]);
@@ -167,6 +226,7 @@ const EmployeeValidation = () => {
   };
 
   const handleBack = () => {
+    setConfirmOpen(false);
     setScreen('list');
     setSelectedEntree(null);
     setLignes([]);
@@ -177,212 +237,461 @@ const EmployeeValidation = () => {
 
   if (!USE_SUPABASE) {
     return (
-      <Card className="max-w-lg mx-auto">
-        <CardContent className="pt-6 text-center text-muted-foreground">
-          La validation des envois nécessite Supabase.
-        </CardContent>
-      </Card>
+      <PageSurface className="space-y-6">
+        <PageHeader
+          eyebrow="Réception"
+          title="Validation des envois"
+          description="Contrôle des quantités reçues à la réception."
+        />
+        <EmptyBlock
+          icon={AlertTriangle}
+          title="Supabase requis"
+          description="La validation des envois nécessite Supabase."
+        />
+      </PageSurface>
     );
   }
 
   // Écran validation
   if (screen === 'validate' && selectedEntree) {
     return (
-      <div className="space-y-6">
-        <Button variant="outline" onClick={handleBack} disabled={submitting}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Retour à la liste
-        </Button>
+      <PageSurface className="space-y-5 sm:space-y-6">
+        <PageHeader
+          eyebrow="Réception"
+          title="Contrôle de réception"
+          description={`${getFournisseurNom(selectedEntree)} — ${formatDate(selectedEntree.date)}`}
+          actions={
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleBack}
+              disabled={submitting}
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Retour à la liste
+            </Button>
+          }
+        />
 
-        <Card className="border-2 border-primary/30">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ClipboardCheck className="h-5 w-5" />
-              Validation de l&apos;envoi
-            </CardTitle>
-            <CardDescription>
-              {getFournisseurNom(selectedEntree)} — {formatDate(selectedEntree.date)}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {loadingLignes ? (
-              <p className="text-center text-muted-foreground py-8">Chargement des lignes…</p>
-            ) : lignes.length === 0 ? (
-              <p className="text-center text-muted-foreground py-8">Aucune ligne dans cet envoi</p>
-            ) : (
-              <>
-                <div className="space-y-3">
-                  {lignes.map((ligne) => {
-                    const manqueQte = Math.max(ligne.qte_envoyee - ligne.qteRecue, 0);
-                    const manqueDa = manqueQte * ligne.prix_achat;
-                    return (
-                      <Card key={ligne.ligne_id} className="bg-muted/20">
-                        <CardContent className="p-4">
-                          <div className="flex flex-wrap justify-between gap-4 items-start">
-                            <div className="flex-1 min-w-[200px]">
-                              <p className="font-medium">{ligne.produit_nom}</p>
-                              <p className="text-sm text-muted-foreground mt-1">
-                                Envoyé : <span className="font-semibold">{ligne.qte_envoyee}</span> paire(s)
-                                {' · '}
-                                {formatDa(ligne.prix_achat)} / paire
-                              </p>
-                            </div>
-                            <div className="flex flex-wrap items-end gap-4">
-                              <div>
-                                <label className="text-xs font-medium mb-1 block">Reçu</label>
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  className="w-24"
-                                  value={ligne.qteRecue}
-                                  onChange={(e) =>
-                                    handleQteRecueChange(ligne.ligne_id, e.target.value)
-                                  }
-                                  disabled={submitting}
-                                />
-                              </div>
-                              <div className="text-right min-w-[160px]">
-                                <p className="text-xs text-muted-foreground mb-1">Manque</p>
-                                <p
-                                  className={`font-semibold ${
-                                    manqueQte > 0 ? 'text-red-600' : 'text-green-600'
-                                  }`}
-                                >
-                                  {manqueQte > 0
-                                    ? `−${formatPaires(manqueQte)} · −${formatDaAmount(manqueDa)} DA`
-                                    : '—'}
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
-                </div>
+        <section className="space-y-4 rounded-lg border border-border/80 bg-card p-4 sm:p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border/80 bg-muted/40">
+                <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <div>
+                <h2 className="font-display text-base font-semibold tracking-tight">
+                  Validation de l&apos;envoi
+                </h2>
+                <p className="text-xs text-muted-foreground">
+                  Saisissez les quantités réellement reçues. Les manques déclenchent un litige.
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <span className="inline-flex items-center gap-1.5">
+                <Building2 className="h-3.5 w-3.5" />
+                <span className="font-medium text-foreground">
+                  {getFournisseurNom(selectedEntree)}
+                </span>
+              </span>
+              <span>·</span>
+              <span className="inline-flex items-center gap-1.5">
+                <Calendar className="h-3.5 w-3.5" />
+                {formatDate(selectedEntree.date)}
+              </span>
+            </div>
+          </div>
 
-                <Card className="bg-muted/30">
-                  <CardContent className="pt-6 space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Total envoyé</span>
-                      <span className="font-semibold">{formatDa(totals.envoye)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Total reçu</span>
-                      <span className="font-semibold text-green-600">{formatDa(totals.recu)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Total manque</span>
-                      <span className={`font-semibold ${hasManque ? 'text-red-600' : 'text-green-600'}`}>
-                        {hasManque
-                          ? `${formatDa(totals.manque)} · ${formatPaires(totals.manquePaires)}`
-                          : '—'}
-                      </span>
-                    </div>
-                  </CardContent>
-                </Card>
+          <Separator />
 
-                {hasManque && (
-                  <Card className="border-orange-300 bg-orange-50 dark:bg-orange-950/20">
-                    <CardContent className="pt-6 flex gap-3">
-                      <AlertTriangle className="h-5 w-5 text-orange-600 shrink-0 mt-0.5" />
-                      <div>
-                        <p className="font-medium text-orange-800 dark:text-orange-300">
-                          Manque constaté
-                        </p>
-                        <p className="text-sm text-orange-700 dark:text-orange-400 mt-1">
-                          Cet envoi sera marqué <strong>litige</strong> et le fournisseur sera
-                          automatiquement notifié du manquant ({formatDa(totals.manque)} · {formatPaires(totals.manquePaires)}).
-                        </p>
+          {loadingLignes ? (
+            <LoadingBlock label="Chargement des lignes…" />
+          ) : lignes.length === 0 ? (
+            <EmptyBlock
+              icon={Package}
+              title="Aucune ligne dans cet envoi"
+              description="Impossible de valider un envoi sans produit."
+            />
+          ) : (
+            <>
+              {/* Desktop table */}
+              <div className="hidden overflow-x-auto rounded-lg border border-border/80 md:block">
+                <table className="w-full min-w-[720px] text-left text-sm">
+                  <thead className="border-b border-border/80 bg-muted/40 text-xs text-muted-foreground">
+                    <tr>
+                      <th className="px-3 py-2.5 font-medium">Produit</th>
+                      <th className="px-3 py-2.5 text-right font-medium">Envoyé</th>
+                      <th className="px-3 py-2.5 text-right font-medium">Reçu</th>
+                      <th className="px-3 py-2.5 text-right font-medium">Manque</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lignes.map((ligne) => {
+                      const manqueQte = Math.max(ligne.qte_envoyee - ligne.qteRecue, 0);
+                      const manqueDa = manqueQte * ligne.prix_achat;
+                      return (
+                        <tr
+                          key={ligne.ligne_id}
+                          className={cn(
+                            'border-b border-border/60 last:border-0',
+                            manqueQte > 0 && 'bg-[hsl(var(--danger)/0.05)]'
+                          )}
+                        >
+                          <td className="px-3 py-3 align-top">
+                            <p className="font-medium">{ligne.produit_nom}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {formatDa(ligne.prix_achat)} / paire
+                            </p>
+                          </td>
+                          <td className="px-3 py-3 text-right align-top tabular-nums">
+                            {ligne.qte_envoyee}
+                          </td>
+                          <td className="px-3 py-3 text-right align-top">
+                            <Input
+                              type="number"
+                              min="0"
+                              className="ml-auto h-9 w-24 text-right"
+                              value={ligne.qteRecue}
+                              onChange={(e) =>
+                                handleQteRecueChange(ligne.ligne_id, e.target.value)
+                              }
+                              disabled={submitting}
+                            />
+                          </td>
+                          <td className="px-3 py-3 text-right align-top">
+                            <p
+                              className={cn(
+                                'font-semibold tabular-nums',
+                                manqueQte > 0 ? 'text-danger' : 'text-success'
+                              )}
+                            >
+                              {manqueQte > 0
+                                ? `−${formatPaires(manqueQte)} · −${formatDaAmount(manqueDa)} DA`
+                                : '—'}
+                            </p>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile / tablette cards */}
+              <div className="space-y-3 md:hidden">
+                {lignes.map((ligne) => {
+                  const manqueQte = Math.max(ligne.qte_envoyee - ligne.qteRecue, 0);
+                  const manqueDa = manqueQte * ligne.prix_achat;
+                  return (
+                    <div
+                      key={ligne.ligne_id}
+                      className={cn(
+                        'rounded-lg border border-border/80 px-3 py-3',
+                        manqueQte > 0 &&
+                          'border-[hsl(var(--danger)/0.45)] bg-[hsl(var(--danger)/0.05)]'
+                      )}
+                    >
+                      <p className="font-medium">{ligne.produit_nom}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        Envoyé : <span className="font-semibold text-foreground">{ligne.qte_envoyee}</span>{' '}
+                        paire(s)
+                        {' · '}
+                        {formatDa(ligne.prix_achat)} / paire
+                      </p>
+                      <div className="mt-3 flex flex-wrap items-end justify-between gap-3">
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-medium text-muted-foreground">
+                            Reçu
+                          </label>
+                          <Input
+                            type="number"
+                            min="0"
+                            className="h-9 w-24"
+                            value={ligne.qteRecue}
+                            onChange={(e) =>
+                              handleQteRecueChange(ligne.ligne_id, e.target.value)
+                            }
+                            disabled={submitting}
+                          />
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[11px] text-muted-foreground">Manque</p>
+                          <p
+                            className={cn(
+                              'font-semibold',
+                              manqueQte > 0 ? 'text-danger' : 'text-success'
+                            )}
+                          >
+                            {manqueQte > 0
+                              ? `−${formatPaires(manqueQte)} · −${formatDaAmount(manqueDa)} DA`
+                              : '—'}
+                          </p>
+                        </div>
                       </div>
-                    </CardContent>
-                  </Card>
-                )}
+                    </div>
+                  );
+                })}
+              </div>
 
-                <Separator />
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg border border-border/80 bg-muted/20 px-4 py-3 sm:grid-cols-4">
+                <MetaStat label="Valeur envoyée" value={formatDa(totals.envoye)} tone="info" />
+                <MetaStat label="Valeur reçue" value={formatDa(totals.recu)} tone="success" />
+                <MetaStat
+                  label="Manque total"
+                  value={
+                    hasManque
+                      ? `${formatDa(totals.manque)} · ${formatPaires(totals.manquePaires)}`
+                      : '—'
+                  }
+                  tone={hasManque ? 'danger' : 'success'}
+                />
+                <div className="min-w-0">
+                  <p className="text-[11px] text-muted-foreground">Statut prévu</p>
+                  <div className="mt-1">
+                    {hasManque ? (
+                      <StatusBadge status="litige" label="Litige" />
+                    ) : (
+                      <StatusBadge status="valide" label="Validé" />
+                    )}
+                  </div>
+                </div>
+              </div>
 
+              {hasManque && (
+                <div className="flex gap-3 rounded-lg border border-[hsl(var(--warning)/0.55)] bg-[hsl(var(--warning)/0.1)] px-4 py-3">
+                  <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-[hsl(var(--warning))]" />
+                  <div>
+                    <p className="font-medium text-[hsl(var(--warning))]">Manque constaté</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Cet envoi sera marqué <strong className="text-foreground">litige</strong> et
+                      le fournisseur sera automatiquement notifié du manquant (
+                      {formatDa(totals.manque)} · {formatPaires(totals.manquePaires)}).
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <Separator />
+
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-xs text-muted-foreground">
+                  Statut produit :{' '}
+                  <span className="font-semibold text-foreground">
+                    {statutPrevu === 'litige' ? 'litige' : 'valide'}
+                  </span>
+                  {hasManque
+                    ? ' — notification fournisseur à l’enregistrement.'
+                    : ' — réception conforme.'}
+                </p>
                 <Button
-                  onClick={handleConfirm}
+                  type="button"
+                  onClick={() => setConfirmOpen(true)}
                   disabled={submitting || loadingLignes || lignes.length === 0}
-                  className="w-full sm:w-auto"
+                  className={cn(
+                    'sm:min-w-[220px]',
+                    hasManque &&
+                      'bg-danger text-danger-foreground hover:bg-danger/90'
+                  )}
                 >
-                  <CheckCircle2 className="h-4 w-4 mr-2" />
-                  {submitting ? 'Validation…' : 'Confirmer la validation'}
+                  <CheckCircle2 className="mr-2 h-4 w-4" />
+                  Confirmer la validation
                 </Button>
-              </>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+              </div>
+            </>
+          )}
+        </section>
+
+        <Dialog open={confirmOpen} onOpenChange={(open) => !submitting && setConfirmOpen(open)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                {hasManque ? 'Confirmer le litige ?' : 'Confirmer la validation ?'}
+              </DialogTitle>
+              <DialogDescription>
+                {hasManque
+                  ? `Un manque de ${formatPaires(totals.manquePaires)} (${formatDa(totals.manque)}) sera enregistré. Le statut passera à litige et le fournisseur sera notifié.`
+                  : 'Aucune différence détectée. Le statut passera à valide.'}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="rounded-lg border border-border/80 bg-muted/20 px-3 py-3 text-sm">
+              <div className="flex justify-between gap-3">
+                <span className="text-muted-foreground">Fournisseur</span>
+                <span className="font-medium">{getFournisseurNom(selectedEntree)}</span>
+              </div>
+              <div className="mt-1.5 flex justify-between gap-3">
+                <span className="text-muted-foreground">Date</span>
+                <span className="font-medium">{formatDate(selectedEntree.date)}</span>
+              </div>
+              <div className="mt-1.5 flex justify-between gap-3">
+                <span className="text-muted-foreground">Statut prévu</span>
+                <span className="font-medium">{statutPrevu}</span>
+              </div>
+            </div>
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setConfirmOpen(false)}
+                disabled={submitting}
+              >
+                Annuler
+              </Button>
+              <Button
+                type="button"
+                onClick={handleConfirm}
+                disabled={submitting}
+                className={cn(
+                  hasManque && 'bg-danger text-danger-foreground hover:bg-danger/90'
+                )}
+              >
+                {submitting ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="mr-2 h-4 w-4" />
+                )}
+                {submitting ? 'Validation…' : 'Valider définitivement'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </PageSurface>
     );
   }
 
   // Écran liste
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-foreground">Validation des envois</h1>
-        <p className="text-muted-foreground mt-1">
-          Envois fournisseurs en attente de réception
-        </p>
+    <PageSurface className="space-y-5 sm:space-y-6">
+      <PageHeader
+        eyebrow="Réception"
+        title="Validation des envois"
+        description="Contrôlez les quantités reçues, puis validez. Un manque crée automatiquement un litige."
+      />
+
+      <div className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg border border-border/80 bg-card px-4 py-3 sm:grid-cols-3">
+        <MetaStat
+          label="En attente"
+          value={loadingList ? '…' : Number(entreesEnAttente.length).toLocaleString('fr-FR')}
+          tone="warning"
+        />
+        <MetaStat label="Action" value="Contrôler puis valider" />
+        <MetaStat label="Règle" value="Manque → litige" tone="info" />
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Package className="h-5 w-5" />
-            Envois en attente
-            {!loadingList && (
-              <Badge variant="secondary" className="ml-2">
-                {entreesEnAttente.length}
-              </Badge>
-            )}
-          </CardTitle>
-          <CardDescription>
-            Vérifiez les quantités reçues et validez chaque envoi
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {loadingList ? (
-            <p className="text-center text-muted-foreground py-8">Chargement…</p>
-          ) : entreesEnAttente.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <CheckCircle2 className="h-12 w-12 mx-auto mb-3 opacity-30 text-green-500" />
-              <p className="text-lg">Aucun envoi en attente</p>
-              <p className="text-sm mt-1">Tous les envois ont été traités</p>
+      <section className="space-y-4 rounded-lg border border-border/80 bg-card p-4 sm:p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border/80 bg-muted/40">
+              <Package className="h-4 w-4 text-muted-foreground" />
             </div>
-          ) : (
-            <div className="space-y-3">
+            <div>
+              <h2 className="font-display text-base font-semibold tracking-tight">
+                Envois en attente
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                Vérifiez les quantités reçues et validez chaque envoi
+              </p>
+            </div>
+          </div>
+          {!loadingList && (
+            <StatusBadge
+              status="en_attente"
+              label={`${entreesEnAttente.length} en attente`}
+            />
+          )}
+        </div>
+
+        {loadingList ? (
+          <LoadingBlock label="Chargement…" />
+        ) : entreesEnAttente.length === 0 ? (
+          <EmptyBlock
+            icon={CheckCircle2}
+            title="Aucun envoi en attente"
+            description="Tous les envois ont été traités."
+          />
+        ) : (
+          <>
+            {/* Desktop table */}
+            <div className="hidden overflow-x-auto rounded-lg border border-border/80 md:block">
+              <table className="w-full min-w-[560px] text-left text-sm">
+                <thead className="border-b border-border/80 bg-muted/40 text-xs text-muted-foreground">
+                  <tr>
+                    <th className="px-3 py-2.5 font-medium">Fournisseur</th>
+                    <th className="px-3 py-2.5 font-medium">Date</th>
+                    <th className="px-3 py-2.5 font-medium">Statut</th>
+                    <th className="w-[140px] px-3 py-2.5 text-right font-medium">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {entreesEnAttente.map((entree) => (
+                    <tr
+                      key={entree.id}
+                      className="border-b border-border/60 last:border-0"
+                    >
+                      <td className="px-3 py-3">
+                        <div className="flex items-center gap-2">
+                          <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+                          <span className="font-medium">{getFournisseurNom(entree)}</span>
+                        </div>
+                      </td>
+                      <td className="px-3 py-3 text-muted-foreground">
+                        {formatDate(entree.date)}
+                      </td>
+                      <td className="px-3 py-3">
+                        <StatusBadge status="en_attente" label="en attente" />
+                      </td>
+                      <td className="px-3 py-3 text-right">
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => openValidation(entree)}
+                        >
+                          <ClipboardCheck className="mr-1.5 h-4 w-4" />
+                          Valider
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile cards */}
+            <div className="space-y-3 md:hidden">
               {entreesEnAttente.map((entree) => (
-                <Card key={entree.id} className="border hover:border-primary/50 transition-colors">
-                  <CardContent className="p-4">
-                    <div className="flex flex-wrap justify-between gap-4 items-center">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <Building2 className="h-4 w-4 text-muted-foreground" />
-                          <span className="font-semibold text-lg">
-                            {getFournisseurNom(entree)}
-                          </span>
-                          <Badge variant="outline">en attente</Badge>
-                        </div>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <Calendar className="h-4 w-4" />
-                          {formatDate(entree.date)}
-                        </div>
+                <div
+                  key={entree.id}
+                  className="rounded-lg border border-border/80 px-3 py-3"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-semibold">{getFournisseurNom(entree)}</p>
+                        <StatusBadge status="en_attente" label="en attente" />
                       </div>
-                      <Button onClick={() => openValidation(entree)}>
-                        <ClipboardCheck className="h-4 w-4 mr-2" />
-                        Valider
-                      </Button>
+                      <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Calendar className="h-3.5 w-3.5" />
+                        {formatDate(entree.date)}
+                      </p>
                     </div>
-                  </CardContent>
-                </Card>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="shrink-0"
+                      onClick={() => openValidation(entree)}
+                    >
+                      <ClipboardCheck className="mr-1.5 h-4 w-4" />
+                      Valider
+                    </Button>
+                  </div>
+                </div>
               ))}
             </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+          </>
+        )}
+      </section>
+    </PageSurface>
   );
 };
 
