@@ -19,6 +19,7 @@ import { Badge } from '@/components/ui/badge';
 import {
   Sheet,
   SheetContent,
+  SheetTitle,
 } from '@/components/ui/sheet';
 import cosmosLogo from '../assets/cosmos-logo.svg';
 
@@ -135,7 +136,7 @@ const Sidebar = ({
                     key={item.id}
                     variant="ghost"
                     className={cn(
-                      'h-10 w-full justify-start gap-3 rounded-md px-3 font-medium focus-visible:ring-2 focus-visible:ring-ring',
+                      'h-10 w-full justify-start gap-3 rounded-md px-3 font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[hsl(var(--ring))] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
                       isActive
                         ? 'bg-primary/15 text-primary hover:bg-primary/20 hover:text-primary'
                         : 'text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'
@@ -192,6 +193,8 @@ const Sidebar = ({
     return (
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent side="left" className="w-[280px] border-r border-border bg-sidebar p-0">
+          {/* Sheet = Dialog Radix : titre accessible requis (branding déjà dans le panneau). */}
+          <SheetTitle className="sr-only">Navigation principale</SheetTitle>
           <SidebarContent />
         </SheetContent>
       </Sheet>

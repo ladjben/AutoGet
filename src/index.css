@@ -111,16 +111,35 @@
     font-family: "Syne", "DM Sans", ui-sans-serif, system-ui, sans-serif;
   }
 
-  /* Focus clavier visible (accessibilité) */
+  /* Focus clavier visible (accessibilité) — accent laiton du design system */
   :focus-visible {
     outline: 2px solid hsl(var(--ring));
     outline-offset: 2px;
   }
 
-  button:focus:not(:focus-visible),
-  a:focus:not(:focus-visible),
-  [role="button"]:focus:not(:focus-visible) {
+  /* Évite un anneau permanent à la souris ; conserve le focus clavier */
+  :focus:not(:focus-visible) {
     outline: none;
+  }
+
+  /*
+   * Anneau focus clavier (laiton) sur les contrôles interactifs.
+   * Les utilitaires Tailwind focus-visible:outline-2 / ring-2 renforcent
+   * le même accent sur les composants ui/* et champs redesignés.
+   */
+  button:focus-visible,
+  a:focus-visible,
+  [role="button"]:focus-visible,
+  [role="menuitem"]:focus-visible,
+  [role="option"]:focus-visible,
+  [role="combobox"]:focus-visible,
+  [role="tab"]:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  summary:focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
   }
 }
 

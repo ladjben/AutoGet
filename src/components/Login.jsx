@@ -127,7 +127,7 @@ const Login = () => {
                   onClick={() => setShowPassword((v) => !v)}
                   className={cn(
                     'absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-muted-foreground',
-                    'hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring'
+                    'hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[hsl(var(--ring))] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background'
                   )}
                   aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
                   tabIndex={-1}

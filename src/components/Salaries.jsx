@@ -775,7 +775,7 @@ const SalariesList = ({ onSelectSalary }) => {
               id="salary-month"
               value={effectiveMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
-              className="flex h-9 w-full min-w-[180px] rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              className="flex h-9 w-full min-w-[180px] rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[hsl(var(--ring))] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             >
               {availableMonths.map((m) => (
                 <option key={m} value={m}>
@@ -922,7 +922,7 @@ const SalariesList = ({ onSelectSalary }) => {
             id="salary-filter"
             value={filters.salaryId}
             onChange={(e) => setFilters({ ...filters, salaryId: e.target.value })}
-            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[hsl(var(--ring))] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >
             <option value="">Tous les salariés</option>
             {(state.salaries || []).map((s) => (
@@ -1289,7 +1289,7 @@ const SalariesList = ({ onSelectSalary }) => {
               <select
                 value={acompteData.salaryId}
                 onChange={(e) => setAcompteData({ ...acompteData, salaryId: e.target.value })}
-                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[hsl(var(--ring))] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
               >
                 <option value="">Sélectionner</option>
                 {(state.salaries || []).map((salary) => {
@@ -1418,12 +1418,16 @@ const SalariesList = ({ onSelectSalary }) => {
         }}
       >
         <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {activeQuickAction?.dialogTitle ?? 'Action rapide'}
+            </DialogTitle>
+            {activeQuickAction?.dialogDescription ? (
+              <DialogDescription>{activeQuickAction.dialogDescription}</DialogDescription>
+            ) : null}
+          </DialogHeader>
           {activeQuickAction && (
             <>
-              <DialogHeader>
-                <DialogTitle>{activeQuickAction.dialogTitle}</DialogTitle>
-                <DialogDescription>{activeQuickAction.dialogDescription}</DialogDescription>
-              </DialogHeader>
               <div className="space-y-4">
                 <div>
                   <label className="mb-2 block text-sm font-medium">Salarié *</label>
@@ -1432,7 +1436,7 @@ const SalariesList = ({ onSelectSalary }) => {
                     onChange={(e) =>
                       setQuickActionData({ ...quickActionData, salaryId: e.target.value })
                     }
-                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[hsl(var(--ring))] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                   >
                     <option value="">Sélectionner</option>
                     {(state.salaries || []).map((s) => (

@@ -168,7 +168,7 @@ const Signup = ({ onCancel }) => {
                   onClick={() => handleRoleSelect('user')}
                   className={cn(
                     'flex w-full items-start gap-3 rounded-lg border border-border/80 bg-background px-3.5 py-3.5 text-left transition-colors',
-                    'hover:border-primary/40 hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring'
+                    'hover:border-primary/40 hover:bg-muted/30 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[hsl(var(--ring))] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background'
                   )}
                 >
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border/80 bg-muted/40">
@@ -187,7 +187,7 @@ const Signup = ({ onCancel }) => {
                   onClick={() => handleRoleSelect('admin')}
                   className={cn(
                     'flex w-full items-start gap-3 rounded-lg border border-border/80 bg-background px-3.5 py-3.5 text-left transition-colors',
-                    'hover:border-primary/40 hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring'
+                    'hover:border-primary/40 hover:bg-muted/30 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[hsl(var(--ring))] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background'
                   )}
                 >
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border/80 bg-muted/40">
