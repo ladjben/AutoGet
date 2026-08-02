@@ -2,6 +2,9 @@
  * Salariés — présentation liste uniquement.
  * Formules, acomptes, clôture/annulation, payloads, CRUD, permissions
  * et dual-path Supabase/localStorage inchangés. SalaryDetail non modifié.
+ *
+ * NOTE : la clôture mensuelle reste visible au rôle user — voir
+ * docs/notes/acompte-cloture-permissions.md (hors scope de ce lot).
  */
 import { useData, ActionTypes } from '../context/UnifiedDataContext';
 import { USE_SUPABASE } from '../config';
@@ -33,6 +36,12 @@ import { PageHeader } from '@/components/PageHeader';
 import { PageSurface } from '@/components/PageSurface';
 import { StatusBadge } from '@/components/StatusBadge';
 import SalaryDetail from './SalaryDetail';
+import { AcompteAuditLog } from './AcompteAuditLog';
+import {
+  buildAcompteAuditActor,
+  canMutateAcompteRole,
+  canViewAcompteAuditLog,
+} from '../utils/acompteAuditActor';
 import {
   Plus,
   Users,
@@ -48,6 +57,7 @@ import {
   ChevronRight,
   Undo2,
   AlertTriangle,
+  ScrollText,
 } from 'lucide-react';
 
 const formatDa = (value) =>
@@ -146,12 +156,17 @@ const SalariesList = ({ onSelectSalary }) => {
   const updateSalary = dataCtx?.updateSalary;
   const deleteSalary = dataCtx?.deleteSalary;
   const addAcompte = dataCtx?.addAcompte;
-  const deleteAcompte = dataCtx?.deleteAcompte;
-  const { isAdmin } = useAuth();
+  const restoreAcompte = dataCtx?.restoreAcompte;
+  const fetchAcompteAuditLogs = dataCtx?.fetchAcompteAuditLogs;
+  const { isAdmin, user } = useAuth();
   const { toast } = useToast();
+  const auditActor = buildAcompteAuditActor(user);
+  const canMutateAcomptes = canMutateAcompteRole(user?.role);
+  const canViewJournal = canViewAcompteAuditLog(user?.role);
 
   const [showModal, setShowModal] = useState(false);
   const [showAcompteModal, setShowAcompteModal] = useState(false);
+  const [showAuditLog, setShowAuditLog] = useState(false);
   const [showCloseMonthDialog, setShowCloseMonthDialog] = useState(false);
   const [showUndoCloseDialog, setShowUndoCloseDialog] = useState(false);
   const [isClosingMonth, setIsClosingMonth] = useState(false);
@@ -255,6 +270,7 @@ const SalariesList = ({ onSelectSalary }) => {
   const getSalaryAcomptes = useCallback((salaryId, { allMonths = false } = {}) => {
     const currentMonth = effectiveMonth;
     let filteredAcomptes = (state.acomptes || []).filter(a => {
+      if (a.deleted_at) return false; // calculs actifs uniquement
       const sId = a.salary_id ?? a.salaryId;
       if (sId !== salaryId) return false;
       if (allMonths) return true;
@@ -566,25 +582,26 @@ const SalariesList = ({ onSelectSalary }) => {
       return;
     }
 
+    if (!canMutateAcomptes) {
+      toast({
+        variant: 'destructive',
+        title: 'Permission refusée',
+        description: 'Seuls admin et user peuvent ajouter un acompte.',
+      });
+      return;
+    }
+
     try {
-      if (USE_SUPABASE) {
-        const dateFormatted = acompteData.date.includes('T') 
-          ? acompteData.date.split('T')[0] 
-          : acompteData.date;
-        await addAcompte(acompteData.salaryId, acompteData.montant, dateFormatted, acompteData.description || '');
-      } else {
-        const dateFormatted = acompteData.date.includes('T') 
-          ? acompteData.date.split('T')[0] 
-          : acompteData.date;
-        const newAcompte = {
-          id: generateId(),
-          salaryId: acompteData.salaryId,
-          montant: parseFloat(acompteData.montant),
-          date: dateFormatted,
-          description: acompteData.description || ''
-        };
-        dispatch({ type: ActionTypes.ADD_ACOMPTE, payload: newAcompte });
-      }
+      const dateFormatted = acompteData.date.includes('T')
+        ? acompteData.date.split('T')[0]
+        : acompteData.date;
+      await addAcompte(
+        acompteData.salaryId,
+        acompteData.montant,
+        dateFormatted,
+        acompteData.description || '',
+        auditActor
+      );
 
       setAcompteData({
         salaryId: '',
@@ -605,31 +622,6 @@ const SalariesList = ({ onSelectSalary }) => {
         description: e?.message || 'Erreur inconnue',
       });
       console.error('Erreur handleAddAcompte:', e);
-    }
-  };
-
-  const handleDeleteAcompte = async (id) => {
-    if (!window.confirm('Êtes-vous sûr de vouloir supprimer cet acompte ?')) {
-      return;
-    }
-
-    try {
-      if (USE_SUPABASE) {
-        await deleteAcompte(id);
-      } else {
-        dispatch({ type: ActionTypes.DELETE_ACOMPTE, payload: id });
-      }
-      toast({
-        title: "Succès",
-        description: "Acompte supprimé avec succès",
-      });
-    } catch (e) {
-      toast({
-        variant: "destructive",
-        title: "Erreur",
-        description: e?.message || 'Erreur inconnue',
-      });
-      console.error('Erreur handleDeleteAcompte:', e);
     }
   };
 
@@ -666,26 +658,13 @@ const SalariesList = ({ onSelectSalary }) => {
     const dateToday = new Date().toISOString().split('T')[0];
 
     try {
-      if (USE_SUPABASE) {
-        await addAcompte(
-          quickActionData.salaryId,
-          montantApi,
-          dateToday,
-          activeQuickAction.description
-        );
-        if (dataCtx?.fetchAcomptes) {
-          await dataCtx.fetchAcomptes();
-        }
-      } else {
-        const newAcompte = {
-          id: generateId(),
-          salaryId: quickActionData.salaryId,
-          montant: montantApi,
-          date: dateToday,
-          description: activeQuickAction.description,
-        };
-        dispatch({ type: ActionTypes.ADD_ACOMPTE, payload: newAcompte });
-      }
+      await addAcompte(
+        quickActionData.salaryId,
+        montantApi,
+        dateToday,
+        activeQuickAction.description,
+        auditActor
+      );
 
       closeQuickAction();
       toast({
@@ -741,9 +720,6 @@ const SalariesList = ({ onSelectSalary }) => {
     return { status: 'paye', label: 'Soldé' };
   };
 
-  // Référence volontaire — CRUD acompte conservé (utilisé côté détail / futurs usages)
-  void handleDeleteAcompte;
-
   return (
     <PageSurface className="space-y-6">
       <PageHeader
@@ -752,10 +728,18 @@ const SalariesList = ({ onSelectSalary }) => {
         description="Paie mensuelle, acomptes et événements — sans altérer les règles financières."
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Button size="sm" variant="outline" onClick={() => setShowAcompteModal(true)}>
-              <CreditCard className="mr-2 h-4 w-4" />
-              Nouvel acompte
-            </Button>
+            {canViewJournal && (
+              <Button size="sm" variant="outline" onClick={() => setShowAuditLog(true)}>
+                <ScrollText className="mr-2 h-4 w-4" />
+                Journal des opérations
+              </Button>
+            )}
+            {canMutateAcomptes && (
+              <Button size="sm" variant="outline" onClick={() => setShowAcompteModal(true)}>
+                <CreditCard className="mr-2 h-4 w-4" />
+                Nouvel acompte
+              </Button>
+            )}
             <Button size="sm" onClick={openCreateModal}>
               <Plus className="mr-2 h-4 w-4" />
               Nouveau salarié
@@ -1548,6 +1532,31 @@ const SalariesList = ({ onSelectSalary }) => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {canViewJournal && (
+        <AcompteAuditLog
+          open={showAuditLog}
+          onOpenChange={setShowAuditLog}
+          fetchLogs={fetchAcompteAuditLogs}
+          actor={auditActor}
+          onRestore={async (acompteId) => {
+            await restoreAcompte(acompteId, auditActor);
+            if (dataCtx?.fetchAcomptes) await dataCtx.fetchAcomptes();
+            toast({
+              title: 'Succès',
+              description: 'Acompte restauré avec succès',
+            });
+          }}
+          isMonthClosedFor={(moisOrDate) => {
+            const key =
+              moisOrDate && /^\d{4}-\d{2}/.test(String(moisOrDate))
+                ? String(moisOrDate).substring(0, 7)
+                : null;
+            if (!key) return false;
+            return (dataCtx?.salaryHistory || []).some((h) => h.mois_annee === key);
+          }}
+        />
+      )}
     </PageSurface>
   );
 };

@@ -28,6 +28,11 @@ import { cn } from '@/lib/utils';
 import { PageHeader } from '@/components/PageHeader';
 import { PageSurface } from '@/components/PageSurface';
 import { StatusBadge } from '@/components/StatusBadge';
+import { AcompteDeleteDialog } from './AcompteDeleteDialog';
+import {
+  buildAcompteAuditActor,
+  canMutateAcompteRole,
+} from '../utils/acompteAuditActor';
 import {
   ArrowLeft,
   Users,
@@ -128,8 +133,10 @@ const SalaryDetail = ({ salaryId, onBack }) => {
   };
   const salaryHistory = dataCtx?.salaryHistory ?? [];
   const fetchSalaryHistory = dataCtx?.fetchSalaryHistory;
-  const { isAdmin } = useAuth();
+  const { user } = useAuth();
   const { toast } = useToast();
+  const auditActor = buildAcompteAuditActor(user);
+  const canMutateAcomptes = canMutateAcompteRole(user?.role);
 
   // Charger l'historique au montage
   useEffect(() => {
@@ -142,6 +149,9 @@ const SalaryDetail = ({ salaryId, onBack }) => {
   const [showFichePaie, setShowFichePaie] = useState(false);
   const [ficheMois, setFicheMois] = useState(null); // YYYY-MM — mois affiché sur la fiche
   const [viewMois, setViewMois] = useState(null); // YYYY-MM — mois consulté à l'écran
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [acompteData, setAcompteData] = useState({
     salaryId: salaryId,
     montant: '',
@@ -153,6 +163,26 @@ const SalaryDetail = ({ salaryId, onBack }) => {
   const salary = useMemo(() => {
     return (state.salaries || []).find(s => s.id === salaryId);
   }, [state.salaries, salaryId]);
+
+  // Helper pour obtenir le mois actuel
+  const getCurrentMonth = useCallback(() => {
+    if (dataCtx?.getCurrentMonth) {
+      return dataCtx.getCurrentMonth();
+    }
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}`;
+  }, [dataCtx]);
+
+  // Helper functions - acomptes actifs du salarié (soft-supprimés exclus)
+  const getSalaryAcomptes = useCallback(() => {
+    return (state.acomptes || []).filter(a => {
+      if (a.deleted_at) return false;
+      const sId = a.salary_id ?? a.salaryId;
+      return sId === salaryId;
+    }).reverse();
+  }, [state.acomptes, salaryId]);
 
   if (!salary) {
     return (
@@ -169,25 +199,6 @@ const SalaryDetail = ({ salaryId, onBack }) => {
     );
   }
 
-  // Helper pour obtenir le mois actuel
-  const getCurrentMonth = useCallback(() => {
-    if (dataCtx?.getCurrentMonth) {
-      return dataCtx.getCurrentMonth();
-    }
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    return `${year}-${month}`;
-  }, [dataCtx]);
-
-  // Helper functions - Récupérer TOUS les acomptes du salarié (tous mois, conservés en base)
-  const getSalaryAcomptes = useCallback(() => {
-    return (state.acomptes || []).filter(a => {
-      const sId = a.salary_id ?? a.salaryId;
-      return sId === salaryId;
-    }).reverse();
-  }, [state.acomptes, salaryId]);
-
   const handleAddAcompte = async () => {
     if (!acompteData.montant || !acompteData.date) {
       toast({
@@ -198,16 +209,24 @@ const SalaryDetail = ({ salaryId, onBack }) => {
       return;
     }
 
+    if (!canMutateAcomptes) {
+      toast({
+        variant: 'destructive',
+        title: 'Permission refusée',
+        description: 'Seuls admin et user peuvent ajouter un acompte.',
+      });
+      return;
+    }
+
     try {
-      if (USE_SUPABASE) {
-        await dataCtx?.addAcompte?.(
-          salaryId,
-          acompteData.montant,
-          acompteData.date,
-          acompteData.description || ''
-        );
-        await dataCtx?.fetchAcomptes?.();
-      }
+      await dataCtx?.addAcompte?.(
+        salaryId,
+        acompteData.montant,
+        acompteData.date,
+        acompteData.description || '',
+        auditActor
+      );
+      if (dataCtx?.fetchAcomptes) await dataCtx.fetchAcomptes();
 
       toast({
         title: "Succès",
@@ -231,26 +250,35 @@ const SalaryDetail = ({ salaryId, onBack }) => {
     }
   };
 
-  const handleDeleteAcompte = async (acompteId) => {
-    if (!window.confirm('Êtes-vous sûr de vouloir supprimer cet acompte ?')) return;
+  const openDeleteDialog = (acompte) => {
+    setDeleteTarget(acompte);
+    setDeleteOpen(true);
+  };
 
+  const handleConfirmDeleteAcompte = async (motif) => {
+    if (!deleteTarget?.id) {
+      throw new Error('Acompte introuvable.');
+    }
+    setIsDeleting(true);
     try {
-      if (USE_SUPABASE) {
-        await dataCtx?.deleteAcompte?.(acompteId);
-        await dataCtx?.fetchAcomptes?.();
-      }
-
+      await dataCtx?.deleteAcompte?.(deleteTarget.id, motif, auditActor);
+      if (dataCtx?.fetchAcomptes) await dataCtx.fetchAcomptes();
       toast({
-        title: "Succès",
+        title: 'Succès',
         description: "Acompte supprimé avec succès",
       });
+      // Ne pas vider deleteTarget ici : le dialogue ferme via onOpenChange
+      // et conserve le snapshot jusqu’à la fin de l’animation.
     } catch (e) {
-      console.error('Erreur handleDeleteAcompte:', e);
+      console.error('Erreur handleDeleteAcompte:', e?.message || e);
       toast({
-        variant: "destructive",
-        title: "Erreur",
+        variant: 'destructive',
+        title: 'Erreur',
         description: e?.message || 'Erreur lors de la suppression',
       });
+      throw e; // garder le dialogue ouvert avec motif + données
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -394,7 +422,7 @@ const SalaryDetail = ({ salaryId, onBack }) => {
               <Printer className="mr-2 h-4 w-4" />
               Imprimer fiche de paie
             </Button>
-            {isAdmin() && viewMonthKey === currentMonthKey && (
+            {canMutateAcomptes && viewMonthKey === currentMonthKey && (
               <Button size="sm" onClick={() => setShowAcompteModal(true)}>
                 <Plus className="mr-2 h-4 w-4" />
                 Ajouter un acompte
@@ -598,7 +626,7 @@ const SalaryDetail = ({ salaryId, onBack }) => {
               Acomptes, retards, absences et bonus du mois sélectionné
             </p>
           </div>
-          {isAdmin() && viewMonthKey === currentMonthKey && (
+          {canMutateAcomptes && viewMonthKey === currentMonthKey && (
             <Button size="sm" variant="outline" onClick={() => setShowAcompteModal(true)}>
               <Plus className="mr-2 h-4 w-4" />
               Ajouter un acompte
@@ -625,7 +653,7 @@ const SalaryDetail = ({ salaryId, onBack }) => {
                     <th className="px-3 py-2.5 font-medium">Type</th>
                     <th className="px-3 py-2.5 font-medium">Description</th>
                     <th className="px-3 py-2.5 text-right font-medium">Montant</th>
-                    {isAdmin() && (
+                    {canMutateAcomptes && (
                       <th className="w-12 px-3 py-2.5 text-right font-medium">
                         <span className="sr-only">Actions</span>
                       </th>
@@ -667,7 +695,7 @@ const SalaryDetail = ({ salaryId, onBack }) => {
                         >
                           {mt.text}
                         </td>
-                        {isAdmin() && (
+                        {canMutateAcomptes && (
                           <td className="px-3 py-2.5 text-right">
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
@@ -679,7 +707,7 @@ const SalaryDetail = ({ salaryId, onBack }) => {
                               <DropdownMenuContent align="end" className="w-40">
                                 <DropdownMenuItem
                                   className="text-destructive focus:text-destructive"
-                                  onClick={() => handleDeleteAcompte(acompte.id)}
+                                  onClick={() => openDeleteDialog(acompte)}
                                 >
                                   <Trash2 className="mr-2 h-4 w-4" />
                                   Supprimer
@@ -724,7 +752,7 @@ const SalaryDetail = ({ salaryId, onBack }) => {
                         <p className={cn('text-base font-semibold tabular-nums', mt.className)}>
                           {mt.text}
                         </p>
-                        {isAdmin() && (
+                        {canMutateAcomptes && (
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -735,7 +763,7 @@ const SalaryDetail = ({ salaryId, onBack }) => {
                             <DropdownMenuContent align="end" className="w-40">
                               <DropdownMenuItem
                                 className="text-destructive focus:text-destructive"
-                                onClick={() => handleDeleteAcompte(acompte.id)}
+                                onClick={() => openDeleteDialog(acompte)}
                               >
                                 <Trash2 className="mr-2 h-4 w-4" />
                                 Supprimer
@@ -946,6 +974,33 @@ const SalaryDetail = ({ salaryId, onBack }) => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AcompteDeleteDialog
+        open={deleteOpen}
+        onOpenChange={(nextOpen) => {
+          setDeleteOpen(nextOpen);
+          if (!nextOpen) {
+            // Vider la cible après la fermeture (snapshot dialogue encore affiché)
+            window.setTimeout(() => setDeleteTarget(null), 300);
+          }
+        }}
+        acompte={deleteTarget}
+        salaryName={salary?.nom}
+        isMonthClosed={
+          deleteTarget
+            ? (salaryHistory || []).some(
+                (h) =>
+                  h.mois_annee ===
+                  (deleteTarget.mois_annee ||
+                    (deleteTarget.date
+                      ? String(deleteTarget.date).substring(0, 7)
+                      : ''))
+              )
+            : isViewMonthClosed
+        }
+        isSubmitting={isDeleting}
+        onConfirm={handleConfirmDeleteAcompte}
+      />
     </PageSurface>
   );
 };
