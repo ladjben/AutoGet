@@ -40,7 +40,6 @@ const adminNavSections = [
         id: 'pending-entries',
         label: 'En attente de validation',
         icon: Clock,
-        adminOnly: true,
       },
       { id: 'validated-entries', label: 'Entrées validées', icon: ListChecks },
       { id: 'suppliers', label: 'Fournisseurs', icon: Building2 },

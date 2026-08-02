@@ -1,5 +1,5 @@
 /**
- * En attente de validation — administration.
+ * En attente de validation — gestionnaires autorisés (admin, user).
  * Réutilise fetchEntreesEnAttente, fetchEntreeLignesDetail, update/add/deleteEntreeLigne,
  * validateEntree et les formules de src/utils/receptionValidation.js
  * (identiques à EmployeeValidation / validateEntree).
@@ -141,8 +141,9 @@ const mapDetailLigne = (l) => {
 const PendingEntries = () => {
   const dataCtx = useData();
   const { user } = useAuth();
-  // Primitive stable — isAdmin() from AuthContext is a new function every Auth render.
-  const isAdminUser = user?.role === 'admin';
+  // Primitive stable — do not gate on isAdmin() (new function identity every Auth render).
+  const role = user?.role;
+  const canManagePending = role === 'admin' || role === 'user';
 
   const [screen, setScreen] = useState('list');
   const [entrees, setEntrees] = useState([]);
@@ -231,10 +232,10 @@ const PendingEntries = () => {
     }
   }, []);
 
-  // Initial load only when an admin opens this view (stable primitives).
+  // Initial load only when an authorized manager opens this view (stable primitives).
   // Strict Mode may double-invoke in dev; loadGenerationRef drops the stale run.
   useEffect(() => {
-    if (!USE_SUPABASE || !isAdminUser) return undefined;
+    if (!USE_SUPABASE || !canManagePending) return undefined;
 
     loadEntrees();
     // Product catalog for the add-line picker (context update must not re-trigger this effect).
@@ -244,7 +245,7 @@ const PendingEntries = () => {
       // Invalidate in-flight initial load on unmount / Strict Mode remount.
       loadGenerationRef.current += 1;
     };
-  }, [isAdminUser, user?.id, loadEntrees]);
+  }, [canManagePending, user?.id, loadEntrees]);
 
   const listStats = useMemo(() => {
     let lignesCount = 0;
@@ -546,16 +547,16 @@ const PendingEntries = () => {
   };
 
   // ——— Gates ———
-  if (!isAdminUser) {
+  if (!canManagePending) {
     return (
       <PageSurface>
         <PageHeader
           eyebrow="Inventaire"
           title="En attente de validation"
-          description="Accès réservé aux administrateurs."
+          description="Cette page est accessible aux gestionnaires autorisés."
         />
         <div className="rounded-lg border border-dashed border-border/80 px-4 py-10 text-center text-sm text-muted-foreground">
-          Accès restreint — réservé aux administrateurs.
+          Accès non autorisé.
         </div>
       </PageSurface>
     );
