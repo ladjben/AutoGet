@@ -1,8 +1,22 @@
 -- =============================================================================
--- Migration : acompte soft-delete + journal d'audit
--- Fichier   : supabase/migrations/20260802120957_acompte_soft_delete_audit.sql
--- Révision  : #3 — create_acompte + révocation mutations directes acomptes
+-- Migration d'EXTENSION (étape 1/2) — déploiement progressif
+-- Fichier   : supabase/migrations/20260802120957_acompte_soft_delete_audit_expand.sql
+-- Révision  : #4 — expand sans verrouillage des mutations directes sur acomptes
 -- =============================================================================
+--
+-- OBJECTIF
+--   Étendre le schéma + journal + RPC pour que la NOUVELLE application fonctionne,
+--   SANS casser l'ANCIENNE application (main) qui écrit encore en INSERT/UPDATE
+--   directs sur public.acomptes pendant la période de transition.
+--
+-- CETTE MIGRATION NE FAIT PAS
+--   - REVOKE INSERT / UPDATE / DELETE sur public.acomptes
+--   - Contrainte DB « motif obligatoire si deleted_at »
+--     (l'app main ne renseigne que deleted_at ; motif imposé par soft_delete_acompte)
+--
+-- VERROUILLAGE (étape 2/2 — manuel, hors migrations auto)
+--   Voir : sql/post-deploy/enforce-acompte-rpc-only.sql
+--   À exécuter UNIQUEMENT après déploiement réussi de la nouvelle app sur main.
 --
 -- PRÉREQUIS
 --   - Extension uuid-ossp (uuid_generate_v4) — déjà utilisée par le schéma live
@@ -15,43 +29,38 @@
 --   3. Pour ces lignes UNIQUEMENT : renseigner deletion_reason avec la valeur technique
 --        'Suppression antérieure à la mise en place du journal'
 --      SANS inventer d'auteur (deleted_by_* restent NULL).
---   4. Puis seulement poser la contrainte « motif obligatoire si deleted_at ».
---   5. Les ~209 acomptes actifs (deleted_at NULL) ne sont PAS backfillés (created_by_* NULL).
---   6. Aucun log d'audit n'est généré pour le passé (pas de rejeu historique).
+--   4. Les ~209 acomptes actifs (deleted_at NULL) ne sont PAS backfillés (created_by_* NULL).
+--   5. Aucun log d'audit n'est généré pour le passé (pas de rejeu historique).
+--   6. Pendant la transition, soft-deletes de l'ancienne app peuvent laisser
+--      deletion_reason NULL ; le script post-deploy les normalisera avant le CHECK.
 --
--- SÉCURITÉ (limites assumées)
+-- SÉCURITÉ (état après expand — transition)
 --   - Identité acteur = session applicative (comptes) passée en paramètres RPC.
 --   - Falsifiable tant que clé anon + pas de Supabase Auth / RLS.
 --   - audit_logs : aucun SELECT/INSERT/UPDATE/DELETE direct pour PUBLIC/anon/authenticated.
---   - acomptes : SELECT conservé pour l'app ; INSERT/UPDATE/DELETE révoqués pour clients.
---   - Mutations acomptes : uniquement via create_acompte / soft_delete_acompte / restore_acompte
---     (SECURITY DEFINER, propriétaire) + trigger d'audit.
+--   - acomptes : droits clients INCHANGÉS (INSERT/UPDATE/DELETE encore possibles).
+--   - Nouvelle app : mutations via create_acompte / soft_delete_acompte / restore_acompte.
+--   - Ancienne app : INSERT/UPDATE directs toujours OK ; trigger journalise
+--     (acteur souvent NULL si colonnes audit non renseignées).
 --   - Lecture journal : uniquement via fetch_acompte_audit_logs.
 --
--- COMPATIBILITÉ APPLICATIVE (après apply — React non modifié ici)
---   - L'ancien addAcompte (INSERT direct PostgREST) NE FONCTIONNERA PLUS.
---   - L'ancien deleteAcompte (UPDATE direct deleted_at) NE FONCTIONNERA PLUS.
---   - Le déploiement React compatible (RPC only) DOIT suivre immédiatement.
---   - Aucun fallback vers mutations directes après migration (contournerait l'audit).
+-- COMPATIBILITÉ APPLICATIVE (après expand)
+--   - Ancien addAcompte (INSERT direct) : CONTINUE de fonctionner.
+--   - Ancien deleteAcompte (UPDATE deleted_at seul) : CONTINUE de fonctionner.
+--   - Nouvelle app (RPC) : fonctionne en parallèle.
+--   - Preview + main peuvent partager temporairement la même base.
 --
--- ORDRE RECOMMANDÉ
---   1. Maintenance ou fenêtre contrôlée (idéal : aucun acompte saisi).
---   2. Migration SQL.
---   3. Déploiement immédiat de l'app utilisant les RPC.
---   4. Tests staging / smoke prod.
+-- ORDRE D'EXÉCUTION RECOMMANDÉ
+--   1. Apply cette migration d'extension (staging puis prod contrôlée).
+--   2. Déployer / tester la nouvelle app (preview puis main) — RPC only.
+--   3. Confirmer smoke acomptes côté ancienne ET nouvelle app.
+--   4. Exécuter sql/post-deploy/enforce-acompte-rpc-only.sql.
 --
--- STRATÉGIE SANS INTERRUPTION (optionnelle)
---   A) Déployer d'abord une version React qui détecte la dispo des RPC
---      (ex. rpc create_acompte) et bascule dès qu'elles existent — SANS fallback
---      INSERT/UPDATE table après bascule.
---   B) Sinon fenêtre courte : migration + app dans la même coupure.
---
--- ROLLBACK NON DESTRUCTIF
+-- ROLLBACK NON DESTRUCTIF (expand)
 --   1. DROP TRIGGER IF EXISTS trg_acomptes_audit ON public.acomptes;
 --   2. REVOKE EXECUTE sur create/soft_delete/restore/fetch_* FROM clients ;
---   3. Restaurer INSERT, UPDATE sur acomptes si retour arrière app requis
---      (DELETE table reste à éviter).
 --   Colonnes et lignes audit_logs conservées.
+--   (Les droits INSERT/UPDATE/DELETE acomptes n'ayant pas été retirés, rien à restaurer.)
 --
 -- NE PAS EXÉCUTER EN PRODUCTION SANS AUTORISATION EXPLICITE.
 -- =============================================================================
@@ -155,23 +164,17 @@ BEGIN
       OR restored_by_role = 'admin'
     );
 
-  -- Motif obligatoire dès qu'un acompte est soft-supprimé
-  -- (legacy déjà normalisé juste au-dessus).
-  ALTER TABLE public.acomptes
-    ADD CONSTRAINT acomptes_deletion_reason_when_deleted_chk
-    CHECK (
-      deleted_at IS NULL
-      OR (
-        deletion_reason IS NOT NULL
-        AND length(btrim(deletion_reason)) > 0
-      )
-    );
+  -- INTENTIONNELLEMENT ABSENT ICI :
+  -- acomptes_deletion_reason_when_deleted_chk
+  -- L'app main fait UPDATE { deleted_at } sans motif. Motif imposé par soft_delete_acompte.
+  -- Le CHECK + backfill transition seront appliqués dans
+  -- sql/post-deploy/enforce-acompte-rpc-only.sql.
 
   -- États acceptés :
   --   A) actif jamais soft-supprimé :
   --        deleted_at NULL, restored_at NULL, deleted_* / motif NULL
   --   B) soft-supprimé :
-  --        deleted_at NOT NULL (+ motif)
+  --        deleted_at NOT NULL (+ motif optionnel pendant transition)
   --   C) restauré :
   --        deleted_at NULL, restored_at NOT NULL ;
   --        deleted_by_* / deletion_reason peuvent être conservés
@@ -846,31 +849,32 @@ GRANT EXECUTE ON FUNCTION public.fetch_acompte_audit_logs(text, integer, integer
 GRANT EXECUTE ON FUNCTION public.fetch_acompte_audit_logs(text, integer, integer, text, text, uuid, timestamptz, timestamptz, boolean) TO service_role;
 
 -- =============================================================================
--- 8. BLOQUER LES MUTATIONS DIRECTES SUR public.acomptes
+-- 8. MUTATIONS DIRECTES SUR public.acomptes — CONSERVÉES (transition)
 -- =============================================================================
--- Les RPC SECURITY DEFINER s'exécutent en tant que propriétaire de la fonction
--- (bypass des REVOKE clients). Le trigger d'audit écrit dans audit_logs de même.
--- SELECT conservé pour l'UI actuelle (listes / totaux).
-
-REVOKE INSERT, UPDATE, DELETE ON TABLE public.acomptes FROM PUBLIC;
-REVOKE INSERT, UPDATE, DELETE ON TABLE public.acomptes FROM anon;
-REVOKE INSERT, UPDATE, DELETE ON TABLE public.acomptes FROM authenticated;
-
--- Lecture applicative actuelle (PostgREST SELECT)
+-- NE PAS révoquer INSERT / UPDATE / DELETE ici.
+-- L'ancienne application main dépend de :
+--   INSERT → addAcompte
+--   UPDATE { deleted_at } → deleteAcompte
+-- Les RPC SECURITY DEFINER coexistent ; le trigger journalise aussi les écritures
+-- directes (acteur NULL si colonnes audit non renseignées).
+--
+-- Verrouillage : sql/post-deploy/enforce-acompte-rpc-only.sql
+--
+-- Lecture applicative actuelle (PostgREST SELECT) — inchangée / explicite
 GRANT SELECT ON TABLE public.acomptes TO anon;
 GRANT SELECT ON TABLE public.acomptes TO authenticated;
 
 -- =============================================================================
--- 9. MATRICE FINALE DES PRIVILÈGES (cible après apply)
+-- 9. MATRICE DES PRIVILÈGES APRÈS EXPAND (état de transition)
 -- =============================================================================
 --
 -- TABLE public.acomptes
---   | Privilège | PUBLIC | anon | authenticated | service_role* | owner / SECURITY DEFINER |
---   | SELECT    | (n/a)  | OUI  | OUI           | (inchangé)    | OUI                      |
---   | INSERT    | NON    | NON  | NON           | (inchangé)    | OUI (via create_acompte)  |
---   | UPDATE    | NON    | NON  | NON           | (inchangé)    | OUI (soft_delete/restore)|
---   | DELETE    | NON    | NON  | NON           | (inchangé)    | NON métier (pas de hard) |
---   * service_role non révoqué ici (ops / migrations) ; l'app client n'utilise pas ce rôle.
+--   | Privilège | PUBLIC | anon | authenticated | owner / SECURITY DEFINER |
+--   | SELECT    | (n/a)  | OUI  | OUI           | OUI                      |
+--   | INSERT    | OUI*   | OUI* | OUI*          | OUI (aussi via create_acompte) |
+--   | UPDATE    | OUI*   | OUI* | OUI*          | OUI (aussi soft_delete/restore)|
+--   | DELETE    | OUI*   | OUI* | OUI*          | (à éviter métier)        |
+--   * = droits clients inchangés par rapport au schéma live pré-migration.
 --
 -- TABLE public.audit_logs
 --   PUBLIC / anon / authenticated : ALL révoqué
@@ -878,137 +882,42 @@ GRANT SELECT ON TABLE public.acomptes TO authenticated;
 --   Lecture app : fetch_acompte_audit_logs uniquement
 --
 -- RPC EXECUTE (PUBLIC révoqué ; GRANT à anon / authenticated / service_role)
---   create_acompte(uuid, numeric, date, text, uuid, text, text, text)
---   soft_delete_acompte(uuid, uuid, text, text, text, text)
---   restore_acompte(uuid, uuid, text, text, text)          — corps : admin only
---   fetch_acompte_audit_logs(...)                           — corps : admin déclaré
+--   create_acompte / soft_delete_acompte / restore_acompte / fetch_acompte_audit_logs
 --
--- Internes (EXECUTE révoqué pour PUBLIC / anon / authenticated)
---   acompte_audit_row_snapshot(public.acomptes)
---   trg_fn_acomptes_audit()
+-- Chemins d'écriture pendant la transition :
+--   A) Ancienne app : INSERT/UPDATE directs → trigger → audit_logs (acteur souvent NULL)
+--   B) Nouvelle app : RPC → INSERT/UPDATE acomptes → trigger → audit_logs (acteur renseigné)
 --
--- Quatre chemins d'écriture acomptes/audit uniquement :
---   1. create_acompte → INSERT acomptes → trigger → INSERT audit_logs
---   2. soft_delete_acompte → UPDATE acomptes → trigger → INSERT audit_logs
---   3. restore_acompte → UPDATE acomptes → trigger → INSERT audit_logs
---   4. trigger seul (pas d'appel client)
+-- Après sql/post-deploy/enforce-acompte-rpc-only.sql : uniquement le chemin B.
 --
 -- =============================================================================
--- 10. TESTS STAGING PROPOSÉS (NON EXÉCUTÉS ICI — transaction + ROLLBACK)
--- =============================================================================
--- Remplacer :v_salary_id / :v_admin_id / :v_user_id par des UUID réels de staging.
--- Exécuter en SQL Editor staging uniquement, jamais en prod sans précaution.
---
--- BEGIN;
---
--- -- Prérequis : un salarié existant
--- -- SELECT id FROM public.salaries LIMIT 1;  -- → :v_salary_id
---
--- -- 10.1 INSERT direct refusé (doit échouer permission denied / 42501)
--- -- SET LOCAL ROLE anon;
--- -- INSERT INTO public.acomptes (salary_id, montant, date, description, mois_annee)
--- -- VALUES (:v_salary_id, 100, CURRENT_DATE, 'direct', to_char(CURRENT_DATE, 'YYYY-MM'));
--- -- RESET ROLE;
---
--- -- 10.2 UPDATE direct refusé
--- -- SET LOCAL ROLE anon;
--- -- UPDATE public.acomptes SET description = 'hack' WHERE id = (
--- --   SELECT id FROM public.acomptes WHERE deleted_at IS NULL LIMIT 1
--- -- );
--- -- RESET ROLE;
---
--- -- 10.3 DELETE direct refusé
--- -- SET LOCAL ROLE anon;
--- -- DELETE FROM public.acomptes WHERE id = (
--- --   SELECT id FROM public.acomptes WHERE deleted_at IS NULL LIMIT 1
--- -- );
--- -- RESET ROLE;
---
--- -- 10.4 Création RPC réussie + log created unique
--- -- SELECT public.create_acompte(
--- --   :v_salary_id, 1500.00, CURRENT_DATE, 'test staging',
--- --   :v_admin_id, 'admin_test', 'Admin Test', 'admin'
--- -- ) AS created;  -- → noter l'id → :v_acompte_id
--- -- SELECT count(*) FROM public.audit_logs
--- -- WHERE entity_id = :v_acompte_id AND action = 'acompte.created';  -- = 1
---
--- -- 10.5 Soft delete RPC + log deleted unique + ligne toujours en base
--- -- SELECT public.soft_delete_acompte(
--- --   :v_acompte_id, :v_admin_id, 'admin_test', 'Admin Test', 'admin',
--- --   'Motif de test staging'
--- -- );
--- -- SELECT deleted_at IS NOT NULL, deletion_reason
--- -- FROM public.acomptes WHERE id = :v_acompte_id;
--- -- SELECT count(*) FROM public.audit_logs
--- -- WHERE entity_id = :v_acompte_id AND action = 'acompte.deleted';  -- = 1
--- -- SELECT count(*) FROM public.acomptes WHERE id = :v_acompte_id;  -- = 1 (pas de hard delete)
---
--- -- 10.6 Restauration admin + log restored unique
--- -- SELECT public.restore_acompte(
--- --   :v_acompte_id, :v_admin_id, 'admin_test', 'Admin Test', 'admin'
--- -- );
--- -- SELECT deleted_at IS NULL, restored_at IS NOT NULL, deletion_reason IS NOT NULL
--- -- FROM public.acomptes WHERE id = :v_acompte_id;
--- -- SELECT count(*) FROM public.audit_logs
--- -- WHERE entity_id = :v_acompte_id AND action = 'acompte.restored';  -- = 1
---
--- -- 10.7 Restauration user refusée
--- -- SELECT public.soft_delete_acompte(
--- --   :v_acompte_id, :v_admin_id, 'admin_test', 'Admin Test', 'admin', 're-delete'
--- -- );
--- -- SELECT public.restore_acompte(
--- --   :v_acompte_id, :v_user_id, 'user_test', 'User Test', 'user'
--- -- );  -- doit lever 42501
---
--- -- 10.8 Motif vide refusé
--- -- SELECT public.soft_delete_acompte(
--- --   :v_acompte_id, :v_admin_id, 'admin_test', 'Admin Test', 'admin', '   '
--- -- );  -- doit lever 22023
---
--- -- 10.9 Double suppression refusée
--- -- SELECT public.soft_delete_acompte(
--- --   :v_acompte_id, :v_admin_id, 'admin_test', 'Admin Test', 'admin', 'ok'
--- -- );
--- -- SELECT public.soft_delete_acompte(
--- --   :v_acompte_id, :v_admin_id, 'admin_test', 'Admin Test', 'admin', 'ok2'
--- -- );  -- doit lever « déjà supprimé »
---
--- -- 10.10 Mois clôturé — création / suppression refusées
--- -- (utiliser un mois présent dans salary_history, ou insérer un snapshot de test
--- --  dans la même transaction puis tenter create/soft_delete)
--- -- INSERT INTO public.salary_history (salary_id, mois_annee, total_acomptes, ...)
--- --   ... valeurs minimales selon schéma staging ...
--- -- SELECT public.create_acompte(..., date dans ce mois, ...);  -- doit refuser
--- -- SELECT public.soft_delete_acompte(... acompte de ce mois ...);  -- doit refuser
---
--- ROLLBACK;
---
--- =============================================================================
--- 11. VÉRIFICATIONS POST-INSTALLATION (manuel)
+-- 10. VÉRIFICATIONS POST-EXPAND (manuel — non exécutées ici)
 -- =============================================================================
 --
--- SELECT count(*) FILTER (WHERE deleted_at IS NOT NULL AND deletion_reason IS NULL)
--- FROM public.acomptes;  -- doit être 0
+-- -- Soft-deletes legacy sans motif restants (hors transition future) :
+-- SELECT count(*) FILTER (
+--   WHERE deleted_at IS NOT NULL
+--     AND (deletion_reason IS NULL OR length(btrim(deletion_reason)) = 0)
+-- ) FROM public.acomptes;  -- 0 juste après expand (backfill appliqué)
 --
--- SELECT grantee, privilege_type
--- FROM information_schema.role_table_grants
--- WHERE table_schema = 'public' AND table_name IN ('acomptes', 'audit_logs')
--- ORDER BY table_name, grantee, privilege_type;
---
--- SELECT has_table_privilege('anon', 'public.acomptes', 'SELECT') AS anon_sel,
---        has_table_privilege('anon', 'public.acomptes', 'INSERT') AS anon_ins,
---        has_table_privilege('anon', 'public.acomptes', 'UPDATE') AS anon_upd,
---        has_table_privilege('anon', 'public.acomptes', 'DELETE') AS anon_del;
---
--- SELECT p.proname, pg_get_function_identity_arguments(p.oid),
---        has_function_privilege('anon', p.oid, 'EXECUTE') AS anon_exec
+-- -- RPC présentes :
+-- SELECT p.proname
 -- FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
 -- WHERE n.nspname = 'public'
 --   AND p.proname IN (
---     'create_acompte', 'soft_delete_acompte', 'restore_acompte',
---     'fetch_acompte_audit_logs', 'acompte_audit_row_snapshot', 'trg_fn_acomptes_audit'
+--     'create_acompte', 'soft_delete_acompte', 'restore_acompte', 'fetch_acompte_audit_logs'
 --   );
 --
+-- -- Mutations directes ENCORE autorisées (attendu en transition) :
+-- SELECT has_table_privilege('anon', 'public.acomptes', 'INSERT') AS anon_ins,
+--        has_table_privilege('anon', 'public.acomptes', 'UPDATE') AS anon_upd,
+--        has_table_privilege('anon', 'public.acomptes', 'DELETE') AS anon_del;
+-- -- → true / true / true (ou selon grants live préexistants)
+--
+-- -- audit_logs inaccessible en table :
+-- SELECT has_table_privilege('anon', 'public.audit_logs', 'SELECT') AS anon_audit_sel;
+-- -- → false
+--
 -- =============================================================================
--- Fin de migration (révision #3)
+-- Fin migration expand (révision #4) — pas de verrouillage acomptes
 -- =============================================================================
