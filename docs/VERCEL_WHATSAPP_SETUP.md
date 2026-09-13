@@ -133,3 +133,7 @@ Validation locale : préparation d’une campagne de 60 000 contacts fictifs, co
 ### Certificat Supabase pour le serveur
 
 La connexion TablePlus a nécessité le certificat CA téléchargé dans Supabase. Pour le serveur aussi, ajouter `MARKETING_DATABASE_CA_CERT` dans Vercel avec le contenu PEM complet du fichier, lignes BEGIN/END incluses. Le programme accepte les vrais retours à la ligne ou `\n`. Conserver `sslmode=verify-full` dans l’URL ; le code conserve la CA et la vérification TLS malgré les options de l’URL. Le chemin local du certificat TablePlus ne peut pas être utilisé sur Vercel. Ajouter la même variable comme secret du workflow d’import GitHub. Ce certificat CA est public, contrairement au mot de passe et à la chaîne de connexion complète.
+
+### Connexion sur Preview
+
+Conserver `MARKETING_ORIGIN` pour le domaine de production. En Preview, le serveur accepte également les deux origines HTTPS exactes fournies par Vercel (`VERCEL_URL` et `VERCEL_BRANCH_URL`). Aucun domaine arbitraire ni en-tête Host ne sert à autoriser une origine. Activer l’exposition des variables système Vercel et rendre les variables marketing disponibles pour Preview, puis redéployer. Les envois restent bloqués sur Preview.

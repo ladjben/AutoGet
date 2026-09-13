@@ -23,6 +23,16 @@ export function validSession(cookie, secret, now = Date.now()) {
     safeEqual(signature, sign(expires, secret))
   )
 }
+export function allowedOrigin(cfg, origin) {
+  if (origin === cfg.origin) return true
+  // Trust deployment metadata only, never request Host/Forwarded headers.
+  if (cfg.env.VERCEL !== '1' || cfg.env.VERCEL_ENV !== 'preview') return false
+  return [cfg.env.VERCEL_URL, cfg.env.VERCEL_BRANCH_URL].some(
+    (host) => typeof host === 'string' &&
+      /^[a-z0-9-]+\.vercel\.app$/.test(host) && origin === `https://${host}`,
+  )
+}
+
 export function installAuth(app, cfg, db) {
   const cookie = (value) =>
     `marketing_session=${value}; HttpOnly; SameSite=Strict; Path=/api/marketing; Max-Age=${value ? 28800 : 0}${cfg.secure ? '; Secure' : ''}`
@@ -30,7 +40,7 @@ export function installAuth(app, cfg, db) {
     res.set('Cache-Control', 'no-store')
     if (
       !['GET', 'HEAD'].includes(req.method) &&
-      req.headers.origin !== cfg.origin
+      !allowedOrigin(cfg, req.headers.origin)
     )
       return res.status(403).json({ error: 'Origine non autorisée.' })
     next()

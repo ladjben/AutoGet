@@ -101,3 +101,26 @@ test('Supabase CA is preserved despite sslmode in the URL; verification remains 
   assert.equal(client.connectionParameters.ssl.rejectUnauthorized,true)
   assert.throws(() => postgresOptions('postgresql://test:pass@localhost/postgres','not a certificate'))
 })
+
+
+test('Preview accepts only exact trusted deployment URLs; production remains restricted', async () => {
+  const { allowedOrigin } = await import('../../server/marketing/auth.js')
+  const cfg = { origin: 'https://shop.example', env: {
+    VERCEL: '1', VERCEL_ENV: 'preview',
+    VERCEL_URL: 'shop-abc-team.vercel.app',
+    VERCEL_BRANCH_URL: 'shop-git-feature-team.vercel.app',
+  } }
+  assert.equal(allowedOrigin(cfg, cfg.origin), true)
+  assert.equal(allowedOrigin(cfg, 'https://shop-abc-team.vercel.app'), true)
+  assert.equal(allowedOrigin(cfg, 'https://shop-git-feature-team.vercel.app'), true)
+  for (const origin of [undefined, 'null', 'https://other.vercel.app',
+    'http://shop-abc-team.vercel.app', 'https://shop-abc-team.vercel.app.evil.test']) {
+    assert.equal(allowedOrigin(cfg, origin), false)
+  }
+  cfg.env.VERCEL_ENV = 'production'
+  assert.equal(allowedOrigin(cfg, 'https://shop-abc-team.vercel.app'), false)
+  assert.equal(allowedOrigin(cfg, cfg.origin), true)
+  cfg.env.VERCEL_ENV = 'preview'
+  cfg.env.VERCEL = undefined
+  assert.equal(allowedOrigin(cfg, 'https://shop-abc-team.vercel.app'), false)
+})
