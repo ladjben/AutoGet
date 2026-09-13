@@ -1,5 +1,6 @@
 /** Titres d’écran pour le shell (fondations UI). Aucune logique métier. */
 export const VIEW_TITLES = {
+  'whatsapp-marketing': 'WhatsApp Marketing',
   dashboard: 'Tableau de bord',
   products: 'Produits',
   entries: 'Entrées stock',

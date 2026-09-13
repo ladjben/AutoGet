@@ -1,0 +1,239 @@
+# WhatsApp Marketing — AutoGet
+
+**Installation Vercel/Cursor : commencer par [ce guide pas à pas](VERCEL_WHATSAPP_SETUP.md).**
+
+## État de l’intégration
+
+Module ajouté sur la branche `feat/whatsapp-marketing`. L’application existante est une SPA React 19 / Vite 7, avec Tailwind et composants Radix. La navigation est pilotée par `activeView` dans `src/App.jsx`, les titres par `src/constants/viewTitles.js` et les données métier par `DataContextSupabase.jsx`.
+
+Le dépôt utilise **Supabase**, pas Neon. Les tables existantes sont notamment `produits`, `fournisseurs`, `entrees`, `paiements`, `depenses`, `colis`, `salaries` et `acomptes`. Les entrées décrivent des réceptions de stock ; `colis` contient une quantité, une date et une description. Il n’existe ici ni modèle de commande client individuelle, ni téléphone client, ni pointure vendue. La base Neon appartient à l’ERP externe de traitement des commandes, comme confirmé par le propriétaire.
+
+Le schéma ERP et ses clés étrangères ont maintenant été fournis : la vue réelle est implémentée dans `sql/whatsapp-erp-delivered-items.sql`. Aucun identifiant Neon/Meta n’a été fourni. **Le module n’est donc pas raccordé à la base de production.** Aucun changement, aucune migration et aucun message n’ont été exécutés dans les systèmes de production.
+
+## Architecture
+
+```text
+AutoGet / WhatsApp Marketing (administrateurs)
+              │ même origine, cookie HttpOnly
+              ▼
+Serveur Node / Express ─── SELECT ──► Neon ERP : vue delivered_items
+              │
+              ├── PostgreSQL marketing : brouillons, destinataires, logs, exclusions
+              ├── Cloud API Meta : modèles + messages
+              └── Worker persistant ← webhooks signés Meta
+```
+
+Le serveur peut servir le build Vite existant. En développement, Vite transmet `/api/marketing` et `/api/whatsapp` vers le port 3001. Sur Vercel, `api/marketing.js` expose le serveur sans listener permanent ; `vercel.json` transmet uniquement les routes API à cette fonction. Le frontal et les API restent sur la même origine. GitHub Actions appelle le worker par lots bornés toutes les cinq minutes environ. Hors Vercel, le processus Node permanent reste disponible.
+
+Le serveur conserve la compatibilité CSP avec l’origine Supabase et les polices du projet. Configurez `VITE_SUPABASE_URL` à l’exécution **et** à la compilation si vous changez l’instance existante.
+
+## Raccordement Neon et migrations
+
+1. Dans une base de service marketing dédiée (ou un schéma privé du même Neon), exécuter `sql/whatsapp-marketing.sql`. Cette migration transactionnelle et réexécutable crée uniquement le schéma `marketing`. Elle ne modifie aucune table ERP ni Supabase. Le rôle serveur doit pouvoir lire/écrire ce schéma ; ne l’exposez pas au navigateur.
+2. Dans la base ERP, exécuter `sql/whatsapp-erp-delivered-items.sql` avec le rôle de migration : ce script crée la vue privée `autoget_marketing.delivered_items` sans modifier les commandes. `sql/whatsapp-erp-contract.sql` documente le contrat. La vue préparatoire `delivered_orders` n’est pas nécessaire. Pour une installation marketing antérieure à ce raccordement, appliquer aussi `sql/whatsapp-marketing-consents.sql` dans la base marketing (déjà inclus dans la migration complète).
+3. Accorder au rôle `NEON_ERP_DATABASE_URL` uniquement `USAGE` sur le schéma de la vue et `SELECT` sur la vue. Ne pas utiliser les identifiants d’administration ERP.
+4. Configurer les deux URL côté serveur avec TLS (`sslmode=verify-full`). `MARKETING_DATABASE_URL` doit être une URL Neon **directe**, sans `-pooler` : la coordination des workers utilise un verrou de session PostgreSQL. L’URL ERP peut être poolée.
+
+Colonnes requises de la vue :
+
+| Colonne | Type / sens |
+| --- | --- |
+| `order_id` | Texte, identifiant stable et unique de commande |
+| `ordered_at` | Date/heure de commande avec fuseau |
+| `status` | Statut ERP traduit en `delivered`, `livré` ou `livre` |
+| `phone` | Texte ; E.164 recommandé |
+| `customer_name` | Nom client |
+| `product_id`, `product_name` | Identifiant stable et libellé du produit acheté |
+| `variant`, `size` | Variante et pointure de la ligne achetée |
+| `city` | Ville du contact |
+| `marketing_opt_in` | Booléen : consentement marketing **actuel** |
+
+La vue doit joindre les commandes, clients, lignes et variantes réels de l’ERP, une ligne par combinaison achetée. Utilisez les libellés historiques lorsqu’ils existent. Les unités de pointure restent telles que stockées : `42`, `42 EU` et `8 UK` ne sont pas converties implicitement.
+
+Le consentement doit représenter la préférence actuelle du contact, et non un ancien champ de commande. Un statut livré ne constitue pas ce consentement. En cas de valeurs contradictoires entre plusieurs lignes du même téléphone, le serveur exclut le contact. Les réponses STOP et les désinscriptions manuelles sont conservées séparément et priment sur l’ERP.
+
+## Configuration
+
+Copier `.env.example` dans `.env` (ignoré par Git). Les secrets **ne doivent jamais** avoir le préfixe `VITE_`.
+
+| Variable | Utilisation |
+| --- | --- |
+| `MARKETING_DATABASE_URL` | PostgreSQL privé marketing, connexion directe |
+| `NEON_ERP_DATABASE_URL` | Connexion ERP en lecture seule |
+| `NEON_ERP_VIEW` | Vue `schema.nom`, défaut `autoget_marketing.delivered_items` |
+| `MARKETING_ORIGIN` | Origine exacte du frontal, ex. `https://autoget.example` |
+| `MARKETING_PORT` | Port serveur, défaut 3001 ; adapter aussi le proxy Vite si changé |
+| `MARKETING_ADMIN_PASSWORD_HASH` | Hash scrypt `sel_hex:hash_hex` |
+| `MARKETING_SESSION_SECRET` | Secret aléatoire d’au moins 32 caractères |
+| `WHATSAPP_ACCESS_TOKEN` | Jeton de compte système Meta, côté serveur uniquement |
+| `WHATSAPP_PHONE_NUMBER_ID` | Identifiant du numéro expéditeur |
+| `WHATSAPP_BUSINESS_ACCOUNT_ID` | Identifiant WABA |
+| `WHATSAPP_GRAPH_VERSION` | Version Graph prise en charge par votre application, explicite (`v25.0` dans l’exemple) |
+| `WHATSAPP_APP_SECRET` | Secret de l’application Meta, vérification HMAC |
+| `WHATSAPP_VERIFY_TOKEN` | Valeur aléatoire pour la validation du webhook |
+| `WHATSAPP_DEFAULT_COUNTRY` | Code pays des numéros locaux, défaut `DZ` |
+| `WHATSAPP_MESSAGES_PER_SECOND` | Plafond global configuré, défaut 1, maximum 20 ; débit réel inférieur selon la latence ERP/Meta |
+| `WHATSAPP_SENDING_ENABLED` | `false` par défaut ; `true` autorise le lancement et le worker |
+| `NODE_ENV` | `production` pour cookies Secure et origine HTTPS obligatoire |
+
+Pour produire le hash sans enregistrer le mot de passe dans l’historique du terminal :
+
+```bash
+read -s -p 'Mot de passe marketing : ' MARKETING_PASSWORD
+export MARKETING_PASSWORD
+node --input-type=module -e 'import {randomBytes,scryptSync} from "node:crypto"; const salt=randomBytes(16).toString("hex"); console.log(salt+":"+scryptSync(process.env.MARKETING_PASSWORD,salt,64).toString("hex"))'
+unset MARKETING_PASSWORD
+```
+
+Coller uniquement le hash résultant dans `MARKETING_ADMIN_PASSWORD_HASH`. Générer les autres secrets aléatoires localement, par exemple avec `openssl rand -hex 32`, et les enregistrer dans le gestionnaire de secrets de l’hébergeur.
+
+```bash
+npm ci
+npm run dev                 # premier terminal
+npm run marketing:server    # second terminal, charge .env
+```
+
+Production : `npm run build`, puis `NODE_ENV=production npm run marketing:server` (ou `node server/marketing/index.js` si l’hébergeur injecte déjà toutes les variables). Superviser et redémarrer automatiquement le processus.
+
+L’authentification historique de l’application utilise `comptes` puis un objet utilisateur dans `localStorage`, sans session serveur vérifiable. Le module ajoute donc un mot de passe administrateur marketing indépendant, un cookie signé HttpOnly/SameSite=Strict valable huit heures, une vérification d’origine des mutations et une limitation des tentatives de connexion. Le rôle affiché par React ne remplace jamais cette vérification. L’authentification historique du reste d’AutoGet n’a pas été refondue. Rotation de `MARKETING_SESSION_SECRET` pour révoquer toutes les sessions. L’accès marketing est partagé ; les logs identifient les destinataires et événements, pas des administrateurs individuels.
+
+## Meta : modèles et webhooks
+
+Utiliser un compte WhatsApp Business, un numéro configuré et un jeton disposant de `whatsapp_business_management` et `whatsapp_business_messaging`.
+
+Dans Meta, configurer :
+
+- Callback HTTPS : `https://VOTRE_ORIGINE/api/whatsapp/webhook`.
+- Verify token : valeur de `WHATSAPP_VERIFY_TOKEN`.
+- Abonnement au champ `messages` et abonnement de l’application au WABA (`POST /{WABA_ID}/subscribed_apps`).
+
+Les requêtes POST sont validées avec `X-Hub-Signature-256` sur le corps brut. Les événements d’un autre WABA/numéro sont ignorés. Les doublons sont dédupliqués et une lecture ne régresse pas à « envoyé ». Le `biz_opaque_callback_data` permet de retrouver un destinataire même si le webhook précède l’enregistrement de l’identifiant Meta. Les corps complets des webhooks et les jetons ne sont pas journalisés.
+
+L’onglet Modèles liste les modèles Meta avec pagination complète et leur statut. La création soumet un modèle marketing texte avec exemples de variables à Meta. **L’application ne peut pas approuver un modèle.** Les modèles approuvés à corps texte et en-tête texte sont utilisables, avec paramètres positionnels ou nommés. Les médias, boutons, carrousels et autres formats sont signalés comme non pris en charge et bloqués à l’envoi. L’édition/suppression de modèles existants s’effectue dans WhatsApp Manager ; actualiser ensuite l’interface.
+
+Références officielles consultées : [collection Cloud API de Meta](https://www.postman.com/meta/whatsapp-business-platform/documentation/wlk6lh4/whatsapp-cloud-api), [exemples officiels Meta, notamment validation des signatures](https://github.com/fbsamples/whatsapp-api-examples), [documentation des messages templates](https://whatsapp.github.io/WhatsApp-Nodejs-SDK/api-reference/messages/template/).
+
+## Fonctionnement et reprise
+
+- Lecture des lignes livrées ; normalisation des numéros avec `libphonenumber-js`, défaut Algérie. Numéros invalides exclus et comptabilisés en **lignes**, pas en clients.
+- Un contact par téléphone normalisé. Les commandes sont comptées une seule fois, les produits/variantes/pointures de l’historique sont conservés. Un téléphone familial commun correspond à un contact, pas nécessairement une personne distincte.
+- Produit + pointure + variante + période doivent correspondre à **la même ligne d’achat**. Le nombre de commandes couvre tout l’historique livré, pas seulement la période filtrée. Dates filtrées par jour UTC ; nom/ville de la dernière commande.
+- Sélection explicite ou tout le segment, y compris les autres pages, avec exclusions individuelles. Un changement de filtre réinitialise la sélection.
+- Préparation : le serveur relit l’ERP, vérifie toutes les variables, ignore les contacts inéligibles et crée transactionnellement un brouillon avec les messages exacts. Le nombre final peut différer de l’affichage si l’ERP a changé. L’identifiant de requête et la contrainte campagne/téléphone évitent les doublons de préparation.
+- Lancement distinct : vérifie que le modèle est encore approuvé et inchangé. Les messages déjà préparés ne sont pas modifiés implicitement par un changement de filtre ou de modèle dans le navigateur.
+- Worker : verrou partagé en base, relecture du consentement ERP et des exclusions avant chaque tentative, enregistrement de la tentative avant l’appel Meta, cadence plafonnée.
+- Un succès HTTP Meta est « Accepté par Meta ». Livraison et lecture sont confirmées par les webhooks.
+- Rejets temporaires connus : reprise exponentielle avec aléa, cinq tentatives maximum. Le bouton de reprise ne réinitialise que les erreurs explicitement relançables sans identifiant Meta.
+- Timeout réseau, réponse ambiguë ou arrêt après tentative : état « À vérifier », **sans renvoi automatique**. Examiner le journal et la console Meta. Il n’existe pas de garantie exactly-once intersystèmes ; ne recréer une campagne pour ces contacts qu’après vérification humaine de la non-livraison.
+- Pause : empêche les prochains envois, mais ne rappelle pas une requête déjà partie. Reprendre avec « Lancer l’envoi ».
+- STOP / UNSUBSCRIBE / DÉSINSCRIRE / ARRÊT et variantes sans accents sont traités comme désinscriptions ; bouton manuel disponible dans l’audience. La réinscription nécessite une vérification externe du consentement et une opération administrateur explicite sur la liste d’exclusion.
+
+## Capacités et limites opérationnelles
+
+L’implémentation lit l’audience à la demande et avant chaque envoi. Elle **refuse explicitement** plus de 100 000 lignes source, au lieu d’afficher un segment tronqué. Une campagne est limitée à 10 000 destinataires et la liste clients est paginée par 50. Pour un ERP plus grand, ajouter une synchronisation incrémentale avec index de contacts avant activation ; les rafraîchissements complets ne sont pas conçus pour des millions de lignes. Prévoir des index sur statut/date et clés de jointure dans l’ERP.
+
+La liste affiche les 100 dernières campagnes ; les destinataires restent consultables par pages et le journal affiche les 100 derniers événements de la campagne. Les totaux du tableau de bord portent sur ces campagnes affichées. Aucun mécanisme automatique de conservation/purge n’est installé : définir une durée de conservation adaptée pour les numéros et messages personnalisés stockés en base.
+
+Plusieurs invocations sur la même base directe partagent le verrou et le plafond. La limitation des connexions administrateur est partagée en PostgreSQL : dix tentatives par fenêtre de quinze minutes pour cet accès commun. La connexion du worker est fermée après chaque cycle ; un délai d’inactivité de session borne les verrous orphelins. Les tentatives interrompues sont classées incertaines après cinq minutes. Le plafond s’applique aux envois de ce service, pas à d’autres applications utilisant le même numéro Meta.
+
+Ne pas utiliser une URL Postgres de production pour les tests ci-dessous.
+
+## Vérifications
+
+```bash
+npm run build
+npm run test:marketing
+npx eslint src/components/WhatsAppMarketing.jsx server/marketing/*.js tests/marketing/*.js
+```
+
+Les tests unitaires couvrent numéros, déduplication, association produit/pointure, dates, consentement contradictoire, variables, ordre des statuts, signature HMAC, session et pagination Meta.
+
+La suite d’intégration nécessite une base PostgreSQL **jetable** dans `MARKETING_TEST_DATABASE_URL`. Elle tronque les tables marketing et une table ERP fictive, puis vérifie migrations réexécutables, authentification, protection d’origine, préparation concurrente, workers concurrents, activation des envois, reprise, incertitude, désinscription et webhooks. L’API Meta est simulée : aucun message réel n’est envoyé.
+
+```bash
+MARKETING_TEST_DATABASE_URL=postgresql://UTILISATEUR@127.0.0.1:PORT/BASE_JETABLE npm run test:marketing
+```
+
+Sans cette variable, la suite d’intégration est explicitement ignorée. À la livraison, elle a également été exécutée avec succès sur un PostgreSQL local isolé. Le lint global du dépôt présente des erreurs préexistantes hors du module ; les fichiers du nouveau module sont contrôlés séparément.
+
+## Mise en service restante
+
+1. Appliquer la vue ERP réelle, puis exécuter `sql/verify-whatsapp-erp-adapter.sql` pour mesurer la couverture par source et vérifier les dates/statuts/pointures sur des commandes connues.
+2. Configurer les rôles Neon et appliquer la migration marketing.
+3. Configurer les secrets serveur, le compte Meta et le webhook HTTPS.
+4. Vérifier un modèle approuvé et un destinataire de test consentant.
+5. Activer les envois uniquement dans l’environnement prêt, puis lancer explicitement la campagne voulue.
+
+
+## Raccordement ERP confirmé et règles d'historique
+
+La vue finale utilise les clés étrangères fournies :
+
+```text
+woo_orders.id ← delivered_order_items.woo_order_id
+                   └ product_variant_id → product_variants.id
+                                            └ product_id → products.id
+```
+
+- Statut : `woo_orders.order_status = 'delivered'`, suppression exclue.
+- Pointure : `product_variants.size`, convertie en texte sans changement d'unité.
+- Variante affichée : `product_variants.color`.
+- Produit interne : `products.name`, identifiant préfixé `erp:`.
+- Téléphone : `phone_normalized` vérifié avec la bibliothèque de numéros ; repli sur `customer_phone` s'il est invalide. `customer_phone2` ne crée pas un second destinataire.
+- Nom/ville : facturation, puis livraison si le champ de facturation est vide.
+- Date de filtre : `date_created`, avec `created_at` comme repli historique si absent. Une absence des deux dates est une erreur de qualité de données, pas une date inventée.
+
+Les sources sont choisies **par commande** : articles livrés actifs en priorité,
+lignes `confrimed_order_items` actives seulement si aucune ligne de livraison
+active n'existe, puis lignes WooCommerce si aucune des deux sources internes
+n'existe. Les quantités explicitement nulles restent inconnues ; les quantités
+nulles au sens numérique (zéro) ou négatives ne sont pas comptées comme achat.
+Les lignes confirmées ne sont jamais ajoutées aux livraisons partielles : cela
+évite de présenter une taille seulement prévue comme effectivement livrée.
+
+La provenance et la quantité apparaissent dans l'historique client. Les commandes
+sans ligne exploitable restent visibles avec « Détail manquant ». Les données
+catalogue supprimées logiquement restent disponibles pour les achats historiques.
+Les libellés/couleurs proviennent du catalogue actuel, sans garantie de snapshot
+au moment de l'achat si ces valeurs ont été modifiées dans l'ERP.
+
+Les archives WooCommerce ne sont pas jointes par égalité numérique à la variante
+interne : leurs pointures restent inconnues. Leurs produits ont un identifiant
+séparé `woo-company:<company_id>:<product_id>` et ne sont pas fusionnés par simple
+ressemblance de nom avec le catalogue interne. Une commande avec plusieurs lignes
+livrées ne compte que comme une commande, mais ses différentes lignes sont
+conservées grâce à leur identifiant de source.
+
+Les commandes d'échange livrées sont incluses. L'historique décrit les articles
+livrés, **pas un calcul du stock conservé par le client après remboursements**.
+Les tables de retours et remboursements ont été identifiées, mais leurs valeurs
+de statut métier n'ont pas été fournies : une demande de remboursement ne prouve
+pas qu'un retour a été effectué, ni qu'un remplacement a été livré. La vue ne
+soustrait donc pas arbitrairement ces lignes et n'invente pas de remplacement.
+
+## Consentements avec cet ERP
+
+Aucun champ explicite de consentement WhatsApp actuel n'a été trouvé dans les
+colonnes ou clés de métadonnées communiquées. La vue expose donc
+`marketing_opt_in=false` : tous les clients livrés peuvent être consultés et
+segmentés, mais seuls ceux ayant une autorisation enregistrée sont éligibles.
+
+Le registre privé `marketing.consents` peut recevoir un import de consentements
+vérifiés : `phone` E.164, `opted_in` booléen, `evidence` (référence de la preuve),
+`captured_at` (date de collecte), `updated_at`. L'import doit être paramétré et
+réalisé côté serveur ou par l'administrateur de base ; aucun import réel n'a été
+effectué. Un enregistrement du registre remplace la préférence de la vue ; une
+révocation y est enregistrée avec `opted_in=false`. Une exclusion STOP prime dans
+tous les cas. Ne pas alimenter ce registre automatiquement à partir du statut livré.
+
+## Tests du raccordement
+
+19 tests passent, dont la suite PostgreSQL de l'adaptateur ERP et la suite des
+campagnes. L'adaptateur est exécuté deux fois sur des tables fictives reproduisant
+les colonnes utilisées, dans des schémas isolés de la base de test. Les contrôles
+couvrent priorité de la variante livrée, repli confirmé, absence de correspondance
+inventée avec les IDs Woo, commandes sans détail, suppression, quantité zéro et
+catalogue archivé. Les tests serveur couvrent aussi le repli téléphonique et la
+priorité du consentement actuel et des désinscriptions.
+
+Sur Vercel, chaque lot démarre des cycles pendant au plus 150 secondes, puis laisse finir le dernier cycle avant la limite de fonction de 300 secondes. Les passages sont authentifiés avec `CRON_SECRET`, interdits en Preview et suivis dans `marketing.worker_health`. Le lancement exige un passage réussi de moins de 20 minutes. Un service défaillant laisse la file en base ; les tentatives ambiguës ne sont jamais relancées automatiquement.

@@ -1,0 +1,38 @@
+name: WhatsApp campaign worker
+on:
+  schedule:
+    - cron: '3-58/5 * * * *'
+  workflow_dispatch:
+permissions: {}
+concurrency:
+  group: whatsapp-campaign-worker
+  cancel-in-progress: false
+jobs:
+  dispatch:
+    # Off until the owner configures the production URL, secret and this variable.
+    if: vars.MARKETING_WORKER_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Process a bounded batch on Vercel
+        env:
+          MARKETING_ORIGIN: ${{ vars.MARKETING_ORIGIN }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          python3 - <<'PY'
+          import os, urllib.request, urllib.parse
+          origin = os.environ['MARKETING_ORIGIN'].rstrip('/')
+          url = urllib.parse.urlsplit(origin)
+          if url.scheme != 'https' or not url.netloc or url.path or url.query or url.fragment or url.username or url.password:
+              raise SystemExit('MARKETING_ORIGIN must be an HTTPS origin without a path.')
+          secret = os.environ['CRON_SECRET']
+          if len(secret) < 32:
+              raise SystemExit('Configure CRON_SECRET with at least 32 characters.')
+          # Never follow redirects while holding the Authorization secret.
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, headers, newurl):
+                  return None
+          request = urllib.request.Request(origin + '/api/marketing/worker', data=b'', method='POST', headers={'Authorization': 'Bearer ' + secret})
+          with urllib.request.build_opener(NoRedirect()).open(request, timeout=310) as response:
+              print(response.read().decode())
+          PY
