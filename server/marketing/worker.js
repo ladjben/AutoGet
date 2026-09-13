@@ -1,13 +1,13 @@
 import { setTimeout as delay } from 'node:timers/promises'
 import { sendingEnabled } from './sending.js'
-import { audience } from './db.js'
+import { contactEligibility } from './db.js'
 
-export async function workOnce(db, erp, cfg, meta) {
+export async function workOnce(db, _erp, cfg, meta) {
   if (!sendingEnabled(cfg)) return
   const client = await db.connect()
   let locked = false
   try {
-    // Direct Neon session only. Bound an orphan lock if Vercel kills a request.
+    // Supabase session pooler or direct PostgreSQL only. Bound an orphan lock if Vercel kills a request.
     await client.query("SET idle_session_timeout='120s'")
     locked = (
       await client.query('SELECT pg_try_advisory_lock(81273492) AS locked')
@@ -22,14 +22,10 @@ export async function workOnce(db, erp, cfg, meta) {
     )
     const row = next.rows[0]
     if (!row) return
-    // Recheck current consent in the ERP before dispatch, not only at preparation.
-    const data = await audience(erp, db, cfg)
-    const contact = data.customers.find((c) => c.phone === row.phone)
-    const suppressed = await client.query(
-      'SELECT phone FROM marketing.suppressions WHERE phone=$1',
-      [row.phone],
-    )
-    if (!contact?.eligible || suppressed.rowCount) {
+    const eligibility = await contactEligibility(client, row.phone)
+    // Leave queued until a successful refresh. Never skip customers on stale data.
+    if (!eligibility.fresh) return
+    if (!eligibility.eligible) {
       await client.query(
         "UPDATE marketing.recipients SET status='skipped',error_code='NO_CURRENT_CONSENT',updated_at=now() WHERE id=$1 AND status='queued'",
         [row.id],

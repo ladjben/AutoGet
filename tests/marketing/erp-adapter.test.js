@@ -82,6 +82,29 @@ test(
       'unknown',
       'zero delivered quantity is not a purchased size',
     )
+    const select = (await readFile(new URL('../../server/marketing/erp-source.sql', import.meta.url), 'utf8')).replaceAll('public.', 'erp_adapter_test.')
+    const grants = (await readFile(new URL('../../sql/whatsapp-erp-reader.sql', import.meta.url), 'utf8'))
+      .replaceAll('public.', 'erp_adapter_test.').replace('SCHEMA public', 'SCHEMA erp_adapter_test')
+      .replaceAll('autoget_erp_reader', 'erp_adapter_reader_test')
+    const reader = await db.connect()
+    try {
+      await reader.query('DROP ROLE IF EXISTS erp_adapter_reader_test')
+      await reader.query(grants)
+      await reader.query('SET ROLE erp_adapter_reader_test')
+      const actual = (await reader.query(select)).rows.sort((a,b) => a.order_id.localeCompare(b.order_id))
+      assert.deepEqual(actual, rows, 'direct SELECT preserves adapter semantics with only column-level grants')
+      await assert.rejects(reader.query("UPDATE erp_adapter_test.woo_orders SET order_status='cancelled'"), /permission denied/)
+      await reader.query('RESET ROLE')
+      await reader.query('BEGIN READ ONLY')
+      await assert.rejects(reader.query("UPDATE erp_adapter_test.woo_orders SET order_status='cancelled'"), /read-only transaction/)
+      await reader.query('ROLLBACK')
+      await reader.query('DROP OWNED BY erp_adapter_reader_test')
+      await reader.query('DROP ROLE erp_adapter_reader_test')
+    } finally {
+      await reader.query('ROLLBACK')
+      await reader.query('RESET ROLE')
+      reader.release()
+    }
     assert.ok(rows.every((r) => r.marketing_opt_in === false))
   },
 )

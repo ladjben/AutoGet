@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "marketing:server": "node --env-file=.env server/marketing/index.js",
     "test:marketing": "node --test tests/marketing/*.test.js",
-    "marketing:secrets": "node server/marketing/generate-secrets.js"
+    "marketing:secrets": "node server/marketing/generate-secrets.js",
+    "marketing:sync": "node --env-file=.env.marketing.local server/marketing/sync-cli.js"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.10",

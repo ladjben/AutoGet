@@ -21,7 +21,9 @@ export function installApi(app, db, erp, cfg, meta) {
     const result = await db.query(
       'SELECT * FROM marketing.worker_health WHERE id=1',
     )
+    const sync = await db.query("SELECT *, completed_at > now()-interval '48 hours' AS fresh FROM marketing.sync_state WHERE id=1")
     res.json({
+      sync: sync.rows[0] || null,
       sendingEnabled: sendingEnabled(cfg),
       serverless: Boolean(cfg.env.VERCEL),
       worker: result.rows[0] || null,

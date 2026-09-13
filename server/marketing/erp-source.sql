@@ -1,15 +1,9 @@
--- LEGACY REFERENCE ONLY: the Supabase snapshot setup does NOT run this on Neon.
--- Follow docs/VERCEL_WHATSAPP_SETUP.md instead.
--- ERP-side read-only adapter, built from the owner's supplied schema and FKs.
--- Run with an ERP migration role. Grant SELECT on this view to the app role.
--- No source records are modified. Existing catalog soft deletions are retained
--- in historical joins: deleting today's product must not erase past purchases.
-BEGIN;
-CREATE SCHEMA IF NOT EXISTS autoget_marketing;
-REVOKE ALL ON SCHEMA autoget_marketing FROM PUBLIC;
-CREATE OR REPLACE VIEW autoget_marketing.delivered_items AS
+-- SELECT only: executed inside a bounded READ ONLY transaction. No ERP view needed.
 WITH orders AS (
-  SELECT o.* FROM public.woo_orders o
+  SELECT o.id,o.deleted_at,o.order_status,o.date_created,o.created_at,
+    o.phone_normalized,o.customer_phone,o.billing_name,o.shipping_name,
+    o.billing_city,o.shipping_city,o.company_id,o.franchise_id,o.is_exchange
+  FROM public.woo_orders o
   WHERE o.deleted_at IS NULL AND o.order_status = 'delivered'
 ), lines AS (
   -- Actual delivered variant takes precedence over the originally confirmed one.
@@ -77,5 +71,3 @@ SELECT o.id::text AS order_id,
   o.is_exchange
 FROM orders o
 LEFT JOIN lines l ON l.order_id = o.id;
-REVOKE ALL ON autoget_marketing.delivered_items FROM PUBLIC;
-COMMIT;

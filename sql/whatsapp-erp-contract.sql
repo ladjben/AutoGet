@@ -1,3 +1,5 @@
+-- LEGACY REFERENCE ONLY: the Supabase snapshot setup does NOT run this on Neon.
+-- Follow docs/VERCEL_WHATSAPP_SETUP.md instead.
 -- Final ERP adapter: execute sql/whatsapp-erp-delivered-items.sql.
 -- The application reads autoget_marketing.delivered_items using an ERP role
 -- with USAGE on the schema and SELECT on that view only.

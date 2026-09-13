@@ -8,7 +8,7 @@ Module ajouté sur la branche `feat/whatsapp-marketing`. L’application existan
 
 Le dépôt utilise **Supabase**, pas Neon. Les tables existantes sont notamment `produits`, `fournisseurs`, `entrees`, `paiements`, `depenses`, `colis`, `salaries` et `acomptes`. Les entrées décrivent des réceptions de stock ; `colis` contient une quantité, une date et une description. Il n’existe ici ni modèle de commande client individuelle, ni téléphone client, ni pointure vendue. La base Neon appartient à l’ERP externe de traitement des commandes, comme confirmé par le propriétaire.
 
-Le schéma ERP et ses clés étrangères ont maintenant été fournis : la vue réelle est implémentée dans `sql/whatsapp-erp-delivered-items.sql`. Aucun identifiant Neon/Meta n’a été fourni. **Le module n’est donc pas raccordé à la base de production.** Aucun changement, aucune migration et aucun message n’ont été exécutés dans les systèmes de production.
+Le schéma ERP et ses clés étrangères ont maintenant été fournis : la lecture réelle est implémentée dans `server/marketing/erp-source.sql`, sans vue à installer. Aucun identifiant Neon/Meta n’a été fourni. **Le module n’est donc pas raccordé à la base de production.** Aucun changement, aucune migration et aucun message n’ont été exécutés dans les systèmes de production.
 
 ## Architecture
 
@@ -16,25 +16,28 @@ Le schéma ERP et ses clés étrangères ont maintenant été fournis : la vue r
 AutoGet / WhatsApp Marketing (administrateurs)
               │ même origine, cookie HttpOnly
               ▼
-Serveur Node / Express ─── SELECT ──► Neon ERP : vue delivered_items
+Serveur Node / Express ─── SELECT ──► Supabase : copie privée des achats
               │
-              ├── PostgreSQL marketing : brouillons, destinataires, logs, exclusions
+              ├── Supabase marketing : brouillons, destinataires, logs, exclusions
               ├── Cloud API Meta : modèles + messages
               └── Worker persistant ← webhooks signés Meta
 ```
+
+L’import séparé (Cursor ou workflow GitHub quotidien) lit Neon en transaction READ ONLY puis remplace atomiquement la copie Supabase. Le serveur Vercel et les workers ne possèdent plus de connexion ERP.
 
 Le serveur peut servir le build Vite existant. En développement, Vite transmet `/api/marketing` et `/api/whatsapp` vers le port 3001. Sur Vercel, `api/marketing.js` expose le serveur sans listener permanent ; `vercel.json` transmet uniquement les routes API à cette fonction. Le frontal et les API restent sur la même origine. GitHub Actions appelle le worker par lots bornés toutes les cinq minutes environ. Hors Vercel, le processus Node permanent reste disponible.
 
 Le serveur conserve la compatibilité CSP avec l’origine Supabase et les polices du projet. Configurez `VITE_SUPABASE_URL` à l’exécution **et** à la compilation si vous changez l’instance existante.
 
-## Raccordement Neon et migrations
+## Raccordement et migrations
 
-1. Dans une base de service marketing dédiée (ou un schéma privé du même Neon), exécuter `sql/whatsapp-marketing.sql`. Cette migration transactionnelle et réexécutable crée uniquement le schéma `marketing`. Elle ne modifie aucune table ERP ni Supabase. Le rôle serveur doit pouvoir lire/écrire ce schéma ; ne l’exposez pas au navigateur.
-2. Dans la base ERP, exécuter `sql/whatsapp-erp-delivered-items.sql` avec le rôle de migration : ce script crée la vue privée `autoget_marketing.delivered_items` sans modifier les commandes. `sql/whatsapp-erp-contract.sql` documente le contrat. La vue préparatoire `delivered_orders` n’est pas nécessaire. Pour une installation marketing antérieure à ce raccordement, appliquer aussi `sql/whatsapp-marketing-consents.sql` dans la base marketing (déjà inclus dans la migration complète).
-3. Accorder au rôle `NEON_ERP_DATABASE_URL` uniquement `USAGE` sur le schéma de la vue et `SELECT` sur la vue. Ne pas utiliser les identifiants d’administration ERP.
-4. Configurer les deux URL côté serveur avec TLS (`sslmode=verify-full`). `MARKETING_DATABASE_URL` doit être une URL Neon **directe**, sans `-pooler` : la coordination des workers utilise un verrou de session PostgreSQL. L’URL ERP peut être poolée.
+Suivre uniquement le [guide Supabase à jour](VERCEL_WHATSAPP_SETUP.md). L’installation neuve `sql/whatsapp-supabase-install.sql` crée un schéma privé, active RLS et prépare un groupe serveur limité à ce schéma. Elle refuse toute collision et ne modifie aucune table historique. La connexion serveur doit appartenir uniquement à ce groupe, sans privilèges d’administration. Session pooler Supabase port 5432 ou connexion directe requis ; le pooler Transaction/6543 est incompatible avec les verrous du worker.
 
-Colonnes requises de la vue :
+Aucun script de vue n’est désormais nécessaire sur Neon. `sql/whatsapp-erp-reader.sql` prépare uniquement des droits SELECT par colonne ; les comptes, droits hérités et accès PUBLIC doivent être contrôlés avant attribution. Les scripts de vue historiques restent dans le dépôt pour référence et tests, pas pour la nouvelle installation.
+
+Le processus d’import possède les deux connexions, jamais le navigateur. `sql/whatsapp-supabase-sync.sql` est un élément de migration pour les anciennes installations, à examiner avec leurs politiques/rôles existants ; l’installateur neuf l’inclut déjà.
+
+Colonnes du résultat importé :
 
 | Colonne | Type / sens |
 | --- | --- |
@@ -48,9 +51,9 @@ Colonnes requises de la vue :
 | `city` | Ville du contact |
 | `marketing_opt_in` | Booléen : consentement marketing **actuel** |
 
-La vue doit joindre les commandes, clients, lignes et variantes réels de l’ERP, une ligne par combinaison achetée. Utilisez les libellés historiques lorsqu’ils existent. Les unités de pointure restent telles que stockées : `42`, `42 EU` et `8 UK` ne sont pas converties implicitement.
+La requête joint les commandes, clients, lignes et variantes réels de l’ERP, une ligne par combinaison achetée. Utilisez les libellés historiques lorsqu’ils existent. Les unités de pointure restent telles que stockées : `42`, `42 EU` et `8 UK` ne sont pas converties implicitement.
 
-Le consentement doit représenter la préférence actuelle du contact, et non un ancien champ de commande. Un statut livré ne constitue pas ce consentement. En cas de valeurs contradictoires entre plusieurs lignes du même téléphone, le serveur exclut le contact. Les réponses STOP et les désinscriptions manuelles sont conservées séparément et priment sur l’ERP.
+Le consentement provient exclusivement du registre privé Supabase, pas d’un ancien champ de commande. Un statut livré ne constitue pas ce consentement. L’import force marketing_opt_in à false et ne modifie jamais le registre. Les réponses STOP et les désinscriptions manuelles priment sur ce registre.
 
 ## Configuration
 
@@ -58,9 +61,9 @@ Copier `.env.example` dans `.env` (ignoré par Git). Les secrets **ne doivent ja
 
 | Variable | Utilisation |
 | --- | --- |
-| `MARKETING_DATABASE_URL` | PostgreSQL privé marketing, connexion directe |
-| `NEON_ERP_DATABASE_URL` | Connexion ERP en lecture seule |
-| `NEON_ERP_VIEW` | Vue `schema.nom`, défaut `autoget_marketing.delivered_items` |
+| `MARKETING_DATABASE_URL` | Supabase AutoGet, connexion privée Session/5432 ou directe |
+| `NEON_ERP_DATABASE_URL` | Import uniquement : connexion ERP en lecture seule, absente de Vercel |
+| `MARKETING_SYNC_ENABLED` | Import uniquement : false par défaut, activation après essai isolé |
 | `MARKETING_ORIGIN` | Origine exacte du frontal, ex. `https://autoget.example` |
 | `MARKETING_PORT` | Port serveur, défaut 3001 ; adapter aussi le proxy Vite si changé |
 | `MARKETING_ADMIN_PASSWORD_HASH` | Hash scrypt `sel_hex:hash_hex` |
@@ -72,7 +75,7 @@ Copier `.env.example` dans `.env` (ignoré par Git). Les secrets **ne doivent ja
 | `WHATSAPP_APP_SECRET` | Secret de l’application Meta, vérification HMAC |
 | `WHATSAPP_VERIFY_TOKEN` | Valeur aléatoire pour la validation du webhook |
 | `WHATSAPP_DEFAULT_COUNTRY` | Code pays des numéros locaux, défaut `DZ` |
-| `WHATSAPP_MESSAGES_PER_SECOND` | Plafond global configuré, défaut 1, maximum 20 ; débit réel inférieur selon la latence ERP/Meta |
+| `WHATSAPP_MESSAGES_PER_SECOND` | Plafond global configuré, défaut 1, maximum 20 ; débit réel inférieur selon la latence Supabase/Meta |
 | `WHATSAPP_SENDING_ENABLED` | `false` par défaut ; `true` autorise le lancement et le worker |
 | `NODE_ENV` | `production` pour cookies Secure et origine HTTPS obligatoire |
 
@@ -119,9 +122,9 @@ Références officielles consultées : [collection Cloud API de Meta](https://ww
 - Un contact par téléphone normalisé. Les commandes sont comptées une seule fois, les produits/variantes/pointures de l’historique sont conservés. Un téléphone familial commun correspond à un contact, pas nécessairement une personne distincte.
 - Produit + pointure + variante + période doivent correspondre à **la même ligne d’achat**. Le nombre de commandes couvre tout l’historique livré, pas seulement la période filtrée. Dates filtrées par jour UTC ; nom/ville de la dernière commande.
 - Sélection explicite ou tout le segment, y compris les autres pages, avec exclusions individuelles. Un changement de filtre réinitialise la sélection.
-- Préparation : le serveur relit l’ERP, vérifie toutes les variables, ignore les contacts inéligibles et crée transactionnellement un brouillon avec les messages exacts. Le nombre final peut différer de l’affichage si l’ERP a changé. L’identifiant de requête et la contrainte campagne/téléphone évitent les doublons de préparation.
+- Préparation : le serveur lit la copie Supabase, vérifie toutes les variables, ignore les contacts inéligibles et crée transactionnellement un brouillon avec les messages exacts. Le nombre final peut différer de l’affichage si la copie ou les consentements ont changé. L’identifiant de requête et la contrainte campagne/téléphone évitent les doublons de préparation.
 - Lancement distinct : vérifie que le modèle est encore approuvé et inchangé. Les messages déjà préparés ne sont pas modifiés implicitement par un changement de filtre ou de modèle dans le navigateur.
-- Worker : verrou partagé en base, relecture du consentement ERP et des exclusions avant chaque tentative, enregistrement de la tentative avant l’appel Meta, cadence plafonnée.
+- Worker : verrou partagé en base, vérification indexée du contact, de la fraîcheur de la copie (48 h), du registre de consentements et des exclusions Supabase avant chaque tentative, enregistrement de la tentative avant l’appel Meta, cadence plafonnée.
 - Un succès HTTP Meta est « Accepté par Meta ». Livraison et lecture sont confirmées par les webhooks.
 - Rejets temporaires connus : reprise exponentielle avec aléa, cinq tentatives maximum. Le bouton de reprise ne réinitialise que les erreurs explicitement relançables sans identifiant Meta.
 - Timeout réseau, réponse ambiguë ou arrêt après tentative : état « À vérifier », **sans renvoi automatique**. Examiner le journal et la console Meta. Il n’existe pas de garantie exactly-once intersystèmes ; ne recréer une campagne pour ces contacts qu’après vérification humaine de la non-livraison.
@@ -130,11 +133,15 @@ Références officielles consultées : [collection Cloud API de Meta](https://ww
 
 ## Capacités et limites opérationnelles
 
-L’implémentation lit l’audience à la demande et avant chaque envoi. Elle **refuse explicitement** plus de 100 000 lignes source, au lieu d’afficher un segment tronqué. Une campagne est limitée à 10 000 destinataires et la liste clients est paginée par 50. Pour un ERP plus grand, ajouter une synchronisation incrémentale avec index de contacts avant activation ; les rafraîchissements complets ne sont pas conçus pour des millions de lignes. Prévoir des index sur statut/date et clés de jointure dans l’ERP.
+L’interface lit uniquement la copie Supabase, jusqu’à 100 000 articles. Le worker fait une recherche par téléphone indexée, sans reconstruire toute l’audience. Une campagne est limitée à 10 000 destinataires ; l’interface affiche 50 clients par page.
+
+L’import complet quotidien est désactivé par défaut, borné à 100 000 lignes, blocs de 500, pause de 100 ms, une connexion ERP, 5 s par requête, 500 ms d’attente de verrou, budget applicatif 60 s et transaction_timeout 75 s sur PostgreSQL 17+. Il utilise un curseur dans un snapshot cohérent, sans DDL, index ni modification de données ERP. Une transaction Supabase publie le résultat complet ou conserve la copie précédente. Un verrou transactionnel empêche les imports concurrents ; un succès de moins d’une heure évite une nouvelle lecture. La transaction ERP peut maintenir un snapshot/verrou de lecture pendant sa durée : surveiller les métriques et tester sur une branche avec calculateur séparé. Les blocs limitent le transfert, pas nécessairement le travail du plan SQL avant le premier résultat. Aucun index n’est ajouté automatiquement à l’ERP.
+
+Les suppressions, annulations et changements d’articles sont réconciliés au prochain snapshot complet. L’historique n’est donc pas en temps réel. Les données deviennent périmées après 48 h sans succès : les messages restent en attente sans consommation de tentative. La présence d’une erreur d’import est visible ; elle ne renouvelle pas la date du dernier succès. Pour plus de volume ou si le délai ne suffit pas, revoir le plan sur la copie et prévoir une réplique/CDC plutôt qu’augmenter aveuglément la charge sur l’ERP.
 
 La liste affiche les 100 dernières campagnes ; les destinataires restent consultables par pages et le journal affiche les 100 derniers événements de la campagne. Les totaux du tableau de bord portent sur ces campagnes affichées. Aucun mécanisme automatique de conservation/purge n’est installé : définir une durée de conservation adaptée pour les numéros et messages personnalisés stockés en base.
 
-Plusieurs invocations sur la même base directe partagent le verrou et le plafond. La limitation des connexions administrateur est partagée en PostgreSQL : dix tentatives par fenêtre de quinze minutes pour cet accès commun. La connexion du worker est fermée après chaque cycle ; un délai d’inactivité de session borne les verrous orphelins. Les tentatives interrompues sont classées incertaines après cinq minutes. Le plafond s’applique aux envois de ce service, pas à d’autres applications utilisant le même numéro Meta.
+Plusieurs invocations sur la même base via Session pooler ou connexion directe partagent le verrou et le plafond. La limitation des connexions administrateur est partagée en PostgreSQL : dix tentatives par fenêtre de quinze minutes pour cet accès commun. La connexion du worker est fermée après chaque cycle ; un délai d’inactivité de session borne les verrous orphelins. Les tentatives interrompues sont classées incertaines après cinq minutes. Le plafond s’applique aux envois de ce service, pas à d’autres applications utilisant le même numéro Meta.
 
 Ne pas utiliser une URL Postgres de production pour les tests ci-dessous.
 
@@ -158,16 +165,16 @@ Sans cette variable, la suite d’intégration est explicitement ignorée. À la
 
 ## Mise en service restante
 
-1. Appliquer la vue ERP réelle, puis exécuter `sql/verify-whatsapp-erp-adapter.sql` pour mesurer la couverture par source et vérifier les dates/statuts/pointures sur des commandes connues.
-2. Configurer les rôles Neon et appliquer la migration marketing.
-3. Configurer les secrets serveur, le compte Meta et le webhook HTTPS.
-4. Vérifier un modèle approuvé et un destinataire de test consentant.
-5. Activer les envois uniquement dans l’environnement prêt, puis lancer explicitement la campagne voulue.
+1. Tester l’installation Supabase et l’import sur des copies isolées ; mesurer la charge.
+2. Vérifier les comptes restreints et droits effectifs, puis préparer Supabase AutoGet.
+3. Configurer l’import séparé, les secrets Vercel sans Neon, le compte Meta et le webhook.
+4. Vérifier la copie, un modèle approuvé et un destinataire de test consentant.
+5. Activer les automatismes uniquement après validation, puis lancer explicitement la campagne voulue.
 
 
 ## Raccordement ERP confirmé et règles d'historique
 
-La vue finale utilise les clés étrangères fournies :
+La requête d’import utilise les clés étrangères fournies :
 
 ```text
 woo_orders.id ← delivered_order_items.woo_order_id
@@ -208,13 +215,13 @@ Les commandes d'échange livrées sont incluses. L'historique décrit les articl
 livrés, **pas un calcul du stock conservé par le client après remboursements**.
 Les tables de retours et remboursements ont été identifiées, mais leurs valeurs
 de statut métier n'ont pas été fournies : une demande de remboursement ne prouve
-pas qu'un retour a été effectué, ni qu'un remplacement a été livré. La vue ne
+pas qu'un retour a été effectué, ni qu'un remplacement a été livré. La requête ne
 soustrait donc pas arbitrairement ces lignes et n'invente pas de remplacement.
 
 ## Consentements avec cet ERP
 
 Aucun champ explicite de consentement WhatsApp actuel n'a été trouvé dans les
-colonnes ou clés de métadonnées communiquées. La vue expose donc
+colonnes ou clés de métadonnées communiquées. L’import impose donc
 `marketing_opt_in=false` : tous les clients livrés peuvent être consultés et
 segmentés, mais seuls ceux ayant une autorisation enregistrée sont éligibles.
 
@@ -222,14 +229,13 @@ Le registre privé `marketing.consents` peut recevoir un import de consentements
 vérifiés : `phone` E.164, `opted_in` booléen, `evidence` (référence de la preuve),
 `captured_at` (date de collecte), `updated_at`. L'import doit être paramétré et
 réalisé côté serveur ou par l'administrateur de base ; aucun import réel n'a été
-effectué. Un enregistrement du registre remplace la préférence de la vue ; une
+effectué. Un enregistrement du registre remplace la préférence par défaut de la copie ; une
 révocation y est enregistrée avec `opted_in=false`. Une exclusion STOP prime dans
 tous les cas. Ne pas alimenter ce registre automatiquement à partir du statut livré.
 
 ## Tests du raccordement
 
-19 tests passent, dont la suite PostgreSQL de l'adaptateur ERP et la suite des
-campagnes. L'adaptateur est exécuté deux fois sur des tables fictives reproduisant
+Les suites comprennent l’adaptateur ERP, les campagnes, l’import transactionnel, la fraîcheur, les annulations et les droits du schéma privé. L'adaptateur est exécuté deux fois sur des tables fictives reproduisant
 les colonnes utilisées, dans des schémas isolés de la base de test. Les contrôles
 couvrent priorité de la variante livrée, repli confirmé, absence de correspondance
 inventée avec les IDs Woo, commandes sans détail, suppression, quantité zéro et

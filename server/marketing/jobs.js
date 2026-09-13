@@ -12,7 +12,7 @@ export async function runBatch(
 ) {
   const deadline = now() + budgetMs
   let processed = 0
-  // Reserve enough time for one full ERP read, Meta timeout and DB writes.
+  // Reserve enough time for Supabase checks, Meta timeout and DB writes.
   while (now() < deadline) {
     const result = await step(db, erp, cfg, meta)
     if (!result?.processed) break

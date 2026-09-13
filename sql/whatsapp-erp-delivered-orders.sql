@@ -1,3 +1,5 @@
+-- LEGACY REFERENCE ONLY: the Supabase snapshot setup does NOT run this on Neon.
+-- Follow docs/VERCEL_WHATSAPP_SETUP.md instead.
 -- ERP-side foundation, based on the supplied woo_orders columns/statuses.
 -- Prepared locally; NOT executed against the ERP.
 -- Creates a private read-only view without modifying source order records.

@@ -384,6 +384,13 @@ export default function WhatsAppMarketing() {
           {!service.sendingEnabled
             ? 'Les envois réels sont désactivés. Vous pouvez préparer vos campagnes.'
             : 'Les envois réels sont activés.'}
+          <div className="mt-2">
+            {service.sync?.completed_at
+              ? `Clients synchronisés le ${new Date(service.sync.completed_at).toLocaleString('fr-FR')} (${service.sync.row_count} articles).`
+              : 'Première synchronisation des clients à effectuer.'}
+            {!service.sync?.fresh && <span className="ml-2 text-destructive">Envois suspendus jusqu’à une synchronisation récente.</span>}
+            {service.sync?.last_error && <span className="ml-2 text-destructive">Dernier import interrompu ; la copie précédente est conservée.</span>}
+          </div>
           {service.serverless && (
             <span className="ml-2">
               {service.worker?.last_finished_at

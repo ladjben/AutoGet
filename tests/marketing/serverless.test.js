@@ -83,3 +83,10 @@ test('Vercel keeps Vite output and sends only API paths to the function', async 
   assert.ok(cfg.rewrites.every((r) => r.source.startsWith('/api/')))
   assert.equal(cfg.crons, undefined, 'no unsupported Hobby per-minute cron')
 })
+
+test('Supabase session connections accepted; transaction pooling rejected', async () => {
+  const { validateMarketingConnection } = await import('../../server/marketing/config.js')
+  assert.doesNotThrow(() => validateMarketingConnection('postgresql://user:pass@aws-0-test.pooler.supabase.com:5432/postgres'))
+  assert.doesNotThrow(() => validateMarketingConnection('postgresql://user:pass@db.test.supabase.co:5432/postgres'))
+  assert.throws(() => validateMarketingConnection('postgresql://user:pass@aws-0-test.pooler.supabase.com:6543/postgres'))
+})

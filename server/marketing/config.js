@@ -1,7 +1,6 @@
 export function config(env = process.env) {
   const required = [
     'MARKETING_DATABASE_URL',
-    'NEON_ERP_DATABASE_URL',
     'MARKETING_ADMIN_PASSWORD_HASH',
     'MARKETING_SESSION_SECRET',
     'MARKETING_ORIGIN',
@@ -22,13 +21,7 @@ export function config(env = process.env) {
     throw new Error('Hash administrateur invalide.')
   if (!/^v\d+\.\d+$/.test(env.WHATSAPP_GRAPH_VERSION))
     throw new Error('Version Graph invalide.')
-  if (new URL(env.MARKETING_DATABASE_URL).hostname.includes('-pooler'))
-    throw new Error(
-      'MARKETING_DATABASE_URL doit utiliser un accès Neon direct, sans pooler.',
-    )
-  const view = env.NEON_ERP_VIEW || 'autoget_marketing.delivered_items'
-  if (!/^[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*$/.test(view))
-    throw new Error('NEON_ERP_VIEW invalide.')
+  validateMarketingConnection(env.MARKETING_DATABASE_URL)
   const rps = Number(env.WHATSAPP_MESSAGES_PER_SECOND || 1)
   if (!Number.isFinite(rps) || rps < 0.1 || rps > 20)
     throw new Error('Débit invalide (0,1–20 messages/seconde).')
@@ -38,10 +31,18 @@ export function config(env = process.env) {
   return {
     env,
     origin,
-    view,
     interval: Math.ceil(1000 / rps),
     country: env.WHATSAPP_DEFAULT_COUNTRY || 'DZ',
     port: Number(env.MARKETING_PORT || 3001),
     secure: env.NODE_ENV === 'production',
   }
+}
+
+// Worker coordination uses session locks: transaction pooling is incompatible.
+export function validateMarketingConnection(value) {
+  const url = new URL(value)
+  if (!['postgres:', 'postgresql:'].includes(url.protocol))
+    throw new Error('Une connexion PostgreSQL serveur est nécessaire.')
+  if (url.port === '6543' || url.hostname.includes('-pooler'))
+    throw new Error('Utiliser Supabase Session pooler port 5432 ou une connexion directe ; pas le mode Transaction.')
 }

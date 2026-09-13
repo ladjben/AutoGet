@@ -4,6 +4,8 @@ import pg from 'pg'
 import { readFile } from 'node:fs/promises'
 import { randomUUID, scryptSync, createHmac } from 'node:crypto'
 import { createApp } from '../../server/marketing/index.js'
+import { syncAudience } from '../../server/marketing/sync.js'
+import { audience as cachedAudience, contactEligibility } from '../../server/marketing/db.js'
 import { workOnce } from '../../server/marketing/worker.js'
 
 // Dedicated disposable database ONLY: the suite truncates its marketing tables.
@@ -47,6 +49,10 @@ test(
     await db.query(
       `INSERT INTO autoget_marketing.delivered_items VALUES ('o1','2026-09-01','livré','0551234567','Amine','p1','Sneakers','Noir','42','Alger',true),('o2','2026-09-02','delivered','+213551234567','Amine','p2','Runner','Blanc','43','Alger',true),('o3','2026-09-02','pending','0661234567','Exclu','p1','Sneakers','Noir','42','Alger',true)`,
     )
+    await db.query(await readFile(new URL('../../sql/whatsapp-supabase-sync.sql', import.meta.url), 'utf8'))
+    await db.query('TRUNCATE marketing.source_items,marketing.sync_state')
+    await syncAudience(db, db, { query: "SELECT * FROM autoget_marketing.delivered_items WHERE status IN ('livré','delivered')", pauseMs: 0 })
+    await db.query("INSERT INTO marketing.consents(phone,opted_in,evidence,captured_at) VALUES('+213551234567',true,'Consentement de test',now())")
     const salt = '12345678901234567890123456789012'
     const cfg = {
       view: 'autoget_marketing.delivered_items',
@@ -262,6 +268,12 @@ test(
       await req('/api/marketing/campaigns', prepare())
     ).json()
     await req(`/api/marketing/campaigns/${third.id}/start`, {})
+    await db.query("UPDATE marketing.sync_state SET completed_at=now()-interval '49 hours'")
+    const beforeStale = sends
+    await workOnce(db, { query() { throw new Error('ERP accessed') } }, cfg, meta)
+    assert.equal(sends, beforeStale, 'stale snapshot never sends')
+    assert.equal((await db.query('SELECT status FROM marketing.recipients WHERE campaign_id=$1',[third.id])).rows[0].status, 'queued')
+    await db.query('UPDATE marketing.sync_state SET completed_at=now()')
     await req('/api/marketing/suppressions', { phone: '0551234567' })
     const before = sends
     await workOnce(db, db, cfg, meta)
@@ -280,6 +292,24 @@ test(
       0,
     )
     assert.equal((await req('/api/marketing/campaigns', prepare())).status, 400)
+    // All audience reads work with an ERP object that must never be called.
+    const unavailableErp = { query() { throw new Error('ERP MUST NOT BE USED') }, connect() { throw new Error('ERP MUST NOT BE USED') } }
+    assert.equal((await cachedAudience(unavailableErp, db, cfg)).customers.length, 1)
+    assert.equal((await contactEligibility(db, '+213551234567')).eligible, false)
+    await db.query("UPDATE marketing.sync_state SET completed_at=now()-interval '49 hours'")
+    assert.equal((await contactEligibility(db, '+213551234567')).fresh, false)
+    const oldCount = (await db.query('SELECT count(*)::int n FROM marketing.source_items')).rows[0].n
+    await assert.rejects(syncAudience(db, db, {
+      query: 'SELECT * FROM autoget_marketing.delivered_items', maxRows: 1, batchSize: 1, pauseMs: 0,
+    }))
+    assert.equal((await db.query('SELECT count(*)::int n FROM marketing.source_items')).rows[0].n, oldCount, 'failed import rolls back partial replacement')
+    assert.equal((await contactEligibility(db, '+213551234567')).fresh, false, 'failure never renews freshness')
+    await assert.rejects(syncAudience(db, db, { query: 'DELETE FROM autoget_marketing.delivered_items RETURNING *', pauseMs: 0 }))
+    assert.equal((await db.query('SELECT count(*)::int n FROM autoget_marketing.delivered_items')).rows[0].n, 3, 'source remains unchanged')
+    await db.query("DELETE FROM autoget_marketing.delivered_items WHERE order_id='o2'")
+    await syncAudience(db, db, { query: "SELECT * FROM autoget_marketing.delivered_items WHERE status IN ('livré','delivered')", pauseMs: 0 })
+    assert.equal((await cachedAudience(unavailableErp, db, cfg)).customers[0].orderCount, 1, 'deleted orders disappear from next complete snapshot')
+    assert.equal((await syncAudience(db, unavailableErp)).reason, 'RECENT_SYNC', 'hourly guard avoids ERP connection')
     cfg.env.CRON_SECRET = 'test-cron-secret-at-least-32-characters'
     assert.equal((await req('/api/marketing/worker', {})).status, 401)
     cfg.env.VERCEL = '1'
@@ -313,5 +343,28 @@ test(
     )
     assert.equal(limited.status, 429)
     await new Promise((resolve) => other.close(resolve))
+    // Fresh installer and privileges are checked only in this disposable test DB.
+    const installer = await readFile(new URL('../../sql/whatsapp-supabase-install.sql', import.meta.url), 'utf8')
+    const admin = await db.connect()
+    try {
+      await admin.query('DROP SCHEMA marketing CASCADE')
+      await admin.query('DROP ROLE IF EXISTS autoget_marketing_app')
+      await admin.query(installer)
+      await assert.rejects(admin.query(installer), /already exists/)
+      await admin.query('ROLLBACK')
+      await admin.query('SET ROLE autoget_marketing_app')
+      await admin.query("INSERT INTO marketing.sync_state(id,row_count) VALUES(1,7)")
+      assert.equal((await admin.query('SELECT row_count FROM marketing.sync_state')).rows[0].row_count, 7)
+      await assert.rejects(admin.query('DELETE FROM autoget_marketing.delivered_items'), /permission denied/)
+      await admin.query('RESET ROLE')
+      await admin.query('CREATE ROLE marketing_test_browser NOLOGIN')
+      await admin.query('SET ROLE marketing_test_browser')
+      await assert.rejects(admin.query('SELECT * FROM marketing.source_items'), /permission denied/)
+      await admin.query('RESET ROLE')
+      await admin.query('DROP ROLE marketing_test_browser')
+    } finally {
+      await admin.query('RESET ROLE')
+      admin.release()
+    }
   },
 )

@@ -59,7 +59,7 @@ export function createApp(cfg, db, erp, meta) {
       error:
         status < 500
           ? err.message
-          : 'Service indisponible. Vérifiez la configuration serveur, la connexion Neon et la vue ERP.',
+          : 'Service indisponible. Vérifiez la configuration serveur, la connexion Supabase et la synchronisation.',
     })
   })
   return app
@@ -79,6 +79,6 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       controller.abort()
       await new Promise((resolve) => server.close(resolve))
       await worker
-      await Promise.all([db.end(), erp.end()])
+      await db.end()
     })
 }

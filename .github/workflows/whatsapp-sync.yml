@@ -1,0 +1,29 @@
+name: WhatsApp ERP snapshot
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 2 * * *'
+permissions:
+  contents: read
+concurrency:
+  group: whatsapp-erp-snapshot
+  cancel-in-progress: false
+jobs:
+  sync:
+    # Enable ONLY after a test on an isolated ERP copy and capacity review.
+    if: vars.MARKETING_SYNC_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --ignore-scripts
+      - name: Read ERP once and atomically refresh Supabase
+        run: node server/marketing/sync-cli.js
+        env:
+          MARKETING_SYNC_ENABLED: 'true'
+          MARKETING_DATABASE_URL: ${{ secrets.MARKETING_DATABASE_URL }}
+          NEON_ERP_DATABASE_URL: ${{ secrets.NEON_ERP_DATABASE_URL }}
+          WHATSAPP_DEFAULT_COUNTRY: DZ
