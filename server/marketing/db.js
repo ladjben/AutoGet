@@ -1,11 +1,12 @@
 import pg from 'pg'
+import { postgresOptions } from './tls.js'
 import { buildAudience } from './domain.js'
 
 export function databases(cfg) {
   // The web server deliberately has no ERP pool or ERP credentials.
   return {
     db: new pg.Pool({
-      connectionString: cfg.env.MARKETING_DATABASE_URL,
+      ...postgresOptions(cfg.env.MARKETING_DATABASE_URL, cfg.env.MARKETING_DATABASE_CA_CERT),
       max: 3,
       connectionTimeoutMillis: 10000,
       idleTimeoutMillis: 5000,

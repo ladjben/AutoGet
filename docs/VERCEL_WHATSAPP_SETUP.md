@@ -115,3 +115,21 @@ La livraison d’une commande ne prouve pas le consentement marketing. Importer 
 - Limite ou délai dépassé : aucun import partiel publié, conserver l’ancienne copie ; ne pas élargir les limites sans analyser la charge.
 
 Référence connexion : [Supabase — modes PostgreSQL](https://supabase.com/docs/guides/database/connecting-to-postgres).
+
+## Mise à jour des campagnes de 60 000 contacts
+
+Pour une base marketing déjà installée, exécuter **uniquement** `sql/whatsapp-throughput.sql` sur Supabase avant de déployer cette version. Ce fichier ajoute une date de pause pour les limites Meta et un index de file ordonné ; il ne touche pas Neon. L’installateur neuf comprend déjà la colonne.
+
+La préparation accepte 60 000 contacts éligibles et insère les messages par blocs de 500 dans une seule transaction. Le worker garde une seule connexion coordinatrice Supabase et jusqu’à 20 requêtes Meta simultanées. Chaque départ est espacé selon `WHATSAPP_MESSAGES_PER_SECOND` (1 au départ, jusqu’à 20 après vérification et tests). Un seul coordinateur peut envoyer par base ; les autres invocations quittent le traitement. Avant chaque tentative, la requête vérifie consentement, exclusions, pause de campagne et fraîcheur de la copie. Les tentatives déjà prises en charge peuvent finir après une pause.
+
+Un refus de débit Meta 130429/HTTP 429 inscrit une pause de 30 secondes partagée en base. Les requêtes déjà parties finissent ; les tentatives incertaines ne sont pas renvoyées automatiquement. Le traitement attend la fin des requêtes engagées avant de libérer le verrou. Si Vercel interrompt la fonction, les tentatives non confirmées restent à vérifier.
+
+Chaque passage démarre des tentatives pendant 240 secondes maximum puis laisse finir les requêtes en cours, sous la limite de fonction de 300 secondes. Avec un réveil GitHub toutes les cinq minutes, il reste des pauses et d’éventuels retards. À 20 départs/seconde réellement atteints, 60 000 messages représenteraient 50 minutes actives, environ 65 minutes avec ces pauses régulières ; la latence Supabase/Meta, les erreurs et les restrictions peuvent allonger cette durée. Ce n’est pas un délai garanti. La limite de 100 000 destinataires/24 h déclarée par le propriétaire n’est pas un débit et peut être partagée avec ses autres usages Meta.
+
+La copie ERP reste plafonnée à **100 000 lignes d’articles**, ce qui peut représenter moins de 60 000 clients distincts. Cette mise à jour n’augmente pas la charge autorisée sur l’ERP. Mesurer la couverture lors de l’import ; si les limites sont dépassées, adapter séparément l’import après contrôle sur une copie/réplique. Ne pas promettre 60 000 contacts éligibles à partir du seul volume brut ERP.
+
+Validation locale : préparation d’une campagne de 60 000 contacts fictifs, concurrence d’envois simulés, contrôle des espacements, absence de doublons entre coordinateurs, pause et refus de débit persistants. Aucun test de charge ni envoi réel sur les comptes du propriétaire.
+
+### Certificat Supabase pour le serveur
+
+La connexion TablePlus a nécessité le certificat CA téléchargé dans Supabase. Pour le serveur aussi, ajouter `MARKETING_DATABASE_CA_CERT` dans Vercel avec le contenu PEM complet du fichier, lignes BEGIN/END incluses. Le programme accepte les vrais retours à la ligne ou `\n`. Conserver `sslmode=verify-full` dans l’URL ; le code conserve la CA et la vérification TLS malgré les options de l’URL. Le chemin local du certificat TablePlus ne peut pas être utilisé sur Vercel. Ajouter la même variable comme secret du workflow d’import GitHub. Ce certificat CA est public, contrairement au mot de passe et à la chaîne de connexion complète.

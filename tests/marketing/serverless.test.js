@@ -90,3 +90,14 @@ test('Supabase session connections accepted; transaction pooling rejected', asyn
   assert.doesNotThrow(() => validateMarketingConnection('postgresql://user:pass@db.test.supabase.co:5432/postgres'))
   assert.throws(() => validateMarketingConnection('postgresql://user:pass@aws-0-test.pooler.supabase.com:6543/postgres'))
 })
+
+test('Supabase CA is preserved despite sslmode in the URL; verification remains enabled', async () => {
+  const { postgresOptions } = await import('../../server/marketing/tls.js')
+  const { default: pg } = await import('pg')
+  const ca = '-----BEGIN CERTIFICATE-----\nTEST FIXTURE\n-----END CERTIFICATE-----'
+  const options = postgresOptions('postgresql://test:pass@localhost/postgres?sslmode=verify-full',ca)
+  const client = new pg.Client(options)
+  assert.equal(client.connectionParameters.ssl.ca,ca)
+  assert.equal(client.connectionParameters.ssl.rejectUnauthorized,true)
+  assert.throws(() => postgresOptions('postgresql://test:pass@localhost/postgres','not a certificate'))
+})

@@ -1,4 +1,5 @@
 import pg from 'pg'
+import { postgresOptions } from './tls.js'
 import { validateMarketingConnection } from './config.js'
 import { syncAudience } from './sync.js'
 
@@ -10,7 +11,7 @@ try {
   if (!['postgres:', 'postgresql:'].includes(sourceUrl.protocol)) throw new Error('INVALID_SOURCE')
   // Keep ERP credentials exclusively in this import process, never on Vercel.
   const common = { max: 1, connectionTimeoutMillis: 5000, idleTimeoutMillis: 1000 }
-  db = new pg.Pool({ ...common, connectionString: process.env.MARKETING_DATABASE_URL })
+  db = new pg.Pool({ ...common, ...postgresOptions(process.env.MARKETING_DATABASE_URL, process.env.MARKETING_DATABASE_CA_CERT) })
   erp = new pg.Pool({ ...common, connectionString: sourceUrl.href,
     application_name: 'autoget_marketing_readonly_sync' })
   console.log(JSON.stringify(await syncAudience(db, erp, {

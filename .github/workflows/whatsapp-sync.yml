@@ -25,5 +25,6 @@ jobs:
         env:
           MARKETING_SYNC_ENABLED: 'true'
           MARKETING_DATABASE_URL: ${{ secrets.MARKETING_DATABASE_URL }}
+          MARKETING_DATABASE_CA_CERT: ${{ secrets.MARKETING_DATABASE_CA_CERT }}
           NEON_ERP_DATABASE_URL: ${{ secrets.NEON_ERP_DATABASE_URL }}
           WHATSAPP_DEFAULT_COUNTRY: DZ

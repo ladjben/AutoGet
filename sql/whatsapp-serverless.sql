@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS marketing.worker_health (
   last_started_at timestamptz,
   last_finished_at timestamptz,
   last_processed integer NOT NULL DEFAULT 0,
+  rate_limit_until timestamptz,
   last_error text
 );
 CREATE TABLE IF NOT EXISTS marketing.login_limits (

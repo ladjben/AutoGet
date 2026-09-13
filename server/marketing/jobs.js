@@ -1,5 +1,5 @@
 import { safeEqual } from './auth.js'
-import { workOnce } from './worker.js'
+import { dispatchBatch } from './worker.js'
 
 import { sendingEnabled } from './sending.js'
 
@@ -8,15 +8,16 @@ export async function runBatch(
   erp,
   cfg,
   meta,
-  { budgetMs = 150000, now = Date.now, step = workOnce } = {},
+  { budgetMs = 240000, now = Date.now, step } = {},
 ) {
+  if (!step) return dispatchBatch(db, cfg, meta, { budgetMs, now })
   const deadline = now() + budgetMs
   let processed = 0
   // Reserve enough time for Supabase checks, Meta timeout and DB writes.
   while (now() < deadline) {
     const result = await step(db, erp, cfg, meta)
     if (!result?.processed) break
-    processed++
+    processed += Number(result.processed)
   }
   return { processed }
 }

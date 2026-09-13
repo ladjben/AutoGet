@@ -32,6 +32,7 @@ export function config(env = process.env) {
     env,
     origin,
     interval: Math.ceil(1000 / rps),
+    concurrency: 20,
     country: env.WHATSAPP_DEFAULT_COUNTRY || 'DZ',
     port: Number(env.MARKETING_PORT || 3001),
     secure: env.NODE_ENV === 'production',

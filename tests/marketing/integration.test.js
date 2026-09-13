@@ -6,7 +6,7 @@ import { randomUUID, scryptSync, createHmac } from 'node:crypto'
 import { createApp } from '../../server/marketing/index.js'
 import { syncAudience } from '../../server/marketing/sync.js'
 import { audience as cachedAudience, contactEligibility } from '../../server/marketing/db.js'
-import { workOnce } from '../../server/marketing/worker.js'
+import { dispatchBatch, workOnce } from '../../server/marketing/worker.js'
 
 // Dedicated disposable database ONLY: the suite truncates its marketing tables.
 const url = process.env.MARKETING_TEST_DATABASE_URL
@@ -50,6 +50,7 @@ test(
       `INSERT INTO autoget_marketing.delivered_items VALUES ('o1','2026-09-01','livré','0551234567','Amine','p1','Sneakers','Noir','42','Alger',true),('o2','2026-09-02','delivered','+213551234567','Amine','p2','Runner','Blanc','43','Alger',true),('o3','2026-09-02','pending','0661234567','Exclu','p1','Sneakers','Noir','42','Alger',true)`,
     )
     await db.query(await readFile(new URL('../../sql/whatsapp-supabase-sync.sql', import.meta.url), 'utf8'))
+    await db.query(await readFile(new URL('../../sql/whatsapp-throughput.sql', import.meta.url), 'utf8'))
     await db.query('TRUNCATE marketing.source_items,marketing.sync_state')
     await syncAudience(db, db, { query: "SELECT * FROM autoget_marketing.delivered_items WHERE status IN ('livré','delivered')", pauseMs: 0 })
     await db.query("INSERT INTO marketing.consents(phone,opted_in,evidence,captured_at) VALUES('+213551234567',true,'Consentement de test',now())")
@@ -252,6 +253,7 @@ test(
       'UPDATE marketing.recipients SET next_attempt_at=now() WHERE campaign_id=$1',
       [second.id],
     )
+    await db.query('UPDATE marketing.worker_health SET rate_limit_until=NULL')
     mode = 'unknown'
     await workOnce(db, db, cfg, meta)
     await req(`/api/marketing/campaigns/${second.id}/retry`, {})
@@ -343,6 +345,56 @@ test(
     )
     assert.equal(limited.status, 429)
     await new Promise((resolve) => other.close(resolve))
+    await t.test('60 000 contacts : préparation réelle par blocs et envois concurrents cadencés', async () => {
+      await db.query("UPDATE marketing.campaigns SET state='paused'")
+      await db.query('TRUNCATE marketing.source_items,marketing.consents,marketing.suppressions')
+      await db.query(`INSERT INTO marketing.source_items(phone,data)
+        SELECT '+21355'||lpad(i::text,7,'0'),jsonb_build_object(
+          'order_id','bulk-'||i,'ordered_at','2026-09-01','status','delivered',
+          'phone','+21355'||lpad(i::text,7,'0'),'customer_name','Client fictif '||i,
+          'product_id','p1','product_name','Sneakers','variant','Noir','size','42',
+          'marketing_opt_in',false)
+        FROM generate_series(1,60000) i`)
+      await db.query("INSERT INTO marketing.consents(phone,opted_in,evidence,captured_at) SELECT phone,true,'Test fictif local',now() FROM marketing.source_items")
+      await db.query('UPDATE marketing.sync_state SET completed_at=now()')
+      const created = await req('/api/marketing/campaigns', prepare())
+      assert.equal(created.status, 201)
+      const large = await created.json()
+      assert.equal((await db.query('SELECT count(*)::int n FROM marketing.recipients WHERE campaign_id=$1',[large.id])).rows[0].n, 60000)
+      await db.query("UPDATE marketing.campaigns SET state='running' WHERE id=$1",[large.id])
+      let inFlight = 0, peak = 0
+      const starts = [], ids = new Set()
+      const fastCfg = { ...cfg, interval: 20, concurrency: 3, env: { ...cfg.env, WHATSAPP_SENDING_ENABLED: 'true', VERCEL: '' } }
+      const simulated = { send: async (_phone,_payload,id) => {
+        assert.ok(!ids.has(id),'recipient never dispatched twice')
+        ids.add(id)
+        starts.push(Date.now())
+        peak = Math.max(peak,++inFlight)
+        await new Promise(resolve => setTimeout(resolve,80))
+        inFlight--
+        return { messages: [{ id:'bulk.'+id }] }
+      } }
+      const batches = await Promise.all([
+        dispatchBatch(db,fastCfg,simulated,{maxMessages:12}),
+        dispatchBatch(db,fastCfg,simulated,{maxMessages:12}),
+      ])
+      assert.equal(batches.reduce((sum,b) => sum+b.processed,0),12)
+      assert.equal(ids.size,12)
+      assert.ok(peak>1 && peak<=3,'overlapping HTTP requests respect concurrency cap')
+      assert.equal(inFlight,0,'all requests settled before returning')
+      for(let i=1;i<starts.length;i++) assert.ok(starts[i]-starts[i-1]>=18,'actual request starts paced')
+      assert.equal((await db.query("SELECT count(*)::int n FROM marketing.recipients WHERE campaign_id=$1 AND status='sent'",[large.id])).rows[0].n,12)
+      await db.query("UPDATE marketing.campaigns SET state='paused' WHERE id=$1",[large.id])
+      assert.equal((await dispatchBatch(db,fastCfg,simulated,{maxMessages:12})).processed,0)
+      await db.query("UPDATE marketing.campaigns SET state='running' WHERE id=$1",[large.id])
+      let rateCalls=0
+      const throttled = { send:async () => { rateCalls++; throw Object.assign(new Error('test'),{code:'130429',retryable:true}) } }
+      const serialCfg = { ...fastCfg, concurrency:1 }
+      assert.equal((await dispatchBatch(db,serialCfg,throttled)).processed,1)
+      assert.equal((await dispatchBatch(db,serialCfg,throttled)).processed,0,'cooldown persists across invocations')
+      assert.equal(rateCalls,1)
+      await db.query("UPDATE marketing.campaigns SET state='paused' WHERE id=$1",[large.id])
+    })
     // Fresh installer and privileges are checked only in this disposable test DB.
     const installer = await readFile(new URL('../../sql/whatsapp-supabase-install.sql', import.meta.url), 'utf8')
     const admin = await db.connect()

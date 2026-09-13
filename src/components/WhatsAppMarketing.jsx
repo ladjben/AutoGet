@@ -398,6 +398,9 @@ export default function WhatsAppMarketing() {
                 : 'L’envoi automatique attend sa configuration dans GitHub.'}
             </span>
           )}
+          {service.worker?.rate_limit_until && new Date(service.worker.rate_limit_until) > new Date() && (
+            <span className="ml-2">Pause temporaire demandée par Meta ; reprise lors d’un prochain passage automatique.</span>
+          )}
           {service.worker?.last_error && (
             <span className="ml-2 text-destructive">
               Le dernier passage a échoué : consultez le workflow GitHub.

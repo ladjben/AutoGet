@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS marketing.recipients (
  updated_at timestamptz NOT NULL DEFAULT now(),
  UNIQUE(campaign_id, phone)
 );
-CREATE INDEX IF NOT EXISTS marketing_queue ON marketing.recipients(next_attempt_at) WHERE status = 'queued';
+CREATE INDEX IF NOT EXISTS marketing_queue_ordered ON marketing.recipients(next_attempt_at,id) WHERE status = 'queued';
 CREATE TABLE IF NOT EXISTS marketing.events (
  id bigserial PRIMARY KEY,
  recipient_id uuid REFERENCES marketing.recipients(id),
@@ -63,6 +63,7 @@ CREATE TABLE IF NOT EXISTS marketing.worker_health (
   last_started_at timestamptz,
   last_finished_at timestamptz,
   last_processed integer NOT NULL DEFAULT 0,
+  rate_limit_until timestamptz,
   last_error text
 );
 CREATE TABLE IF NOT EXISTS marketing.login_limits (

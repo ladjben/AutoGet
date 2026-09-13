@@ -142,7 +142,7 @@ export function installApi(app, db, erp, cfg, meta) {
       !selection ||
       !['all', 'explicit'].includes(selection.mode) ||
       !Array.isArray(selection.phones) ||
-      selection.phones.length > 10000 ||
+      selection.phones.length > 60000 ||
       selection.phones.some((p) => typeof p !== 'string')
     )
       fail('Sélection invalide.')
@@ -155,8 +155,8 @@ export function installApi(app, db, erp, cfg, meta) {
           ? !selected.has(c.phone)
           : selected.has(c.phone)),
     )
-    if (!recipients.length || recipients.length > 10000)
-      fail('Sélectionnez entre 1 et 10 000 contacts éligibles.')
+    if (!recipients.length || recipients.length > 60000)
+      fail('Sélectionnez entre 1 et 60 000 contacts éligibles.')
     const template = (await meta.templates()).find(
       (t) => t.id === templateId && t.status === 'APPROVED',
     )
@@ -165,7 +165,8 @@ export function installApi(app, db, erp, cfg, meta) {
     let messages
     try {
       messages = recipients.map((c) => ({
-        ...c,
+        name: c.name,
+        phone: c.phone,
         payload: renderTemplate(template, bindings, c),
       }))
     } catch (e) {
@@ -184,20 +185,22 @@ export function installApi(app, db, erp, cfg, meta) {
             [requestKey],
           )
         ).rows[0].id
-      await client.query(
-        `INSERT INTO marketing.recipients(id,campaign_id,phone,customer_name,payload) SELECT x.id,$1,x.phone,x.name,x.payload FROM jsonb_to_recordset($2::jsonb) AS x(id uuid,phone text,name text,payload jsonb)`,
-        [
-          id,
-          JSON.stringify(
-            messages.map((c) => ({
-              id: randomUUID(),
-              phone: c.phone,
-              name: c.name,
-              payload: c.payload,
-            })),
-          ),
-        ],
-      )
+      for (let offset = 0; offset < messages.length; offset += 500) {
+        await client.query(
+          `INSERT INTO marketing.recipients(id,campaign_id,phone,customer_name,payload) SELECT x.id,$1,x.phone,x.name,x.payload FROM jsonb_to_recordset($2::jsonb) AS x(id uuid,phone text,name text,payload jsonb)`,
+          [
+            id,
+            JSON.stringify(
+              messages.slice(offset, offset + 500).map((c) => ({
+                id: randomUUID(),
+                phone: c.phone,
+                name: c.name,
+                payload: c.payload,
+              })),
+            ),
+          ],
+        )
+      }
       return id
     })
     res.status(201).json({ id })
