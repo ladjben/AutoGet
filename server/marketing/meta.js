@@ -8,16 +8,17 @@ export class MetaError extends Error {
 }
 export function metaClient(cfg, fetcher = fetch) {
   const base = `https://graph.facebook.com/${cfg.env.WHATSAPP_GRAPH_VERSION}/`
-  async function request(path, body) {
+  async function request(path, body, mime) {
     let res
     try {
       res = await fetcher(base + path, {
         method: body ? 'POST' : 'GET',
         headers: {
-          Authorization: `Bearer ${cfg.env.WHATSAPP_ACCESS_TOKEN}`,
-          'Content-Type': 'application/json',
+          Authorization: `${mime ? 'OAuth' : 'Bearer'} ${cfg.env.WHATSAPP_ACCESS_TOKEN}`,
+          'Content-Type': mime || 'application/json',
+          ...(mime ? { file_offset: '0' } : {}),
         },
-        ...(body ? { body: JSON.stringify(body) } : {}),
+        ...(body ? { body: mime ? body : JSON.stringify(body) } : {}),
         signal: AbortSignal.timeout(20000),
       })
     } catch {
@@ -56,6 +57,14 @@ export function metaClient(cfg, fetcher = fetch) {
         seen.add(after)
       } while (after)
       return all
+    },
+    async uploadTemplateImage(bytes, mime) {
+      const session = await request(`app/uploads?file_length=${bytes.length}&file_type=${encodeURIComponent(mime)}`, {})
+      if (typeof session.id !== 'string' || !session.id.startsWith('upload:'))
+        throw new MetaError('UPLOAD_SESSION_INVALID')
+      const uploaded = await request(session.id, bytes, mime)
+      if (typeof uploaded.h !== 'string' || !uploaded.h) throw new MetaError('UPLOAD_HANDLE_MISSING')
+      return uploaded.h
     },
     createTemplate: (body) =>
       request(

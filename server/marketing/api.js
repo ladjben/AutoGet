@@ -1,3 +1,4 @@
+import { createMarketingTemplate } from './template-create.js'
 import { sendingEnabled } from './sending.js'
 import { isDeepStrictEqual } from 'node:util'
 import { randomUUID } from 'node:crypto'
@@ -85,38 +86,7 @@ export function installApi(app, db, erp, cfg, meta) {
     )
   })
   app.post('/api/marketing/templates', async (req, res) => {
-    const { name, language, body, examples = [] } = req.body
-    if (
-      !/^[a-z][a-z0-9_]{0,511}$/.test(name || '') ||
-      !/^[a-z]{2,3}(?:_[A-Z]{2})?$/.test(language || '') ||
-      typeof body !== 'string' ||
-      !body.trim() ||
-      body.length > 1024
-    )
-      fail('Nom, langue ou texte du modèle invalide.')
-    const t = { components: [{ type: 'BODY', text: body }] }
-    let fields
-    try {
-      fields = templateFields(t)
-    } catch (e) {
-      fail(e.message)
-    }
-    if (
-      !Array.isArray(examples) ||
-      examples.length !== fields.length ||
-      examples.some((v) => typeof v !== 'string' || !v.trim() || v.length > 200)
-    )
-      fail('Renseignez un exemple pour chaque variable {{1}}, {{2}}…')
-    if (fields.length) t.components[0].example = { body_text: [examples] }
-    res.status(201).json(
-      await meta.createTemplate({
-        name,
-        language,
-        category: 'MARKETING',
-        parameter_format: 'POSITIONAL',
-        components: t.components,
-      }),
-    )
+    res.status(201).json(await createMarketingTemplate(req.body, meta))
   })
   app.post('/api/marketing/campaigns', async (req, res) => {
     const { requestKey, name, templateId, bindings, selection } = req.body

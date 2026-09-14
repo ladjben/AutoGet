@@ -169,7 +169,7 @@ export default function WhatsAppMarketing() {
       name: '',
       language: 'fr',
       body: '',
-      examples: '',
+      examples: '', image: null, buttonText: '', buttonUrl: '',
     })
   const [requestKey, setRequestKey] = useState(() => crypto.randomUUID())
   const template = templates.find((t) => t.id === templateId)
@@ -1171,7 +1171,7 @@ export default function WhatsAppMarketing() {
         </DialogContent>
       </Dialog>
       <Dialog open={creator} onOpenChange={setCreator}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Nouveau modèle marketing</DialogTitle>
             <DialogDescription>
@@ -1200,6 +1200,34 @@ export default function WhatsAppMarketing() {
               <option value="en_US">Anglais (US)</option>
             </Select>
           </Field>
+          <Field label="Image du modèle (facultatif)">
+            <Input type="file" accept="image/jpeg,image/png" disabled={busy}
+              onChange={async (e) => {
+                const file = e.target.files?.[0]
+                if (!file) return
+                if (!['image/jpeg', 'image/png'].includes(file.type) || file.size > 1024 * 1024) {
+                  setError('Choisissez une image JPEG ou PNG de 1 Mo maximum.')
+                  e.target.value = ''
+                  return
+                }
+                try {
+                  const data = await new Promise((resolve, reject) => {
+                    const reader = new FileReader()
+                    reader.onload = () => resolve(String(reader.result).split(',')[1])
+                    reader.onerror = () => reject(new Error('Impossible de lire cette image.'))
+                    reader.readAsDataURL(file)
+                  })
+                  setNewTemplate((t) => ({ ...t, image: { type: file.type, data } }))
+                  setError('')
+                } catch (error) { setError(error.message) }
+              }} />
+            <p className="mt-1 text-xs text-muted-foreground">JPEG ou PNG · 1 Mo maximum · envoyée à Meta avec le modèle pour validation.</p>
+            {newTemplate.image && <div className="mt-2">
+              <img src={`data:${newTemplate.image.type};base64,${newTemplate.image.data}`} alt="Image choisie"
+                className="max-h-48 w-full rounded-lg object-contain" />
+              <Button variant="ghost" disabled={busy} onClick={() => setNewTemplate((t) => ({ ...t, image: null }))}>Retirer l’image</Button>
+            </div>}
+          </Field>
           <Field label="Message · variables {{1}}, {{2}}…">
             <textarea
               className="min-h-36 w-full rounded-md border bg-background p-3 text-sm text-foreground"
@@ -1221,6 +1249,21 @@ export default function WhatsAppMarketing() {
               placeholder="Amine"
             />
           </Field>
+          <div className="space-y-3 rounded-xl border p-4">
+            <p className="text-sm font-medium">Bouton avec lien (facultatif)</p>
+            <Field label="Texte du bouton">
+              <Input maxLength={25} placeholder="Voir la collection" value={newTemplate.buttonText || ''}
+                onChange={(e) => setNewTemplate((t) => ({ ...t, buttonText: e.target.value }))} />
+            </Field>
+            <Field label="Adresse du site à ouvrir">
+              <Input type="url" placeholder="https://votre-site.com/collection" value={newTemplate.buttonUrl || ''}
+                onChange={(e) => setNewTemplate((t) => ({ ...t, buttonUrl: e.target.value }))} />
+            </Field>
+            {newTemplate.buttonText && <div className="rounded-lg bg-muted p-3 text-center text-sm">
+              <p className="font-medium text-sky-600">{newTemplate.buttonText}</p>
+              <p className="break-all text-xs text-muted-foreground">{newTemplate.buttonUrl}</p>
+            </div>}
+          </div>
           <Button
             disabled={busy}
             onClick={() =>
@@ -1236,7 +1279,7 @@ export default function WhatsAppMarketing() {
                   name: '',
                   language: 'fr',
                   body: '',
-                  examples: '',
+                  examples: '', image: null, buttonText: '', buttonUrl: '',
                 })
                 setRefresh((v) => v + 1)
               })
