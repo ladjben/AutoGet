@@ -51,6 +51,8 @@ test(
     )
     await db.query(await readFile(new URL('../../sql/whatsapp-supabase-sync.sql', import.meta.url), 'utf8'))
     await db.query(await readFile(new URL('../../sql/whatsapp-throughput.sql', import.meta.url), 'utf8'))
+    await db.query(await readFile(new URL('../../sql/whatsapp-analytics.sql', import.meta.url), 'utf8'))
+    await db.query(await readFile(new URL('../../sql/whatsapp-analytics.sql', import.meta.url), 'utf8'))
     await db.query('TRUNCATE marketing.source_items,marketing.sync_state')
     await syncAudience(db, db, { query: "SELECT * FROM autoget_marketing.delivered_items WHERE status IN ('livré','delivered')", pauseMs: 0 })
     await db.query("INSERT INTO marketing.consents(phone,opted_in,evidence,captured_at) VALUES('+213551234567',true,'Consentement de test',now())")
@@ -195,6 +197,7 @@ test(
                       id: recipient.message_id,
                       status,
                       timestamp: '1000',
+                      pricing: { billable: true, category: 'marketing', pricing_model: 'PMP' },
                       biz_opaque_callback_data: recipient.id,
                     },
                   ],
@@ -233,6 +236,18 @@ test(
         .rowCount,
       1,
     )
+    const costsUrl = `/api/marketing/campaigns/${a.id}/costs`
+    assert.equal((await req(costsUrl, { currency: 'EUR', rates: [{ country: 'DZ', category: 'marketing', unit: 0.05 }] })).status, 200)
+    const analytics = await (await req(`/api/marketing/campaigns/${a.id}/analytics`)).json()
+    assert.equal(analytics.summary.estimatedTotal, 0.05)
+    assert.equal(analytics.summary.delivered, 1)
+    assert.equal(analytics.summary.read, 1)
+    assert.equal(analytics.recipients[0].pricing.pricing_model, 'PMP')
+    assert.equal(analytics.recipients[0].read_at, '1970-01-01T00:16:40.000Z')
+    const csv = await req(`/api/marketing/campaigns/${a.id}/analytics?format=csv`)
+    assert.match(csv.headers.get('content-type'), /text\/csv/)
+    assert.match(await csv.text(), /0.05/)
+    assert.equal((await req(costsUrl, { currency: 'USD', rates: [] })).status, 400)
     const second = await (
       await req('/api/marketing/campaigns', prepare())
     ).json()
@@ -361,6 +376,11 @@ test(
       assert.equal(created.status, 201)
       const large = await created.json()
       assert.equal((await db.query('SELECT count(*)::int n FROM marketing.recipients WHERE campaign_id=$1',[large.id])).rows[0].n, 60000)
+      const largeReport = await (await req(`/api/marketing/campaigns/${large.id}/analytics?page=2`)).json()
+      assert.equal(largeReport.summary.total, 60000)
+      assert.equal(largeReport.recipients.length, 50)
+      assert.equal(largeReport.page, 2)
+      assert.equal(largeReport.summary.estimatedBudget, null)
       await db.query("UPDATE marketing.campaigns SET state='running' WHERE id=$1",[large.id])
       let inFlight = 0, peak = 0
       const starts = [], ids = new Set()

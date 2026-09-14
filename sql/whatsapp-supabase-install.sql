@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS marketing.campaigns (
  template jsonb NOT NULL,
  bindings jsonb NOT NULL,
  filters jsonb NOT NULL,
+ cost_config jsonb NOT NULL DEFAULT '{}',
  created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE TABLE IF NOT EXISTS marketing.recipients (
@@ -44,6 +45,8 @@ CREATE TABLE IF NOT EXISTS marketing.events (
  event_key text UNIQUE,
  kind text NOT NULL,
  code text,
+ occurred_at timestamptz,
+ pricing jsonb,
  created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE TABLE IF NOT EXISTS marketing.suppressions (

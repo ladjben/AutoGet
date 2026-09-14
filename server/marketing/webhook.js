@@ -10,6 +10,16 @@ export function verifySignature(body, signature, secret) {
     'sha256=' + createHmac('sha256', secret).update(body).digest('hex'),
   )
 }
+export function statusMetadata(status) {
+  const seconds = Number(status.timestamp)
+  const occurredAt = Number.isFinite(seconds) && seconds > 0 && seconds < Date.now() / 1000 + 86400
+    ? new Date(seconds * 1000).toISOString() : null
+  const pricing = {}
+  if (typeof status.pricing?.billable === 'boolean') pricing.billable = status.pricing.billable
+  for (const key of ['category','type','pricing_model'])
+    if (typeof status.pricing?.[key] === 'string' && /^[a-zA-Z0-9_]{1,64}$/.test(status.pricing[key])) pricing[key] = status.pricing[key]
+  return { occurredAt, pricing: Object.keys(pricing).length ? pricing : null }
+}
 export function installWebhook(app, db, cfg) {
   app.get('/api/whatsapp/webhook', (req, res) => {
     if (
@@ -100,9 +110,10 @@ export function installWebhook(app, db, cfg) {
               const code = status.errors?.[0]?.code
                 ? String(status.errors[0].code)
                 : null
+              const metadata = statusMetadata(status)
               const added = await client.query(
-                'INSERT INTO marketing.events(recipient_id,event_key,kind,code) VALUES($1,$2,$3,$4) ON CONFLICT(event_key) DO NOTHING RETURNING id',
-                [row.id, key, status.status, code],
+                'INSERT INTO marketing.events(recipient_id,event_key,kind,code,occurred_at,pricing) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(event_key) DO NOTHING RETURNING id',
+                [row.id, key, status.status, code, metadata.occurredAt, metadata.pricing],
               )
               if (!added.rowCount) continue
               const next = nextStatus(row.status, status.status)
