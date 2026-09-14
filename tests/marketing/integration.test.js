@@ -175,6 +175,7 @@ test(
       (await req(`/api/marketing/campaigns/${a.id}/start`, {})).status,
       200,
     )
+    assert.equal(sends, 1, 'start dispatches immediately without a scheduled worker')
     await Promise.all([
       workOnce(db, db, cfg, meta),
       workOnce(db, db, cfg, meta),
@@ -255,8 +256,8 @@ test(
     const second = await (
       await req('/api/marketing/campaigns', prepare())
     ).json()
-    await req(`/api/marketing/campaigns/${second.id}/start`, {})
     mode = 'transient'
+    await req(`/api/marketing/campaigns/${second.id}/start`, {})
     await workOnce(db, db, cfg, meta)
     recipient = (
       await db.query(
@@ -288,8 +289,8 @@ test(
     const third = await (
       await req('/api/marketing/campaigns', prepare())
     ).json()
-    await req(`/api/marketing/campaigns/${third.id}/start`, {})
     await db.query("UPDATE marketing.sync_state SET completed_at=now()-interval '49 hours'")
+    await req(`/api/marketing/campaigns/${third.id}/start`, {})
     const beforeStale = sends
     await workOnce(db, { query() { throw new Error('ERP accessed') } }, cfg, meta)
     assert.equal(sends, beforeStale, 'stale snapshot never sends')

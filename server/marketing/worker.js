@@ -4,7 +4,7 @@ import { sendingEnabled } from './sending.js'
 // One coordinator owns the DB session lock; HTTP requests overlap, SQL stays bounded
 // to one leased connection. This avoids multiplying Supabase connections by workers.
 export async function dispatchBatch(db, cfg, meta, {
-  budgetMs = 240000, maxMessages = Infinity, now = Date.now,
+  budgetMs = 240000, maxMessages = Infinity, now = Date.now, campaignId = null,
 } = {}) {
   if (!sendingEnabled(cfg)) return { processed: 0 }
   const client = await db.connect()
@@ -31,6 +31,7 @@ export async function dispatchBatch(db, cfg, meta, {
           AND NOT EXISTS(SELECT 1 FROM marketing.suppressions WHERE phone=r.phone) AS eligible
         FROM marketing.recipients r JOIN marketing.campaigns c ON c.id=r.campaign_id
         WHERE r.status='queued' AND r.next_attempt_at<=now() AND c.state='running'
+          AND ($1::uuid IS NULL OR c.id=$1)
           AND EXISTS(SELECT 1 FROM marketing.sync_state WHERE id=1 AND completed_at>now()-interval '48 hours')
           AND NOT EXISTS(SELECT 1 FROM marketing.worker_health WHERE id=1 AND rate_limit_until>now())
         ORDER BY r.next_attempt_at,r.id LIMIT 1 FOR UPDATE OF r SKIP LOCKED
@@ -44,7 +45,7 @@ export async function dispatchBatch(db, cfg, meta, {
       ), skipped_event AS (
         INSERT INTO marketing.events(recipient_id,kind,code)
         SELECT id,'skipped','NO_CURRENT_CONSENT' FROM claimed WHERE status='skipped'
-      ) SELECT * FROM claimed`)
+      ) SELECT * FROM claimed`, [campaignId])
       const row = claimed.rows[0]
       if (!row) break
       processed++
