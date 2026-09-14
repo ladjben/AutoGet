@@ -87,6 +87,7 @@ test(
       mode = 'success'
     const meta = {
       templates: async () => [template],
+      insights: async ({ start,end }) => ({ start,end, account: { currency: 'EUR' }, pricing: [], template: [], errors: {} }),
       send: async () => {
         sends++
         if (mode === 'transient')
@@ -236,6 +237,9 @@ test(
         .rowCount,
       1,
     )
+    const metaReport = await (await req(`/api/marketing/campaigns/${a.id}/meta-insights?start=1000&end=2000`)).json()
+    assert.equal(metaReport.account.currency, 'EUR')
+    assert.equal((await req(`/api/marketing/campaigns/${a.id}/meta-insights?start=1000&end=9999999`)).status, 400)
     const costsUrl = `/api/marketing/campaigns/${a.id}/costs`
     assert.equal((await req(costsUrl, { currency: 'EUR', rates: [{ country: 'DZ', category: 'marketing', unit: 0.05 }] })).status, 200)
     const analytics = await (await req(`/api/marketing/campaigns/${a.id}/analytics`)).json()

@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
+import MetaInsights from './MetaInsights'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 
 const names = { queued: 'En attente', sending: 'En cours', sent: 'Accepté par Meta', delivered: 'Livré', read: 'Lu', failed: 'Échec', unknown: 'À vérifier', skipped: 'Exclu' }
 const num = (v) => Number(v || 0).toLocaleString('fr-FR')
-const euro = (v) => v == null ? 'Non disponible' : Number(v).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 6 })
 const pct = (v) => v == null ? '—' : `${v.toFixed(1)} %`
 const date = (v) => v ? new Date(v).toLocaleString('fr-FR') : '—'
 const selectClass = 'rounded-md border bg-background p-2 text-sm'
@@ -21,7 +21,6 @@ export default function CampaignAnalytics({ campaignId, refreshKey }) {
   const [report, setReport] = useState(null), [error, setError] = useState(''), [tab, setTab] = useState('overview')
   const [page, setPage] = useState(1), [q, setQ] = useState(''), [search, setSearch] = useState(''), [status, setStatus] = useState('')
   const [revision, setRevision] = useState(0), [loading, setLoading] = useState(false), [saving, setSaving] = useState(false)
-  const [costs, setCosts] = useState({ currency: 'EUR', rates: [], actualTotal: '', note: '' }), [saved, setSaved] = useState(false)
   useEffect(() => {
     let active = true
     setLoading(true); setError('')
@@ -31,14 +30,6 @@ export default function CampaignAnalytics({ campaignId, refreshKey }) {
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
   }, [campaignId, refreshKey, revision, page, search, status])
-  useEffect(() => {
-    if (report) setCosts({ currency: 'EUR', rates: report.costConfig?.rates || [], actualTotal: report.costConfig?.actualTotal ?? '', note: report.costConfig?.note || '' })
-  }, [report])
-  async function save() {
-    setSaving(true); setError(''); setSaved(false)
-    try { await request(`/campaigns/${campaignId}/costs`, costs); setSaved(true); setRevision((v) => v + 1) }
-    catch (e) { setError(e.message) } finally { setSaving(false) }
-  }
   async function download() {
     setSaving(true); setError('')
     try {
@@ -51,7 +42,7 @@ export default function CampaignAnalytics({ campaignId, refreshKey }) {
   const s = report?.summary
   return <section className="space-y-4 rounded-xl border p-4">
     <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold">Résultats de la campagne</h3><Button variant="outline" size="sm" disabled={loading || saving} onClick={() => setRevision((v) => v + 1)}>Actualiser les statistiques</Button></div>
-    <div className="flex flex-wrap gap-2">{[['overview','Vue d’ensemble'],['costs','Coûts en euros'],['recipients','Destinataires']].map(([id,label]) => <Button key={id} size="sm" variant={tab === id ? 'default' : 'outline'} onClick={() => setTab(id)}>{label}</Button>)}</div>
+    <div className="flex flex-wrap gap-2">{[['overview','Vue d’ensemble'],['costs','Chiffres Meta'],['recipients','Destinataires']].map(([id,label]) => <Button key={id} size="sm" variant={tab === id ? 'default' : 'outline'} onClick={() => setTab(id)}>{label}</Button>)}</div>
     {error && <p role="alert" className="text-sm text-red-500">{error}</p>}
     {loading && <p className="text-sm text-muted-foreground">Mise à jour…</p>}
     {s && tab === 'overview' && <>
@@ -72,24 +63,11 @@ export default function CampaignAnalytics({ campaignId, refreshKey }) {
       <p className="rounded-lg bg-muted/30 p-3 text-xs text-muted-foreground">Clics sur les liens, commandes attribuées, chiffre d’affaires et rentabilité : non mesurés actuellement. Ils ne sont pas comptés comme zéro.</p>
       <details className="text-xs"><summary>Audience enregistrée</summary><pre className="overflow-auto whitespace-pre-wrap p-2">{JSON.stringify(report.filters, null, 2)}</pre></details>
     </>}
-    {s && tab === 'costs' && <>
-      <div className="grid grid-cols-2 gap-3"><Card label="Coût estimé des messages livrés" value={euro(s.estimatedTotal)} help={s.missingRates ? `${num(s.missingRates)} messages sans estimation` : 'Selon les tarifs renseignés ci-dessous'} /><Card label="Budget si tous les destinataires sont facturés" value={euro(s.estimatedBudget)} /><Card label="Coût estimé par message accepté" value={euro(s.costPerAccepted)} /><Card label="Coût estimé par message livré" value={euro(s.costPerDelivered)} /><Card label="Montant facturé saisi" value={euro(s.actualTotal)} help={s.costNote || 'Aucun montant de facture renseigné'} /><Card label="Sous-total estimable" value={euro(s.knownEstimate)} help="Peut être incomplet si des tarifs manquent" /></div>
-      <p className="text-xs text-muted-foreground">Parmi les livrés : {num(s.billable)} indiqués facturables par Meta, {num(s.free)} gratuits, {num(s.pricingUnknown)} sans indication. Pour ces derniers, le tarif est appliqué à titre d’hypothèse. Les anciens tarifs par conversation ne sont pas estimés au message.</p>
-      <h4 className="font-semibold text-sm">Tarifs par message livré (EUR)</h4><p className="text-xs text-muted-foreground">Renseignez votre tarif applicable. Aucun prix Meta n’est présumé. Modifier un tarif recalcule l’estimation de cette campagne.</p>
-      {costs.rates.map((r,i) => <div className="flex flex-wrap gap-2" key={i}>
-        <select aria-label={`Pays du tarif ${i+1}`} className={selectClass} value={r.country} onChange={(e) => setCosts({ ...costs, rates: costs.rates.map((x,j) => j === i ? { ...x, country: e.target.value } : x) })}><option value="*">Tous les pays (par défaut)</option>{[...new Set([...s.countries.map((c) => c.country).filter((c) => c !== '??'),r.country])].filter((c) => c !== '*').map((c) => <option key={c}>{c}</option>)}</select>
-        <select aria-label={`Catégorie du tarif ${i+1}`} className={selectClass} value={r.category} onChange={(e) => setCosts({ ...costs, rates: costs.rates.map((x,j) => j === i ? { ...x, category: e.target.value } : x) })}>{['marketing','utility','authentication','service'].map((c) => <option key={c}>{c}</option>)}</select>
-        <Input className="w-32" aria-label={`Prix en euros ${i+1}`} type="number" min="0" step="0.000001" value={r.unit} onChange={(e) => setCosts({ ...costs, rates: costs.rates.map((x,j) => j === i ? { ...x, unit: e.target.value } : x) })} /><Button variant="outline" size="sm" onClick={() => setCosts({ ...costs, rates: costs.rates.filter((_,j) => j !== i) })}>Retirer</Button>
-      </div>)}
-      <Button variant="outline" size="sm" onClick={() => setCosts({ ...costs, rates: [...costs.rates, { country: '*', category: 'marketing', unit: '' }] })}>Ajouter un tarif</Button>
-      <label className="block text-sm">Montant réellement facturé pour cette campagne (facultatif)<Input type="number" min="0" step="0.000001" value={costs.actualTotal} onChange={(e) => setCosts({ ...costs, actualTotal: e.target.value })} /></label>
-      <label className="block text-sm">Source du montant (facture, période, méthode d’affectation)<Input maxLength={500} value={costs.note} onChange={(e) => setCosts({ ...costs, note: e.target.value })} /></label>
-      <Button disabled={saving || loading} onClick={save}>Enregistrer les coûts</Button>{saved && <p role="status" className="text-xs text-emerald-500">Coûts enregistrés.</p>}
-    </>}
+    {tab === 'costs' && <MetaInsights campaignId={campaignId} />}
     {s && tab === 'recipients' && <>
       <form className="flex flex-wrap gap-2" onSubmit={(e) => { e.preventDefault(); setPage(1); setSearch(q) }}><Input className="w-56" aria-label="Rechercher un destinataire" placeholder="Nom, téléphone ou erreur" value={q} onChange={(e) => setQ(e.target.value)} /><select aria-label="Statut du destinataire" className={selectClass} value={status} onChange={(e) => { setStatus(e.target.value); setPage(1) }}><option value="">Tous les statuts</option>{Object.entries(names).map(([id,label]) => <option value={id} key={id}>{label}</option>)}</select><Button size="sm">Rechercher</Button><Button type="button" variant="outline" size="sm" disabled={saving} onClick={download}>Exporter les résultats (CSV)</Button></form>
       <p className="text-xs">{num(report.filteredTotal)} destinataires · Dates affichées dans votre fuseau horaire</p>
-      <div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead><tr>{['Destinataire','Statut / tentatives','Accepté / envoyé / livré / lu','Coût estimé','Détails Meta'].map((v) => <th key={v} className="p-2">{v}</th>)}</tr></thead><tbody>{report.recipients.map((r) => <tr className="border-t align-top" key={r.id}><td className="p-2">{r.customer_name}<br />{r.phone}<br />{r.country}</td><td className="p-2">{names[r.status]}<br />{r.attempts} tentative(s){r.error_code && <p className="text-red-500">{r.error_code}</p>}</td><td className="p-2 whitespace-nowrap">{date(r.accepted_at)}<br />{date(r.sent_at)}<br />{date(r.delivered_at)}<br />{date(r.read_at)}</td><td className="p-2">{r.delivered ? euro(r.estimatedCost) : 'Pas de livraison confirmée'}<br /><span className="text-muted-foreground">{r.billable === false ? 'Gratuit selon Meta' : r.billable === true ? 'Facturable selon Meta' : 'Facturation non confirmée'}</span></td><td className="p-2 max-w-48 break-all">{r.message_id || '—'}<br />{r.pricing?.category} {r.pricing?.pricing_model}<br />{r.pricing?.type}</td></tr>)}</tbody></table></div>
+      <div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead><tr>{['Destinataire','Statut / tentatives','Accepté / envoyé / livré / lu','Facturation','Détails Meta'].map((v) => <th key={v} className="p-2">{v}</th>)}</tr></thead><tbody>{report.recipients.map((r) => <tr className="border-t align-top" key={r.id}><td className="p-2">{r.customer_name}<br />{r.phone}<br />{r.country}</td><td className="p-2">{names[r.status]}<br />{r.attempts} tentative(s){r.error_code && <p className="text-red-500">{r.error_code}</p>}</td><td className="p-2 whitespace-nowrap">{date(r.accepted_at)}<br />{date(r.sent_at)}<br />{date(r.delivered_at)}<br />{date(r.read_at)}</td><td className="p-2">{'Voir les chiffres agrégés Meta'}<br /><span className="text-muted-foreground">{r.billable === false ? 'Gratuit selon Meta' : r.billable === true ? 'Facturable selon Meta' : 'Facturation non confirmée'}</span></td><td className="p-2 max-w-48 break-all">{r.message_id || '—'}<br />{r.pricing?.category} {r.pricing?.pricing_model}<br />{r.pricing?.type}</td></tr>)}</tbody></table></div>
       <div className="flex items-center justify-between"><Button size="sm" variant="outline" disabled={loading || page <= 1} onClick={() => setPage(page-1)}>Précédent</Button><span className="text-xs">Page {page}</span><Button size="sm" variant="outline" disabled={loading || page*50 >= report.filteredTotal} onClick={() => setPage(page+1)}>Suivant</Button></div>
     </>}
   </section>

@@ -42,6 +42,37 @@ export function metaClient(cfg, fetcher = fetch) {
     return data
   }
   return {
+    async insights({ start, end, templateId }) {
+      if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end <= start || end-start > 31*86400)
+        throw new MetaError('INVALID_PERIOD')
+      async function pages(edge, params) {
+        const all = [], seen = new Set()
+        let after = ''
+        do {
+          const query = new URLSearchParams({ ...params, ...(after ? { after } : {}) })
+          const page = await request(`${cfg.env.WHATSAPP_BUSINESS_ACCOUNT_ID}/${edge}?${query}`)
+          if (!Array.isArray(page.data)) throw new MetaError('INVALID_ANALYTICS_RESPONSE')
+          all.push(...page.data)
+          after = page.paging?.next ? page.paging?.cursors?.after : ''
+          if (page.paging?.next && !after) throw new MetaError('INCOMPLETE_ANALYTICS')
+          if (after && (seen.has(after) || seen.size >= 100)) throw new MetaError('INCOMPLETE_ANALYTICS')
+          seen.add(after)
+        } while (after)
+        return all
+      }
+      const period = { start: String(start), end: String(end), granularity: 'DAILY' }
+      const parts = await Promise.allSettled([
+        request(`${cfg.env.WHATSAPP_BUSINESS_ACCOUNT_ID}?fields=currency,name`),
+        pages('pricing_analytics', { ...period, metric_types: JSON.stringify(['COST','VOLUME']), dimensions: JSON.stringify(['COUNTRY','PHONE','PRICING_CATEGORY','PRICING_TYPE']) }),
+        /^\d+$/.test(templateId || '') ? pages('template_analytics', { ...period, template_ids: JSON.stringify([templateId]), metric_types: JSON.stringify(['SENT','DELIVERED','READ','CLICKED','COST']) }) : Promise.reject(new MetaError('TEMPLATE_ID_MISSING')),
+      ])
+      const result = { start, end, fetchedAt: new Date().toISOString(), account: null, pricing: null, template: null, errors: {} }
+      for (const [i,key] of ['account','pricing','template'].entries()) {
+        if (parts[i].status === 'fulfilled') result[key] = parts[i].value
+        else result.errors[key] = String(parts[i].reason.code || 'UNAVAILABLE')
+      }
+      return result
+    },
     async templates() {
       let after = ''
       const all = []

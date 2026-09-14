@@ -218,6 +218,16 @@ export function installApi(app, db, erp, cfg, meta) {
       events: events.rows,
     })
   })
+  app.get('/api/marketing/campaigns/:id/meta-insights', async (req, res) => {
+    if (!uuid(req.params.id)) fail('Identifiant invalide.')
+    const campaign = (await db.query('SELECT template FROM marketing.campaigns WHERE id=$1', [req.params.id])).rows[0]
+    if (!campaign) return res.sendStatus(404)
+    const start = Number(req.query.start), end = Number(req.query.end)
+    if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end <= start || end-start > 31*86400 || end > Date.now()/1000+86400)
+      fail('Choisissez une période de 31 jours maximum.')
+    const insights = await meta.insights({ start, end, templateId: campaign.template.id })
+    res.set('Cache-Control', 'no-store').json({ ...insights, templateName: campaign.template.name })
+  })
   app.get('/api/marketing/campaigns/:id/analytics', async (req, res) => {
     if (!uuid(req.params.id)) fail('Identifiant invalide.')
     const campaign = (await db.query('SELECT * FROM marketing.campaigns WHERE id=$1', [req.params.id])).rows[0]

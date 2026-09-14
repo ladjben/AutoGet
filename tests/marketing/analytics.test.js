@@ -35,3 +35,20 @@ test('CSV escapes formulas and quotes, and metadata retains only billing fields'
   const meta = statusMetadata({ timestamp: '1000', pricing: { billable: false, pricing_model: 'PMP', secret: 'never persist' } })
   assert.equal(meta.occurredAt, '1970-01-01T00:16:40.000Z'); assert.deepEqual(meta.pricing, { billable: false, pricing_model: 'PMP' })
 })
+
+test('Meta insights reads costs and templates, paginates safely and keeps partial failures', async () => {
+  const { metaClient } = await import('../../server/marketing/meta.js')
+  const calls = []
+  const client = metaClient({ env: { WHATSAPP_GRAPH_VERSION: 'v25.0', WHATSAPP_BUSINESS_ACCOUNT_ID: '123', WHATSAPP_ACCESS_TOKEN: 'test-only' } }, async (url, options) => {
+    calls.push(url)
+    assert.equal(options.method, 'GET')
+    assert.equal(options.headers.Authorization, 'Bearer test-only')
+    const body = url.includes('fields=') ? { currency: 'EUR', name: 'Test' } : url.includes('/template_analytics') ? { error: { code: 200 } } : url.includes('after=') ? { data: [{ data_points: [{ cost: 2, volume: 20 }] }] } : { data: [{ data_points: [{ cost: 1, volume: 10 }] }], paging: { next: 'https://untrusted.invalid', cursors: { after: 'next' } } }
+    return { ok: !body.error, json: async () => body }
+  })
+  const data = await client.insights({ start: 1000, end: 2000, templateId: '456' })
+  assert.equal(data.account.currency, 'EUR'); assert.equal(data.pricing.length, 2)
+  assert.equal(data.template, null); assert.equal(data.errors.template, '200')
+  assert.ok(calls.every((url) => url.startsWith('https://graph.facebook.com/v25.0/123')))
+  await assert.rejects(client.insights({ start: 0, end: 32*86400, templateId: '456' }))
+})

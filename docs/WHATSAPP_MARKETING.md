@@ -320,3 +320,25 @@ Avant de déployer cette version sur une base existante, exécuter
 La migration ajoute trois colonnes et un index, sans modifier les données ERP.
 Elle est réexécutable et compatible avec l’ancienne application. Les installations
 neuves incluent les colonnes ; exécuter également la migration pour l’index.
+
+### Chiffres Meta automatiques (remplace la saisie des tarifs)
+
+L’onglet **Chiffres Meta** remplace l’écran de coûts manuels. Il interroge les
+API officielles `pricing_analytics` et `template_analytics` à l’ouverture et sur
+actualisation, sur une période UTC de 31 jours maximum. La devise est lue sur
+le compte WhatsApp ; elle n’est pas renommée EUR si Meta renvoie une autre devise.
+Les appels restent sur le serveur avec le token existant et sont uniquement GET.
+
+Les coûts/volumes par pays, numéro et catégorie concernent tout le compte.
+Les envois, livraisons, lectures, clics et coûts du modèle concernent le modèle
+sur la période, y compris ses utilisations hors AutoGet. Aucune attribution
+exacte du total Meta à une campagne locale ou un destinataire n’est prétendue.
+Les coûts Meta sont susceptibles d’être provisoires. Les métriques absentes ou
+les erreurs d’autorisation sont visibles, jamais remplacées par des zéros.
+La pagination reste sur Graph et une réponse partielle paginée est rejetée.
+
+Les anciennes configurations de tarifs restent stockées pour compatibilité,
+mais ne sont plus demandées dans l’interface. Aucun changement SQL supplémentaire.
+Référence de contrat : SDK officiel Meta,
+https://github.com/facebook/facebook-python-business-sdk/blob/main/facebook_business/adobjects/whatsappbusinessaccount.py
+(`get_pricing_analytics`, `get_template_analytics`, champ `currency`).
