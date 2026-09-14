@@ -342,3 +342,15 @@ mais ne sont plus demandées dans l’interface. Aucun changement SQL supplémen
 Référence de contrat : SDK officiel Meta,
 https://github.com/facebook/facebook-python-business-sdk/blob/main/facebook_business/adobjects/whatsappbusinessaccount.py
 (`get_pricing_analytics`, `get_template_analytics`, champ `currency`).
+
+### Démarrage immédiat
+
+Le lancement d’une campagne traite immédiatement un premier destinataire de cette
+campagne, sous le même verrou que le service programmé. Il n’exige plus un premier
+passage GitHub ni un worker récemment actif. Le retour HTTP attend ce court lot,
+pour ne pas dépendre d’une tâche abandonnée après la réponse Vercel. En cas de
+concurrence, de quota Meta ou d’erreur, la campagne reste active pour la reprise.
+Les lots suivants utilisent le workflow programmé existant, dont les horaires
+peuvent être retardés par GitHub. Ce dispositif n’est pas un processus permanent.
+Pour un worker réellement continu, héberger `server/marketing/index.js` sur un
+serveur permanent avec redémarrage automatique ; sa boucle `runWorker` existe déjà.

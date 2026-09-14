@@ -1,3 +1,4 @@
+import { dispatchBatch } from './worker.js'
 import { campaignAnalytics, recipientsCsv, validateCostConfig } from './analytics.js'
 import { createMarketingTemplate } from './template-create.js'
 import { sendingEnabled } from './sending.js'
@@ -265,16 +266,6 @@ export function installApi(app, db, erp, cfg, meta) {
     ).rows[0]
     if (!campaign) return res.sendStatus(404)
     if (action === 'start') {
-      if (cfg.env.VERCEL) {
-        const healthy = await db.query(
-          "SELECT id FROM marketing.worker_health WHERE id=1 AND last_finished_at>now()-interval '20 minutes' AND last_error IS NULL",
-        )
-        if (!cfg.env.CRON_SECRET || !healthy.rowCount)
-          fail(
-            'Activez le workflow GitHub WhatsApp et exécutez-le une première fois avant de lancer une campagne.',
-          )
-      }
-
       const current = (await meta.templates()).find(
         (t) => t.id === campaign.template.id && t.status === 'APPROVED',
       )
@@ -299,6 +290,17 @@ export function installApi(app, db, erp, cfg, meta) {
         "UPDATE marketing.recipients SET status='queued',next_attempt_at=now(),attempts=0,error_code=NULL WHERE campaign_id=$1 AND status='failed' AND retryable=true AND message_id IS NULL",
         [id],
       )
+    if (action === 'start') {
+      // Await a short first batch: do not rely on background execution after response.
+      // The existing coordinator lock prevents overlap with scheduled workers.
+      try {
+        const result = await dispatchBatch(db, cfg, meta, { budgetMs: 5000, maxMessages: 1, campaignId: id })
+        return res.json({ ok: true, immediate: result.processed })
+      } catch {
+        // The campaign remains active. Scheduled recovery keeps ambiguous sends safe.
+        return res.json({ ok: true, immediate: 0, warning: 'Campagne active ; le service automatique reprendra le traitement.' })
+      }
+    }
     res.json({ ok: true })
   })
   app.post('/api/marketing/suppressions', async (req, res) => {
