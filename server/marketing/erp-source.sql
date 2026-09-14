@@ -1,10 +1,10 @@
 -- SELECT only: executed inside a bounded READ ONLY transaction. No ERP view needed.
 WITH orders AS (
-  SELECT o.id,o.deleted_at,o.order_status,o.date_created,o.created_at,
+  SELECT o.id,o.deleted_at,o.order_status,o.status,o.date_created,o.created_at,
     o.phone_normalized,o.customer_phone,o.billing_name,o.shipping_name,
     o.billing_city,o.shipping_city,o.company_id,o.franchise_id,o.is_exchange
   FROM public.woo_orders o
-  WHERE o.deleted_at IS NULL AND o.order_status = 'delivered'
+  WHERE o.deleted_at IS NULL
 ), lines AS (
   -- Actual delivered variant takes precedence over the originally confirmed one.
   SELECT o.id AS order_id, 'delivered:' || d.id AS item_id,
@@ -50,7 +50,7 @@ WITH orders AS (
 )
 SELECT o.id::text AS order_id,
   COALESCE(o.date_created, o.created_at) AS ordered_at,
-  o.order_status AS status,
+  COALESCE(NULLIF(lower(btrim(o.order_status)), ''), NULLIF(lower(btrim(o.status)), ''), 'unknown') AS status,
   COALESCE(NULLIF(btrim(o.phone_normalized), ''), NULLIF(btrim(o.customer_phone), '')) AS phone,
   COALESCE(NULLIF(btrim(o.billing_name), ''), NULLIF(btrim(o.shipping_name), ''), '') AS customer_name,
   COALESCE(l.product_id, 'unknown:order:' || o.id) AS product_id,

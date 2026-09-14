@@ -16,7 +16,7 @@ test(
     )
     await db.query(`
     CREATE TABLE erp_adapter_test.woo_orders (
-      id bigint PRIMARY KEY, order_status text, deleted_at timestamptz,
+      id bigint PRIMARY KEY, order_status text, status text, deleted_at timestamptz,
       date_created timestamptz, created_at timestamptz, phone_normalized text,
       customer_phone text, billing_name text, shipping_name text, billing_city text,
       shipping_city text, company_id bigint, franchise_id bigint, is_exchange boolean
@@ -92,8 +92,16 @@ test(
       await reader.query(grants)
       await reader.query('SET ROLE erp_adapter_reader_test')
       const actual = (await reader.query(select)).rows.sort((a,b) => a.order_id.localeCompare(b.order_id))
-      assert.deepEqual(actual, rows, 'direct SELECT preserves adapter semantics with only column-level grants')
+      assert.deepEqual(actual.filter((r) => r.status === 'delivered'), rows,
+        'delivered history remains unchanged under the all-status SELECT')
+      assert.equal(actual.length, 6)
+      assert.equal(actual.find((r) => r.order_id === '5').status, 'cancelled')
+      assert.ok(!actual.some((r) => r.order_id === '6'), 'deleted orders remain excluded')
       await assert.rejects(reader.query("UPDATE erp_adapter_test.woo_orders SET order_status='cancelled'"), /permission denied/)
+      await reader.query('RESET ROLE')
+      await reader.query("UPDATE erp_adapter_test.woo_orders SET order_status=' ',status=' Pending ' WHERE id=5")
+      await reader.query('SET ROLE erp_adapter_reader_test')
+      assert.equal((await reader.query(select)).rows.find((r) => r.order_id === '5').status, 'pending')
       await reader.query('RESET ROLE')
       await reader.query('BEGIN READ ONLY')
       await assert.rejects(reader.query("UPDATE erp_adapter_test.woo_orders SET order_status='cancelled'"), /read-only transaction/)

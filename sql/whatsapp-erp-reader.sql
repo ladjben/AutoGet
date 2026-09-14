@@ -6,7 +6,7 @@ SET LOCAL lock_timeout='500ms';
 SET LOCAL statement_timeout='5s';
 CREATE ROLE autoget_erp_reader NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
 GRANT USAGE ON SCHEMA public TO autoget_erp_reader;
-GRANT SELECT(id,deleted_at,order_status,date_created,created_at,phone_normalized,
+GRANT SELECT(id,deleted_at,order_status,status,date_created,created_at,phone_normalized,
  customer_phone,billing_name,shipping_name,billing_city,shipping_city,company_id,
  franchise_id,is_exchange) ON public.woo_orders TO autoget_erp_reader;
 GRANT SELECT(id,woo_order_id,product_variant_id,quantity_delivered,delivered_at,deleted_at)

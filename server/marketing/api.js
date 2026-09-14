@@ -52,6 +52,7 @@ export function installApi(app, db, erp, cfg, meta) {
       page,
       customers: filtered.slice((page - 1) * 50, page * 50),
       facets: {
+        statuses: [...new Set(data.customers.flatMap((c) => c.purchases.map((p) => p.status)))].sort(),
         products: [...products].map(([id, name]) => ({ id, name })),
         sizes: [
           ...new Set(

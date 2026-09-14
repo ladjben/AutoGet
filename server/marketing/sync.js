@@ -7,8 +7,8 @@ export const sourceQuery = await readFile(new URL('./erp-source.sql', import.met
 // A full bounded snapshot reconciles cancellations, deletions and changed items,
 // without assuming the ERP updates order timestamps for every child-table change.
 export async function syncAudience(db, erp, {
-  country = 'DZ', query = sourceQuery, maxRows = 100000,
-  budgetMs = 60000, batchSize = 500, pauseMs = 100,
+  country = 'DZ', query = sourceQuery, maxRows = 250000,
+  budgetMs = 60000, batchSize = 500, pauseMs = 20,
 } = {}) {
   const target = await db.connect()
   let source

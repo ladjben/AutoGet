@@ -37,7 +37,7 @@ Sur la copie Neon d’abord, préparer un identifiant dédié sans droits d’é
 
 Le fichier `sql/whatsapp-erp-reader.sql` prépare les droits du groupe de lecture. Il ne crée aucune vue ni relation et n’écrit dans aucune table ERP. L’attribution de ce groupe au compte de connexion reste à faire après contrôle de ses autres droits. Les droits hérités/PUBLIC peuvent donner des accès supplémentaires : un groupe de lecture n’annule pas ces droits existants.
 
-Le programme d’import utilise uniquement `server/marketing/erp-source.sql`, une requête SELECT. Chaque import démarre une transaction explicitement en lecture seule. Il dispose d’une connexion source, d’un délai par requête de 5 secondes, d’une attente de verrou de 500 ms et d’un budget global d’environ une minute. Il lit par blocs de 500 avec une pause entre les blocs, jusqu’à 100 000 articles. Ces limites réduisent la charge mais ne garantissent pas l’absence d’impact : une requête peut parcourir beaucoup de données avant de retourner son premier bloc.
+Le programme d’import utilise uniquement `server/marketing/erp-source.sql`, une requête SELECT. Chaque import démarre une transaction explicitement en lecture seule. Il dispose d’une connexion source, d’un délai par requête de 5 secondes, d’une attente de verrou de 500 ms et d’un budget global d’environ une minute. Il lit par blocs de 500 avec une pause entre les blocs, jusqu’à 250 000 articles. Ces limites réduisent la charge mais ne garantissent pas l’absence d’impact : une requête peut parcourir beaucoup de données avant de retourner son premier bloc.
 
 ## 4. Premier import manuel, en environnement de test
 
@@ -137,3 +137,13 @@ La connexion TablePlus a nécessité le certificat CA téléchargé dans Supabas
 ### Connexion sur Preview
 
 Conserver `MARKETING_ORIGIN` pour le domaine de production. En Preview, le serveur accepte également les deux origines HTTPS exactes fournies par Vercel (`VERCEL_URL` et `VERCEL_BRANCH_URL`). Aucun domaine arbitraire ni en-tête Host ne sert à autoriser une origine. Activer l’exposition des variables système Vercel et rendre les variables marketing disponibles pour Preview, puis redéployer. Les envois restent bloqués sur Preview.
+
+### Import tous statuts et filtre de commande
+
+L’import actif (`server/marketing/erp-source.sql`) inclut maintenant toutes les commandes non supprimées. `order_status` est prioritaire ; si vide, repli sur `status`, puis `unknown`. Casse et espaces sont normalisés. Les anciens scripts de vues « delivered » restent historiques et ne sont pas utilisés par l’import. Un compte ayant des droits par colonne doit aussi pouvoir lire `woo_orders.status` ; le compte existant `ai_analyst` testé avec SELECT sur la table couvre déjà cette colonne.
+
+L’audience propose « Statut de la commande », par défaut tous. Statut, produit, variante, pointure et période doivent correspondre à la même ligne de commande. Le statut apparaît dans l’historique, qui reste complet ; le nombre de commandes affiché et les filtres min/max portent sur tout cet historique. Les statuts inhabituels sont conservés dans la liste. Les lignes livrées sont prioritaires, puis confirmées, puis Woo, comme auparavant ; une commande sans ligne exploitable est conservée avec des champs produit/pointure inconnus.
+
+Aucune migration SQL. Après mise à jour du code local (`git pull --ff-only`), relancer `npm run marketing:sync` pour remplacer atomiquement la copie livrée par la copie tous statuts. Le garde-fou d’une heure entre imports reste actif. Le plafond devient 250 000 lignes, avec une pause de 20 ms par bloc de 500 ; le budget global de 60 secondes, les délais de requête et la connexion source unique restent en place. En cas de dépassement, la copie précédente est conservée. Une validation locale ne garantit pas le temps du premier import tous statuts sur l’ERP réel.
+
+Les consentements et exclusions existants sont conservés. Aucun accord automatique n’est créé pour les nouveaux contacts. Les campagnes déjà préparées gardent leurs destinataires ; recréer un brouillon pour appliquer un nouveau filtre.

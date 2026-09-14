@@ -26,6 +26,7 @@ import {
 
 const initialFilters = {
   q: '',
+  status: '',
   product: '',
   variant: '',
   size: '',
@@ -35,6 +36,14 @@ const initialFilters = {
   minOrders: '',
   maxOrders: '',
   eligibleOnly: false,
+}
+const orderLabels = {
+  delivered: 'Livrée', cancelled: 'Annulée', returned: 'Retournée',
+  pending: 'En attente', processing: 'En traitement', unconfirmed: 'Non confirmée',
+  confirmed: 'Confirmée', deliviring: 'En livraison', delivering: 'En livraison',
+  dispaching: 'En expédition', dispatching: 'En expédition', packing: 'En préparation',
+  returning: 'En retour', orphaned: 'Orpheline', relaunched: 'Relancée',
+  exchange: 'Échange', unknown: 'Non renseigné',
 }
 const labels = {
   queued: 'En attente',
@@ -380,7 +389,7 @@ export default function WhatsAppMarketing() {
               Le bon message. Aux bons clients.
             </h1>
             <p className="mt-2 max-w-xl text-sm text-muted-foreground">
-              Retrouvez vos clients livrés, composez une audience et donnez une
+              Retrouvez vos clients, tous statuts confondus, composez une audience et donnez une
               nouvelle vie à chaque achat.
             </p>
           </div>
@@ -513,6 +522,7 @@ export default function WhatsAppMarketing() {
               </div>
             </Field>
             {[
+              ['status', 'Statut de la commande', audience?.facets.statuses?.map((id) => ({ id, name: orderLabels[id] ? `${orderLabels[id]} (${id})` : id }))],
               ['product', 'Produit', audience?.facets.products],
               ['size', 'Pointure', audience?.facets.sizes],
               ['variant', 'Variante', audience?.facets.variants],
@@ -570,7 +580,7 @@ export default function WhatsAppMarketing() {
               Éligibles uniquement
             </label>
             <p className="text-xs leading-relaxed text-muted-foreground">
-              Les filtres produit, pointure et période portent sur le même
+              Les filtres statut, produit, pointure et période portent sur le même
               achat. Le nombre de commandes couvre tout l’historique livré.
             </p>
           </aside>
@@ -646,7 +656,7 @@ export default function WhatsAppMarketing() {
                         />
                       </th>
                       <th className="py-3">Client</th>
-                      <th className="py-3">Achats & pointures</th>
+                      <th className="py-3">Commandes & pointures</th>
                       <th className="p-3">Commandes</th>
                       <th className="p-3">Contact</th>
                     </tr>
@@ -711,7 +721,7 @@ export default function WhatsAppMarketing() {
                                     <span> · Qté {p.quantity}</span>
                                   )}
                                   <br />
-                                  {p.orderedAt.slice(0, 10)} · #{p.orderId}
+                                  {p.orderedAt.slice(0, 10)} · #{p.orderId} · {orderLabels[p.status] || p.status}
                                 </li>
                               ))}
                             </ul>

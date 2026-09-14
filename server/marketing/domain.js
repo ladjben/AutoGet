@@ -7,6 +7,11 @@ export function normalizePhone(value, country = 'DZ') {
   return parsed?.isValid() ? parsed.number : null
 }
 
+export function normalizeOrderStatus(value) {
+  const status = String(value || '').trim().toLowerCase()
+  return ['livré', 'livre'].includes(status) ? 'delivered' : status || 'unknown'
+}
+
 export function buildAudience(
   rows,
   country = 'DZ',
@@ -16,12 +21,6 @@ export function buildAudience(
   const customers = new Map()
   let invalidPhones = 0
   for (const row of rows) {
-    if (
-      !['livré', 'livre', 'delivered'].includes(
-        String(row.status).trim().toLowerCase(),
-      )
-    )
-      continue
     const phone =
       normalizePhone(row.phone, country) ||
       normalizePhone(row.phone_fallback, country)
@@ -63,6 +62,7 @@ export function buildAudience(
       itemId: row.item_id ? String(row.item_id) : undefined,
       source: row.item_source || undefined,
       quantity: row.quantity == null ? null : String(row.quantity),
+      status: normalizeOrderStatus(row.status),
       orderId: String(row.order_id),
       productId: String(row.product_id),
       product: String(row.product_name || row.product_id),
@@ -99,7 +99,7 @@ export function validateFilters(f = {}) {
   if (!f || typeof f !== 'object' || Array.isArray(f))
     throw new Error('Filtres invalides.')
   const out = {}
-  for (const key of ['q', 'product', 'variant', 'size', 'city', 'from', 'to']) {
+  for (const key of ['q', 'product', 'variant', 'size', 'city', 'from', 'to', 'status']) {
     if (f[key] != null && (typeof f[key] !== 'string' || f[key].length > 200))
       throw new Error('Filtre invalide : ' + key)
     out[key] = f[key] || ''
@@ -121,6 +121,7 @@ export function validateFilters(f = {}) {
   }
   if (out.minOrders && out.maxOrders && out.minOrders > out.maxOrders)
     throw new Error('Intervalle de commandes invalide.')
+  if (out.status) out.status = normalizeOrderStatus(out.status)
   out.eligibleOnly = f.eligibleOnly === true || f.eligibleOnly === 'true'
   return out
 }
@@ -137,6 +138,7 @@ export function filterAudience(customers, f) {
       // All purchase filters must match the SAME purchased item; keep complete history in output.
       c.purchases.some(
         (p) =>
+          (!f.status || p.status === f.status) &&
           (!f.product || p.productId === f.product) &&
           (!f.variant || p.variant === f.variant) &&
           (!f.size || p.size === f.size) &&

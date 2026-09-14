@@ -38,12 +38,12 @@ test('déduplique les téléphones et commandes en conservant les variantes', ()
     item,
     { ...item, phone: '+213551234567', size: '43' },
     { ...item, order_id: '2' },
-    { ...item, status: 'returned' },
+    { ...item, status: 'returned', order_id: '3' },
     { ...item, phone: 'bad' },
   ])
   assert.equal(result.customers.length, 1)
-  assert.equal(result.customers[0].orderCount, 2)
-  assert.equal(result.customers[0].purchases.length, 3)
+  assert.equal(result.customers[0].orderCount, 3)
+  assert.equal(result.customers[0].purchases.length, 4)
   assert.equal(result.invalidPhones, 1)
 })
 test('produit et pointure doivent correspondre à la même ligne, historique complet conservé', () => {
@@ -281,4 +281,24 @@ test('fixed URL buttons need no runtime parameters; unsupported formats stay blo
     { type: 'BUTTONS', buttons: [{ type: 'URL', url: 'https://shop.example/{{1}}/{{2}}' }] },
     { type: 'BUTTONS', buttons: [{ type: 'URL', url: 'https://shop.example/{{1}}/end' }] },
   ]) assert.throws(() => templateFields({ components: [body, component] }))
+})
+
+
+test('all statuses are retained and status/product/size must match the same order line', () => {
+  const { customers } = buildAudience([
+    { ...item, status: ' DELIVERED ' },
+    { ...item, order_id: '2', status: 'cancelled', product_id: 'b', size: '44' },
+    { ...item, order_id: '3', status: '', phone: '0551234568' },
+    { ...item, order_id: '4', status: 'custom_status', phone: '0551234569' },
+  ])
+  assert.equal(customers.length, 3)
+  assert.equal(filterAudience(customers, validateFilters({ status: 'cancelled', product: 'a' })).length, 0)
+  const matches = filterAudience(customers, validateFilters({ status: 'cancelled', product: 'b', size: '44' }))
+  assert.equal(matches.length, 1)
+  assert.equal(matches[0].purchases.length, 2, 'complete history retained')
+  assert.equal(matches[0].orderCount, 2)
+  assert.equal(filterAudience(customers, validateFilters({ status: 'livré' })).length, 1)
+  assert.equal(filterAudience(customers, validateFilters({ status: 'unknown' })).length, 1)
+  assert.equal(filterAudience(customers, validateFilters({ status: 'custom_status' })).length, 1)
+  assert.throws(() => validateFilters({ status: [] }))
 })
