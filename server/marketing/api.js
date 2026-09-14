@@ -1,3 +1,4 @@
+import { campaignAnalytics, recipientsCsv, validateCostConfig } from './analytics.js'
 import { createMarketingTemplate } from './template-create.js'
 import { sendingEnabled } from './sending.js'
 import { isDeepStrictEqual } from 'node:util'
@@ -216,6 +217,32 @@ export function installApi(app, db, erp, cfg, meta) {
       recipients: recipients.rows,
       events: events.rows,
     })
+  })
+  app.get('/api/marketing/campaigns/:id/analytics', async (req, res) => {
+    if (!uuid(req.params.id)) fail('Identifiant invalide.')
+    const campaign = (await db.query('SELECT * FROM marketing.campaigns WHERE id=$1', [req.params.id])).rows[0]
+    if (!campaign) return res.sendStatus(404)
+    const report = await campaignAnalytics(db, campaign)
+    const page = Math.min(1000000, Math.max(1, Math.floor(Number(req.query.page) || 1)))
+    const q = String(req.query.q || '').slice(0,200).toLowerCase()
+    const status = String(req.query.status || '')
+    const filtered = report.recipients.filter((r) => (!status || r.status === status) &&
+      (!q || `${r.phone} ${r.customer_name} ${r.error_code || ''}`.toLowerCase().includes(q)))
+    if (req.query.format === 'csv') {
+      res.set('Content-Disposition', `attachment; filename="campaign-${campaign.id}.csv"`)
+      return res.type('text/csv').send(recipientsCsv(filtered))
+    }
+    res.json({ ...report, recipients: filtered.slice((page-1)*50,page*50),
+      page, filteredTotal: filtered.length, costConfig: campaign.cost_config,
+      template: { name: campaign.template.name, language: campaign.template.language, category: campaign.template.category },
+      filters: campaign.filters, createdAt: campaign.created_at })
+  })
+  app.post('/api/marketing/campaigns/:id/costs', async (req, res) => {
+    if (!uuid(req.params.id)) fail('Identifiant invalide.')
+    const costs = validateCostConfig(req.body)
+    const result = await db.query('UPDATE marketing.campaigns SET cost_config=$2 WHERE id=$1 RETURNING id', [req.params.id,costs])
+    if (!result.rowCount) return res.sendStatus(404)
+    res.json({ ok: true })
   })
   app.post('/api/marketing/campaigns/:id/:action', async (req, res) => {
     const { id, action } = req.params

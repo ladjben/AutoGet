@@ -147,3 +147,13 @@ L’audience propose « Statut de la commande », par défaut tous. Statut, prod
 Aucune migration SQL. Après mise à jour du code local (`git pull --ff-only`), relancer `npm run marketing:sync` pour remplacer atomiquement la copie livrée par la copie tous statuts. Le garde-fou d’une heure entre imports reste actif. Le plafond devient 250 000 lignes, avec une pause de 20 ms par bloc de 500 ; le budget global de 60 secondes, les délais de requête et la connexion source unique restent en place. En cas de dépassement, la copie précédente est conservée. Une validation locale ne garantit pas le temps du premier import tous statuts sur l’ERP réel.
 
 Les consentements et exclusions existants sont conservés. Aucun accord automatique n’est créé pour les nouveaux contacts. Les campagnes déjà préparées gardent leurs destinataires ; recréer un brouillon pour appliquer un nouveau filtre.
+
+### Mise à jour : analyses et coûts en EUR
+
+Avant de publier la version qui ajoute les statistiques, exécuter
+[`sql/whatsapp-analytics.sql`](../sql/whatsapp-analytics.sql) dans le SQL Editor de
+**Supabase** avec le rôle propriétaire. Ne pas l’exécuter dans Neon ERP.
+La migration est additive et réexécutable. Publier ensuite l’application.
+Ouvrir une campagne → Coûts en euros → renseigner les tarifs applicables et
+Enregistrer les coûts. Aucun prix n’est prédéfini. Le suivi livré/lu nécessite
+les retours du webhook Meta configuré ; il n’envoie aucun message à lui seul.

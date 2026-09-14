@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import CampaignAnalytics from './CampaignAnalytics'
 import {
   MessageCircle,
   Users,
@@ -1046,7 +1047,7 @@ export default function WhatsAppMarketing() {
           if (!open) setDetail(null)
         }}
       >
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-6xl">
           <DialogHeader>
             <DialogTitle>{detail?.name}</DialogTitle>
             <DialogDescription>
@@ -1057,6 +1058,7 @@ export default function WhatsAppMarketing() {
           {errorBox}
           {detail && (
             <>
+              <CampaignAnalytics key={detail.id} campaignId={detail.id} refreshKey={detail} />
               <div className="flex flex-wrap items-center gap-2">
                 <Pill>{labels[detail.state]}</Pill>
                 <span className="text-sm font-medium">

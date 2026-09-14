@@ -277,3 +277,46 @@ L’audience propose « Statut de la commande », par défaut tous. Statut, prod
 Aucune migration SQL. Après mise à jour du code local (`git pull --ff-only`), relancer `npm run marketing:sync` pour remplacer atomiquement la copie livrée par la copie tous statuts. Le garde-fou d’une heure entre imports reste actif. Le plafond devient 250 000 lignes, avec une pause de 20 ms par bloc de 500 ; le budget global de 60 secondes, les délais de requête et la connexion source unique restent en place. En cas de dépassement, la copie précédente est conservée. Une validation locale ne garantit pas le temps du premier import tous statuts sur l’ERP réel.
 
 Les consentements et exclusions existants sont conservés. Aucun accord automatique n’est créé pour les nouveaux contacts. Les campagnes déjà préparées gardent leurs destinataires ; recréer un brouillon pour appliquer un nouveau filtre.
+
+## Statistiques et coûts des campagnes
+
+Dans le détail d’une campagne, « Résultats de la campagne » propose une vue
+ d’ensemble, les coûts en EUR et les destinataires filtrables avec export CSV.
+La mise à jour est manuelle. Les compteurs portent sur toute la campagne ; la
+recherche et le filtre de statut portent uniquement sur le tableau et son export.
+
+- Acceptés : identifiant de message Meta ou événement de succès disponible.
+- Livrés : confirmation delivered ou read ; les lus sont inclus.
+- Lus : confirmations disponibles, pas une mesure exhaustive des ouvertures.
+- Les statuts actuels sont exclusifs ; les étapes acceptés/livrés/lus se recouvrent.
+- Livraison = livrés / acceptés ; lecture = lus / livrés ; échecs = échecs actuels /
+  destinataires ayant une tentative ou une acceptation. Sans dénominateur, aucun taux.
+- La chronologie compte le premier événement de chaque étape par destinataire,
+  en UTC. Les détails utilisent le fuseau du navigateur. Les événements anciens
+  sans date Meta utilisent leur date de réception. Les délais ne portent que sur
+  les paires d’événements connues, dans l’ordre chronologique.
+
+Les webhooks signés conservent maintenant la date et les champs de facturation
+`billable`, `category`, `type`, `pricing_model`. Aucun montant unitaire ne vient
+ de ces champs. Sans webhook, une acceptation ne devient pas une livraison.
+Aucune donnée historique absente n’est reconstruite artificiellement.
+
+Chaque campagne possède ses tarifs configurables par pays et catégorie, en EUR
+(jusqu’à six décimales). Le tarif du pays prime sur le tarif par défaut `*`.
+Une livraison explicitement gratuite coûte zéro. Une livraison sans indication
+ de facturation est estimée comme facturable, avec cette hypothèse affichée.
+Les tarifs manquants et l’ancien modèle par conversation donnent une estimation
+indisponible, avec un sous-total connu séparé. Les tentatives supplémentaires
+ne multiplient pas les coûts. Le budget suppose tous les destinataires facturés.
+Les coûts moyens divisent le total estimé par les acceptés ou par les livrés.
+
+Le montant de facture est une saisie manuelle facultative avec source obligatoire,
+jamais présenté comme récupéré automatiquement. Modifier les tarifs recalcule
+l’estimation de cette campagne. Clics, ventes attribuées, chiffre d’affaires et ROI
+restent explicitement non mesurés : aucune attribution automatique n’est ajoutée.
+
+Avant de déployer cette version sur une base existante, exécuter
+`sql/whatsapp-analytics.sql` dans **Supabase, base marketing**, avec son propriétaire.
+La migration ajoute trois colonnes et un index, sans modifier les données ERP.
+Elle est réexécutable et compatible avec l’ancienne application. Les installations
+neuves incluent les colonnes ; exécuter également la migration pour l’index.
