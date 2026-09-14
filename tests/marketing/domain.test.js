@@ -238,3 +238,47 @@ test('les sources et lignes distinctes sont conservées sans inventer de pointur
   assert.equal(c.purchases[0].source, 'woo')
   assert.equal(c.purchases[0].quantity, '2')
 })
+
+test('image and mixed fixed/dynamic URL buttons produce the exact Meta send components', () => {
+  const template = { name: 'offer_image', language: 'fr', components: [
+    { type: 'HEADER', format: 'IMAGE', example: { header_handle: ['example-only'] } },
+    { type: 'BODY', text: 'Bonjour {{1}}' },
+    { type: 'BUTTONS', buttons: [
+      { type: 'URL', text: 'Catalogue', url: 'https://shop.example/catalogue' },
+      { type: 'PHONE_NUMBER', text: 'Appeler', phone_number: '+213551234567' },
+      { type: 'URL', text: 'Offre', url: 'https://shop.example/offre/{{1}}' },
+    ] },
+  ] }
+  const customer = buildAudience([item]).customers[0]
+  const bindings = {
+    'HEADER.image': { source: 'literal', value: 'https://shop.example/photo.png' },
+    'BODY.1': { source: 'name' },
+    'BUTTON.2': { source: 'literal', value: 'promo-42' },
+  }
+  assert.deepEqual(renderTemplate(template, bindings, customer), {
+    name: 'offer_image', language: { code: 'fr' }, components: [
+      { type: 'header', parameters: [{ type: 'image', image: { link: 'https://shop.example/photo.png' } }] },
+      { type: 'body', parameters: [{ type: 'text', text: 'Amine' }] },
+      { type: 'button', sub_type: 'url', index: '2', parameters: [{ type: 'text', text: 'promo-42' }] },
+    ],
+  })
+  assert.throws(() => renderTemplate(template, { ...bindings, 'HEADER.image': undefined }, customer))
+  assert.throws(() => renderTemplate(template, { ...bindings, 'BUTTON.2': undefined }, customer))
+  for (const value of ['javascript:alert(1)', 'file:///tmp/image.png', 'https://user:pass@shop.example/i.png', 'not a url']) {
+    assert.throws(() => renderTemplate(template, { ...bindings, 'HEADER.image': { source: 'literal', value } }, customer))
+  }
+})
+
+test('fixed URL buttons need no runtime parameters; unsupported formats stay blocked', () => {
+  const body = { type: 'BODY', text: 'Bonjour' }
+  const template = { name: 'fixed', language: 'fr', components: [body,
+    { type: 'BUTTONS', buttons: [{ type: 'URL', text: 'Visiter', url: 'https://shop.example' }] },
+  ] }
+  assert.deepEqual(renderTemplate(template, {}, buildAudience([item]).customers[0]).components, [])
+  for (const component of [
+    { type: 'HEADER', format: 'VIDEO' },
+    { type: 'BUTTONS', buttons: [{ type: 'FLOW' }] },
+    { type: 'BUTTONS', buttons: [{ type: 'URL', url: 'https://shop.example/{{1}}/{{2}}' }] },
+    { type: 'BUTTONS', buttons: [{ type: 'URL', url: 'https://shop.example/{{1}}/end' }] },
+  ]) assert.throws(() => templateFields({ components: [body, component] }))
+})

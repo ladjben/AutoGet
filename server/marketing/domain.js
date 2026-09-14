@@ -150,12 +150,31 @@ export function templateFields(template) {
   const fields = []
   for (const c of template.components || []) {
     if (c.type === 'FOOTER') continue
+    if (c.type === 'HEADER' && c.format === 'IMAGE') {
+      fields.push({ key: 'HEADER.image', component: 'HEADER', kind: 'image',
+        label: 'Image du message · lien HTTPS public' })
+      continue
+    }
+    if (c.type === 'BUTTONS') {
+      for (const [index, button] of (c.buttons || []).entries()) {
+        if (button.type === 'PHONE_NUMBER') continue
+        if (button.type !== 'URL')
+          throw new Error('Ce type de bouton n’est pas encore pris en charge : ' + button.type)
+        const tokens = [...String(button.url || '').matchAll(/\{\{(\w+)\}\}/g)]
+        if (tokens.length > 1 || (tokens.length &&
+          (tokens[0][1] !== '1' || !button.url.endsWith('{{1}}'))))
+          throw new Error('Le bouton doit utiliser une seule variable {{1}} en fin de lien.')
+        if (tokens.length) fields.push({ key: `BUTTON.${index}`, component: 'BUTTON',
+          index, kind: 'url', label: `Fin du lien · ${button.text}`, url: button.url })
+      }
+      continue
+    }
     if (
       !['HEADER', 'BODY'].includes(c.type) ||
       (c.type === 'HEADER' && c.format !== 'TEXT')
     )
       throw new Error(
-        'Ce modèle utilise un média ou des boutons non pris en charge. Choisissez un modèle texte.',
+        'Ce format n’est pas encore pris en charge. Utilisez du texte, une image ou des boutons avec lien.',
       )
     const tokens = [
       ...new Set(
@@ -196,10 +215,16 @@ export function renderTemplate(template, bindings, customer) {
     fields.map((f) => {
       const b = bindings?.[f.key]
       const value = b?.source === 'literal' ? b.value : values[b?.source]
-      if (typeof value !== 'string' || !value.trim() || value.length > 1000)
+      if (typeof value !== 'string' || !value.trim() || value.length > (f.kind === 'image' ? 2048 : 1000))
         throw new Error(
           `Variable ${f.key} vide ou invalide pour ${customer.phone}.`,
         )
+      if (f.kind === 'image') {
+        let url
+        try { url = new URL(value) } catch { throw new Error('Lien de l’image invalide.') }
+        if (b.source !== 'literal' || url.protocol !== 'https:' || url.username || url.password)
+          throw new Error('L’image nécessite un lien HTTPS public, sans identifiants.')
+      }
       return [f.key, value]
     }),
   )
@@ -208,6 +233,8 @@ export function renderTemplate(template, bindings, customer) {
     language: { code: template.language },
     components: ['HEADER', 'BODY'].flatMap((type) => {
       const tokens = fields.filter((f) => f.component === type)
+      if (tokens.some((f) => f.kind === 'image')) return [{ type: 'header',
+        parameters: [{ type: 'image', image: { link: resolved['HEADER.image'] } }] }]
       return tokens.length
         ? [
             {
@@ -222,7 +249,10 @@ export function renderTemplate(template, bindings, customer) {
             },
           ]
         : []
-    }),
+    }).concat(fields.filter((f) => f.component === 'BUTTON').map((f) => ({
+      type: 'button', sub_type: 'url', index: String(f.index),
+      parameters: [{ type: 'text', text: resolved[f.key] }],
+    }))),
   }
 }
 

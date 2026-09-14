@@ -96,6 +96,10 @@ function Pill({ children, good = false }) {
   )
 }
 function Bubble({ template, payload }) {
+  const imageLink = payload?.components?.find((c) => c.type === 'header')
+    ?.parameters?.find((p) => p.type === 'image')?.image?.link
+  const hasImage = template?.components?.some((c) => c.type === 'HEADER' && c.format === 'IMAGE')
+  const buttons = template?.components?.find((c) => c.type === 'BUTTONS')?.buttons || []
   const text = (template?.components || [])
     .filter((c) => c.text)
     .map((c) => {
@@ -117,9 +121,21 @@ function Bubble({ template, payload }) {
         <MessageCircle className="h-4 w-4" /> Aperçu WhatsApp
       </div>
       <div className="ml-3 rounded-xl rounded-tr-none border border-emerald-500/15 bg-background p-4 shadow-sm">
+        {hasImage && (imageLink?.startsWith('https://') ? (
+          <img key={imageLink} src={imageLink} alt="Image du message" referrerPolicy="no-referrer"
+            className="mb-4 max-h-72 w-full rounded-lg object-contain" />
+        ) : <div className="mb-4 rounded-lg bg-muted p-8 text-center text-sm text-muted-foreground">Ajoutez le lien de votre image</div>)}
         <p className="whitespace-pre-wrap text-sm leading-relaxed">
           {text || 'Votre message apparaîtra ici.'}
         </p>
+        {buttons.map((button, index) => {
+          const suffix = payload?.components?.find((c) => c.type === 'button' && String(c.index) === String(index))?.parameters?.[0]?.text
+          const link = button.url?.replace('{{1}}', suffix || '{{1}}')
+          return <div key={index} className="mt-3 border-t pt-3 text-center">
+            <p className="text-sm font-medium text-sky-600">{button.text}</p>
+            <p className="mt-1 break-all text-xs text-muted-foreground">{link || button.phone_number}</p>
+          </div>
+        })}
         <div className="mt-3 flex justify-end gap-1 text-[10px] text-muted-foreground">
           12:00 <CheckCheck className="h-3 w-3 text-sky-500" />
         </div>
@@ -285,14 +301,20 @@ export default function WhatsAppMarketing() {
       type: type.toLowerCase(),
       parameters: (template?.fields || [])
         .filter((f) => f.component === type)
-        .map((f) => ({
+        .map((f) => f.kind === 'image' ? {
+          type: 'image', image: { link: bindings[f.key]?.value || '' },
+        } : ({
           parameter_name: f.token,
           text:
             bindings[f.key]?.source === 'literal'
               ? bindings[f.key]?.value
               : previewValues[bindings[f.key]?.source],
         })),
-    })),
+    })).concat((template?.fields || []).filter((f) => f.component === 'BUTTON').map((f) => ({
+      type: 'button', sub_type: 'url', index: String(f.index),
+      parameters: [{ type: 'text', text: bindings[f.key]?.source === 'literal'
+        ? bindings[f.key]?.value : previewValues[bindings[f.key]?.source] }],
+    }))),
   }
   const errorBox = error && (
     <div
@@ -811,12 +833,22 @@ export default function WhatsAppMarketing() {
                   ))}
               </Select>
             </Field>
-            {template?.fields.map((f) => (
+            {template?.fields.map((f) => f.kind === 'image' ? (
+              <Field key={f.key} label={f.label}>
+                <Input type="url" placeholder="https://votre-site.com/image.jpg"
+                  value={bindings[f.key]?.value || ''}
+                  onChange={(e) => {
+                    setBindings((b) => ({ ...b, [f.key]: { source: 'literal', value: e.target.value } }))
+                    setRequestKey(crypto.randomUUID())
+                  }} />
+                <p className="mt-2 text-xs text-muted-foreground">Image JPEG ou PNG accessible sans connexion. Le lien doit rester disponible pendant les envois.</p>
+              </Field>
+            ) : (
               <div
                 key={f.key}
                 className="grid gap-3 rounded-lg border bg-muted/20 p-3 sm:grid-cols-2"
               >
-                <Field label={`Variable ${f.key}`}>
+                <Field label={f.label || `Variable ${f.key}`}>
                   <Select
                     value={bindings[f.key]?.source || ''}
                     onChange={(e) => {
@@ -843,6 +875,7 @@ export default function WhatsAppMarketing() {
                     ))}
                   </Select>
                 </Field>
+                {f.kind === 'url' && <p className="break-all text-xs text-muted-foreground sm:col-span-2">Lien approuvé : {f.url} — renseignez uniquement la partie qui remplace {'{{1}}'}.</p>}
                 {bindings[f.key]?.source === 'literal' && (
                   <Field label="Texte personnalisé">
                     <Input
@@ -977,6 +1010,13 @@ export default function WhatsAppMarketing() {
                 <p className="whitespace-pre-wrap text-sm">
                   {t.components.find((c) => c.type === 'BODY')?.text}
                 </p>
+                {t.components.some((c) => c.type === 'HEADER' && c.format === 'IMAGE') &&
+                  <Pill good>Image à renseigner dans le message</Pill>}
+                {t.components.find((c) => c.type === 'BUTTONS')?.buttons?.map((b, i) => (
+                  <div key={i} className="rounded-lg border p-2 text-sm">
+                    <p>{b.text}</p><p className="break-all text-xs text-muted-foreground">{b.url || b.phone_number}</p>
+                  </div>
+                ))}
                 {!t.supported && (
                   <p className="text-xs text-muted-foreground">{t.reason}</p>
                 )}
