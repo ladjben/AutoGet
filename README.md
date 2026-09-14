@@ -203,3 +203,9 @@ Toutes les données sont sauvegardées automatiquement dans le localStorage du n
 ## 📄 Licence
 
 MIT
+
+## WhatsApp Marketing
+
+Le module marketing (administrateurs) lit les commandes livrées depuis l’ERP Neon externe et utilise l’API officielle WhatsApp Cloud. Configuration serveur, migration, contrat de données ERP, déploiement et tests : [guide WhatsApp Marketing](docs/WHATSAPP_MARKETING.md). Les identifiants ERP/Meta restent côté serveur. Les envois sont désactivés par défaut.
+
+Installation sur Vercel avec Cursor : [guide pas à pas](docs/VERCEL_WHATSAPP_SETUP.md).

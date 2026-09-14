@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   LayoutDashboard,
+  MessageCircle,
   Package,
   ArrowDownLeft,
   Building2,
@@ -48,6 +49,7 @@ const adminNavSections = [
   {
     title: 'Opérations',
     items: [
+      { id: 'whatsapp-marketing', label: 'WhatsApp Marketing', icon: MessageCircle, adminOnly: true },
       { id: 'depenses', label: 'Dépenses', icon: PiggyBank },
       { id: 'colis', label: 'Colis envoyés', icon: Boxes },
       { id: 'salaries', label: 'Salariés', icon: Users },

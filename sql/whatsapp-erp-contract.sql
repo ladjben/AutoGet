@@ -1,0 +1,34 @@
+-- LEGACY REFERENCE ONLY: the Supabase snapshot setup does NOT run this on Neon.
+-- Follow docs/VERCEL_WHATSAPP_SETUP.md instead.
+-- Final ERP adapter: execute sql/whatsapp-erp-delivered-items.sql.
+-- The application reads autoget_marketing.delivered_items using an ERP role
+-- with USAGE on the schema and SELECT on that view only.
+--
+-- Confirmed FK chain:
+-- delivered_order_items.woo_order_id -> woo_orders.id
+-- delivered_order_items.product_variant_id -> product_variants.id
+-- product_variants.product_id -> products.id
+-- Legacy fallback: confrimed_order_items.woo_order_id -> woo_orders.id,
+-- confrimed_order_items.product_variant_id -> product_variants.id.
+-- Last fallback: woo_order_items.order_id -> woo_orders.id, size unknown.
+-- Never join WooCommerce variation_id directly to internal product_variants.id.
+--
+-- Required columns: order_id text, ordered_at timestamptz, status text,
+-- phone text, customer_name text, product_id text, product_name text,
+-- variant text, size text, city text, marketing_opt_in boolean.
+-- Optional columns consumed by the server: phone_fallback, item_id,
+-- item_source, quantity. SQL additionally exposes delivered_at, company_id,
+-- franchise_id and is_exchange for diagnostics and future filters.
+--
+-- Source filter: order_status='delivered' AND deleted_at IS NULL.
+-- Actual delivery lines take precedence over confirmed lines at ORDER level;
+-- Woo fallback is used only when neither internal source has active rows.
+-- An order lacking usable lines remains visible with source='unknown'.
+-- Internal catalog soft deletions do not erase historical labels/sizes.
+--
+-- No current WhatsApp consent field was identified in the supplied ERP schema.
+-- marketing_opt_in is false. Import verified current contact preferences into
+-- marketing.consents in the private marketing DB. STOP suppressions override it.
+-- This adapter describes delivered purchase HISTORY, not net retained inventory
+-- after later refunds. Refund status semantics have not been supplied; no refund
+-- or replacement is presumed completed solely from the existence of a request.

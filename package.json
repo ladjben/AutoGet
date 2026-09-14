@@ -7,7 +7,11 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "marketing:server": "node --env-file=.env server/marketing/index.js",
+    "test:marketing": "node --test tests/marketing/*.test.js",
+    "marketing:secrets": "node server/marketing/generate-secrets.js",
+    "marketing:sync": "node --env-file=.env.marketing.local server/marketing/sync-cli.js"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.10",
@@ -23,7 +27,11 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
+    "express": "^5.2.1",
+    "helmet": "^8.3.0",
+    "libphonenumber-js": "^1.13.13",
     "lucide-react": "^0.548.0",
+    "pg": "^8.23.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "tailwind-merge": "^3.3.1",
@@ -43,5 +51,8 @@
     "path": "^0.12.7",
     "postcss": "^8.5.6",
     "vite": "^7.1.7"
+  },
+  "engines": {
+    "node": "22.x"
   }
 }

@@ -2,6 +2,21 @@
   "devCommand": "vite",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "framework": "vite"
+  "framework": "vite",
+  "functions": {
+    "api/marketing.js": {
+      "maxDuration": 300,
+      "includeFiles": "server/marketing/**"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/whatsapp/webhook",
+      "destination": "/api/marketing?__route=__webhook"
+    },
+    {
+      "source": "/api/marketing/:path*",
+      "destination": "/api/marketing?__route=:path*"
+    }
+  ]
 }
-

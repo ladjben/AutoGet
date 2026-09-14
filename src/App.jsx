@@ -22,6 +22,7 @@ import EmployeeValidation from './components/EmployeeValidation'
 import SupplierAccess from './components/SupplierAccess'
 import ValidatedEntries from './components/ValidatedEntries'
 import PendingEntries from './components/PendingEntries'
+import WhatsAppMarketing from './components/WhatsAppMarketing'
 import PageSurface from './components/PageSurface'
 
 /**
@@ -58,6 +59,8 @@ const AppContent = () => {
 
   const renderView = () => {
     switch (activeView) {
+      case 'whatsapp-marketing':
+        return isAdmin() ? <WhatsAppMarketing /> : <Dashboard />
       case 'dashboard':
         return <Dashboard />
       case 'products':
