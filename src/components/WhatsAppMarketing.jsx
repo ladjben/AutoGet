@@ -602,9 +602,18 @@ export default function WhatsAppMarketing() {
                   setRequestKey(crypto.randomUUID())
                 }}
               >
-                Sélectionner les {audience?.eligible || 0} éligibles
+                Tout sélectionner ({audience?.eligible || 0}) · Toutes les pages
               </Button>
             </div>
+            {selectedCount > 0 && (
+              <div role="status" className="flex flex-wrap items-center justify-between gap-2 border-b bg-primary/5 px-4 py-3 text-sm">
+                <span>{selectedCount.toLocaleString('fr-FR')} contacts sélectionnés, toutes pages confondues, selon les filtres actuels.</span>
+                <Button variant="ghost" size="sm" onClick={() => {
+                  setSelection({ mode: 'explicit', phones: [] })
+                  setRequestKey(crypto.randomUUID())
+                }}>Tout désélectionner</Button>
+              </div>
+            )}
             {loading ? (
               <p className="p-8 text-sm text-muted-foreground">
                 Recherche dans les commandes livrées…
@@ -624,34 +633,15 @@ export default function WhatsAppMarketing() {
                     <tr>
                       <th className="p-4">
                         <input
-                          aria-label="Sélectionner les éligibles de cette page"
+                          aria-label="Sélectionner tous les contacts éligibles, toutes les pages"
                           type="checkbox"
-                          checked={
-                            audience.customers.some((c) => c.eligible) &&
-                            audience.customers
-                              .filter((c) => c.eligible)
-                              .every((c) => checked(c.phone))
-                          }
+                          disabled={!audience.eligible}
+                          checked={audience.eligible > 0 && selectedCount === audience.eligible}
+                          ref={(input) => {
+                            if (input) input.indeterminate = selectedCount > 0 && selectedCount < audience.eligible
+                          }}
                           onChange={(e) => {
-                            const phones = audience.customers
-                              .filter((c) => c.eligible)
-                              .map((c) => c.phone)
-                            const on = e.target.checked
-                            setSelection((s) => ({
-                              ...s,
-                              phones:
-                                s.mode === 'all'
-                                  ? on
-                                    ? s.phones.filter(
-                                        (p) => !phones.includes(p),
-                                      )
-                                    : [...new Set([...s.phones, ...phones])]
-                                  : on
-                                    ? [...new Set([...s.phones, ...phones])]
-                                    : s.phones.filter(
-                                        (p) => !phones.includes(p),
-                                      ),
-                            }))
+                            setSelection({ mode: e.target.checked ? 'all' : 'explicit', phones: [] })
                             setRequestKey(crypto.randomUUID())
                           }}
                         />
