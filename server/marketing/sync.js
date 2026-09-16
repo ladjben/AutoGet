@@ -8,7 +8,7 @@ export const sourceQuery = await readFile(new URL('./erp-source.sql', import.met
 // without assuming the ERP updates order timestamps for every child-table change.
 export async function syncAudience(db, erp, {
   country = 'DZ', query = sourceQuery, maxRows = 250000,
-  budgetMs = 60000, batchSize = 500, pauseMs = 20,
+  budgetMs = 60000, batchSize = 2000, pauseMs = 20,
 } = {}) {
   const target = await db.connect()
   let source
@@ -37,7 +37,7 @@ export async function syncAudience(db, erp, {
     await target.query('DELETE FROM marketing.source_items')
     while (true) {
       if (Date.now() - started > budgetMs) throw Object.assign(new Error('Temps de lecture dépassé.'), { code: 'SYNC_BUDGET' })
-      const batch = await source.query(`FETCH FORWARD ${Math.max(1, Math.min(500, Math.floor(batchSize)))} FROM marketing_export`)
+      const batch = await source.query(`FETCH FORWARD ${Math.max(1, Math.min(2000, Math.floor(batchSize)))} FROM marketing_export`)
       if (!batch.rowCount) break
       count += batch.rowCount
       if (count > maxRows) throw Object.assign(new Error('Volume supérieur à la limite validée.'), { code: 'SYNC_LIMIT' })
