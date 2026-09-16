@@ -17,7 +17,9 @@ try {
   console.log(JSON.stringify(await syncAudience(db, erp, {
     country: process.env.WHATSAPP_DEFAULT_COUNTRY || 'DZ',
   })))
-} catch {
+} catch (error) {
+  const code = ['SYNC_BUDGET','SYNC_LIMIT','SYNC_BUSY','57014','25P04','55P03','ECONNREFUSED','ETIMEDOUT'].includes(error.code) ? error.code : 'SYNC_FAILED'
+  console.error('Code de synchronisation : ' + code)
   console.error('Synchronisation interrompue. Vérifier activation, droits, connexions et limites. La copie précédente est conservée si l’import a échoué avant publication.')
   process.exitCode = 1
 } finally {
