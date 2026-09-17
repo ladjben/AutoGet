@@ -43,3 +43,17 @@ test('text-only creation still works; failed media upload cannot submit a templa
     createTemplate: () => assert.fail('create called'),
   }), /upload failed/)
 })
+
+test('Meta user-facing rejection is retained, secrets and raw diagnostics stay private', async () => {
+  const { metaClient, MetaError } = await import('../../server/marketing/meta.js')
+  const meta = metaClient({ env: { WHATSAPP_GRAPH_VERSION: 'v25.0', WHATSAPP_ACCESS_TOKEN: 'private-token', WHATSAPP_BUSINESS_ACCOUNT_ID: '123' } }, async () => ({ ok: false, status: 400, json: async () => ({ error: { code: 100, error_subcode: 2388001, error_user_title: 'Modèle invalide', error_user_msg: 'Corrigez le bouton private-token', message: 'raw private diagnostic', fbtrace_id: 'private trace' } }) }))
+  await assert.rejects(meta.createTemplate({}), (e) => {
+    assert.ok(e instanceof MetaError)
+    assert.match(e.publicMessage, /100\/2388001/)
+    assert.match(e.publicMessage, /Corrigez le bouton/)
+    assert.ok(!e.publicMessage.includes('private-token'))
+    assert.ok(!e.publicMessage.includes('raw private'))
+    return true
+  })
+  assert.match(new MetaError('NETWORK_UNCERTAIN', false, true).publicMessage, /Actualisez la liste/)
+})

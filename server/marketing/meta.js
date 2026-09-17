@@ -1,9 +1,15 @@
 export class MetaError extends Error {
-  constructor(code, retryable = false, ambiguous = false) {
+  constructor(code, retryable = false, ambiguous = false, details = {}) {
     super('WhatsApp : ' + code)
     this.code = String(code)
     this.retryable = retryable
     this.ambiguous = ambiguous
+    this.subcode = /^\d+$/.test(String(details.subcode || '')) ? String(details.subcode) : null
+    const reference = this.code + (this.subcode ? '/' + this.subcode : '')
+    const description = [details.title, details.message].filter((v) => typeof v === 'string' && v.trim()).join(' — ').slice(0, 1200)
+    this.publicMessage = ambiguous
+      ? `Réponse Meta non confirmée (${reference}). Actualisez la liste des modèles avant de réessayer pour vérifier si le modèle a été créé.`
+      : `WhatsApp / Meta (${reference})${description ? ' : ' + description : ' : la demande n’a pas abouti. Vérifiez les informations et les autorisations du compte.'}`
   }
 }
 export function metaClient(cfg, fetcher = fetch) {
@@ -32,11 +38,15 @@ export function metaClient(cfg, fetcher = fetch) {
     }
     if (!res.ok || data.error) {
       const code = data.error?.code || res.status
+      // Only Meta's user-facing fields may reach the UI; never expose raw errors.
+      const safe = (value) => typeof value === 'string'
+        ? value.replaceAll(cfg.env.WHATSAPP_ACCESS_TOKEN, '[masqué]').slice(0, 1200) : undefined
       // Retry only explicit rejections known to be rate / transient failures.
       throw new MetaError(
         code,
         res.status === 429 || [130429, 131056, 131000, 131016].includes(code),
         res.status >= 500 && !data.error,
+        { subcode: data.error?.error_subcode, title: safe(data.error?.error_user_title), message: safe(data.error?.error_user_msg) },
       )
     }
     return data
