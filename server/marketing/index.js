@@ -3,7 +3,7 @@ import helmet from 'helmet'
 import { fileURLToPath } from 'node:url'
 import { config } from './config.js'
 import { databases } from './db.js'
-import { metaClient } from './meta.js'
+import { metaClient, MetaError } from './meta.js'
 import { installAuth } from './auth.js'
 import { installWebhook } from './webhook.js'
 import { installApi } from './api.js'
@@ -48,7 +48,7 @@ export function createApp(cfg, db, erp, meta) {
     express.static(fileURLToPath(new URL('../../dist/', import.meta.url))),
   )
   app.use((err, req, res, _next) => {
-    const status = err.status || 500
+    const status = err instanceof MetaError ? 502 : err.status || 500
     // Never log connection URLs, credentials, raw Graph responses or customer data.
     console.error(
       'Marketing request failed:',
@@ -57,7 +57,7 @@ export function createApp(cfg, db, erp, meta) {
     )
     res.status(status).json({
       error:
-        status < 500
+        err instanceof MetaError ? err.publicMessage : status < 500
           ? err.message
           : 'Service indisponible. Vérifiez la configuration serveur, la connexion Supabase et la synchronisation.',
     })
