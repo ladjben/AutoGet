@@ -6,7 +6,7 @@ Préparé pour https://autoget-tau.vercel.app/. Ces fichiers ne sont pas encore 
 
 L’employé peut associer la variable du message au « Prénom (premier mot du nom) » et celle du bouton au « Lien personnel COSMOS ». Chaque destinataire reçoit un code aléatoire distinct. Ouvrir le lien ne crée pas de commande.
 
-La page cherche la dernière commande Shopify accessible correspondant au téléphone du destinataire. Elle montre uniquement la wilaya et les quatre derniers chiffres du téléphone. Le client choisit son modèle et sa livraison, coche la confirmation que son ancienne adresse reste valable, puis commande. Il peut aussi choisir de saisir de nouvelles coordonnées.
+La page cherche la dernière commande Shopify accessible correspondant au téléphone du destinataire. Elle affiche le numéro de téléphone complet, la wilaya et l’adresse dans une liste lisible. Le client choisit son modèle et sa livraison, coche la confirmation que son ancienne adresse reste valable, puis commande. Il peut aussi choisir de saisir de nouvelles coordonnées.
 
 Si la recherche ne retrouve pas de coordonnées complètes, un téléphone de livraison identique et une wilaya reconnue, le formulaire classique reste disponible. Aucune adresse ne doit être devinée. La recherche Shopify reste à valider avec un ancien client réel avant de lancer une campagne.
 
@@ -17,7 +17,7 @@ Si la recherche ne retrouve pas de coordonnées complètes, un téléphone de li
 3. Ajouter les variables ci-dessous dans Vercel, uniquement pour **Production**, sans préfixe `VITE_`. Les identifiants Shopify restent côté serveur et ne doivent jamais être copiés dans le thème ou dans un message.
 4. Sauvegarder le template Shopify actuel, puis copier `product.cosmos-40-dz.liquid` dans `templates/product.cosmos-40-dz.liquid`. Ce fichier complet utilise les images déjà présentes dans le thème et le webhook de commandes existant.
 5. Activer `PERSONAL_LINKS_ENABLED=true` et redéployer AutoGet après configuration. Les déploiements Vercel Preview refusent les liens personnels, même si les variables de production y sont copiées.
-6. Tester avec un seul destinataire interne avant toute campagne. Vérifier le résumé masqué, la modification d’adresse et, lors d’un test de commande explicitement décidé, le nom/téléphone/adresse dans Shopify puis dans l’ERP. Les tests automatiques n’envoient aucune commande réelle.
+6. Tester avec un seul destinataire interne avant toute campagne. Vérifier le récapitulatif des coordonnées, la modification d’adresse et, lors d’un test de commande explicitement décidé, le nom/téléphone/adresse dans Shopify puis dans l’ERP. Les tests automatiques n’envoient aucune commande réelle.
 
 Variables Vercel :
 
@@ -53,7 +53,7 @@ La variable du corps et celle du bouton sont distinctes même si Meta les affich
 ## Fonctionnement et limites
 
 - Liens valables 7 jours à partir de la préparation de la campagne ; après expiration, formulaire classique. Préparer la campagne près de l’envoi.
-- Un lien autorise son détenteur à confirmer une seule commande vers les anciennes coordonnées : ne pas le partager. Les coordonnées complètes restent côté serveur ; le lien n’est pas une authentification forte du client.
+- Un lien autorise son détenteur à confirmer une seule commande vers les anciennes coordonnées : ne pas le partager. Le numéro et l’adresse sont visibles par toute personne possédant ce lien ; le lien n’est pas une authentification forte du client.
 - Le code aléatoire est conservé dans le payload du message pour l’envoyer à Meta. La table dédiée conserve son empreinte SHA-256. Ces payloads doivent donc être traités comme confidentiels.
 - Après ouverture, le paramètre est retiré de l’adresse avant les scripts du thème ; il est conservé dans la session du navigateur. Les journaux du serveur Shopify/CDN peuvent néanmoins enregistrer l’URL initiale.
 - Le serveur fige les coordonnées au premier aperçu. Le client confirme que cette adresse reste valable. S’il a déménagé, il doit utiliser « modifier les informations ».

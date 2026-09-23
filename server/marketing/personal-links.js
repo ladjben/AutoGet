@@ -61,8 +61,10 @@ export async function previousContact(phone, cfg, fetcher = fetch) {
   if (normalizePhone(a.phone) !== phone) return null
   return { name, phone, address, wilaya: a.city, sourceOrderId: order.id }
 }
-export function maskedContact(c) {
-  return { phoneEnding: c.phone.slice(-4), wilaya: c.wilaya }
+export function contactPreview(c) {
+  // The opaque personal link grants access to these delivery details.
+  // Keep phoneEnding for already-installed older landing templates.
+  return { phoneEnding: c.phone.slice(-4), phone: c.phone, wilaya: c.wilaya, address: c.address }
 }
 
 export function installPersonalLinks(app, db, cfg, fetcher = fetch) {
@@ -99,7 +101,7 @@ export function installPersonalLinks(app, db, cfg, fetcher = fetch) {
       if (!saved.rowCount) return res.status(409).json({ error: 'Demande déjà en cours.' })
       contact = saved.rows[0].contact
     }
-    res.json({ state: 'ready', ...maskedContact(contact) })
+    res.json({ state: 'ready', ...contactPreview(contact) })
   })
   app.post(path + '/confirm', async (req, res) => {
     const { token, model, delivery } = req.body || {}

@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { newPersonalLink, linkHash, validatePersonalBindings, personalLinksEnabled, previousContact, maskedContact, installPersonalLinks } from '../../server/marketing/personal-links.js'
+import { newPersonalLink, linkHash, validatePersonalBindings, personalLinksEnabled, previousContact, contactPreview, installPersonalLinks } from '../../server/marketing/personal-links.js'
 import { renderTemplate } from '../../server/marketing/domain.js'
 import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
@@ -47,7 +47,7 @@ function shopFetch(orders){let call=0;return async(_url,options)=>{
 test('exact delivery phone, complete address, and supported wilaya required',async()=>{
  const order={id:'gid://shopify/Order/1',phone,shippingAddress:address}
  const contact=await previousContact(phone,cfg,shopFetch([order]))
- assert.equal(contact.name,'Amine Test');assert.deepEqual(maskedContact(contact),{phoneEnding:'0001',wilaya:address.city})
+ assert.equal(contact.name,'Amine Test');assert.deepEqual(contactPreview(contact),{phoneEnding:'0001',phone,wilaya:address.city,address:'Rue exemple 12'})
  for(const shippingAddress of [{...address,phone:'+213555000002'},{...address,address1:''},{...address,city:'Unknown'}])
   assert.equal(await previousContact(phone,cfg,shopFetch([{...order,shippingAddress},order])),null)
  assert.equal(await previousContact(phone,cfg,shopFetch([{...order,phone:'+213555000002',shippingAddress:{...address,phone:'+213555000002'}}])),null)
@@ -74,10 +74,10 @@ function harness(fetcher){
  }
  return {call,row}
 }
-test('opening a link only reveals masked contact, never creates an order',async()=>{
+test('opening a personal link returns delivery details but never creates an order',async()=>{
  const h=harness(()=>{throw Error('must not send')})
  const result=await h.call('preview')
- assert.deepEqual(result.output,{state:'ready',phoneEnding:'0001',wilaya:address.city})
+ assert.deepEqual(result.output,{state:'ready',phoneEnding:'0001',phone,wilaya:address.city,address:'Rue exemple 12'})
  assert.equal(h.row.state,'ready')
 })
 test('concurrent clicks create one order using server contact and stable request ID',async()=>{

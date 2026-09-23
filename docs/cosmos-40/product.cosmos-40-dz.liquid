@@ -117,6 +117,18 @@ body:has(#cosmos-direct-form input:focus) .mobile-bar,body:has(#cosmos-direct-fo
 }
 @media(max-width:359px){.wrap{padding-inline:12px}.models{gap:8px}.model-text{padding:8px}.card-price{font-size:13px!important}.cod-total strong{font-size:24px}.mobile-bar #sticky-order{padding-inline:14px}}
 #cod-total{direction:ltr;unicode-bidi:isolate}#cosmos-direct-form .personal-address-confirmation{display:flex;align-items:center;gap:12px}#cosmos-direct-form .personal-address-confirmation input{width:24px;min-height:24px;height:24px;flex:0 0 24px}
+
+.personal-info-card{padding:22px;border:1px solid #c9c9c9;border-radius:12px;background:#fafaf8;color:#111;text-align:right;min-width:0}
+.personal-info-card h3{margin:0 0 8px;font-size:22px;line-height:1.4;font-weight:800}
+.personal-info-card>p{color:#555;font-size:15px;line-height:1.7}
+.personal-info-list{margin:18px 0;padding:0 22px 0 0;list-style:disc}
+.personal-info-list li{padding:10px 2px;border-bottom:1px solid #e2e2de;font-size:17px;line-height:1.7;overflow-wrap:anywhere}
+.personal-info-list li::marker{color:#111;font-size:18px}
+.personal-info-list strong{display:block;font-size:14px;color:#666}
+.personal-info-list bdi{display:block;font-weight:600;unicode-bidi:isolate}
+#cosmos-direct-form .personal-info-card .personal-address-confirmation{padding-top:8px;font-size:15px;line-height:1.7;align-items:flex-start}
+.personal-info-card .secondary{width:100%;margin-top:16px;min-height:46px;border:1px solid #222;border-radius:6px;background:white;color:#111;padding:10px 14px;font-weight:700}
+@media(max-width:480px){.personal-info-card{padding:16px}.personal-info-card h3{font-size:20px}.personal-info-list li{font-size:16px}}
 </style>{{ content_for_header }}</head>
 <body>
 <a class="skip" href="#selection">شوف الموديلات</a>
@@ -264,14 +276,15 @@ selectProduct(selected);
 const PERSONAL_API='https://autoget-tau.vercel.app/api/marketing/personal';
 const personalToken=window.COSMOS_PERSONAL_TOKEN;
 let personalMode=false;
-const personalSummary=document.createElement('p');
+const personalSummary=document.createElement('div');
+personalSummary.className='personal-info-card';
 personalSummary.setAttribute('role','status');
-personalSummary.style.cssText='padding:16px;background:#f3f3f3;border:1px solid #ddd;border-radius:8px;color:#111';
+
 const changeContact=document.createElement('button');
 changeContact.type='button';changeContact.className='secondary';changeContact.textContent='نبدّل المعلومات / نكتب عنوان جديد';changeContact.hidden=true;
 const addressConfirmation=document.createElement('label');addressConfirmation.hidden=true;addressConfirmation.className='personal-address-confirmation';
-addressConfirmation.innerHTML='<input type="checkbox" name="same_address"> نأكّد بلي عنوان طلبيتي السابقة ما تبدّلش';
-directForm.prepend(personalSummary);directForm.append(addressConfirmation,changeContact);personalSummary.hidden=true;
+addressConfirmation.innerHTML='<input type="checkbox" name="same_address"> نأكّد بلي هاذ المعلومات صحيحة والتوصيل يكون لهذا العنوان';
+directForm.prepend(personalSummary);personalSummary.hidden=true;
 const contactFields=['name','phone','wilaya','address'].map(name=>directForm.elements[name]);
 function manualContact(){
  personalMode=false;changeContact.hidden=true;personalSummary.hidden=true;addressConfirmation.hidden=true;addressConfirmation.querySelector('input').required=false;
@@ -301,7 +314,17 @@ async function loadPersonalContact(){
  try{
   const {response,data}=await personalRequest('preview',{});
   if(response.ok&&data.state==='ready'){
-   personalMode=true;addressConfirmation.hidden=false;addressConfirmation.querySelector('input').required=true;personalSummary.textContent='نستعملو معلومات طلبيتك السابقة: '+data.wilaya+' — رقمك يكمل بـ '+data.phoneEnding+'. أكّد بلي عنوانك ما تبدّلش، ولا اضغط باش تكتب المعلومات الجديدة.';
+   personalMode=true;addressConfirmation.hidden=false;addressConfirmation.querySelector('input').required=true;personalSummary.replaceChildren();
+   const title=document.createElement('h3');title.textContent='تأكّد من معلومات التوصيل';
+   const intro=document.createElement('p');intro.textContent='هاذي معلومات طلبيتك السابقة. راجعها قبل ما تأكّد الطلب.';
+   const list=document.createElement('ul');list.className='personal-info-list';
+   const displayPhone=/^\+213[567]\d{8}$/.test(data.phone||'')?'0'+data.phone.slice(4):data.phone;
+   [['رقم الهاتف',displayPhone,'ltr'],['الولاية',data.wilaya,'auto'],['العنوان',data.address,'auto']].forEach(([label,value,direction])=>{
+    const item=document.createElement('li'),labelNode=document.createElement('strong'),valueNode=document.createElement('bdi');
+    labelNode.textContent=label;valueNode.textContent=value||'—';valueNode.dir=direction;
+    item.append(labelNode,valueNode);list.append(item);
+   });
+   personalSummary.append(title,intro,list,addressConfirmation,changeContact);
    contactFields.forEach(el=>{el.disabled=true;el.closest('label').hidden=true;});changeContact.hidden=false;
   }else if(response.ok&&data.state==='created'){
    submitted=true;personalSummary.textContent='هذا الرابط عندو طلبية مسجّلة '+(data.result?.orderName||'')+'.';
