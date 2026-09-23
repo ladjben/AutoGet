@@ -1,6 +1,6 @@
 {
   "devCommand": "vite",
-  "buildCommand": "node server/marketing/install-personal-links.js && npm run build",
+  "buildCommand": "node server/marketing/install-personal-links.js && node server/marketing/verify-personal-shopify.js && npm run build",
   "outputDirectory": "dist",
   "framework": "vite",
   "functions": {
