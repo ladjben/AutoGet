@@ -205,6 +205,8 @@ export function renderTemplate(template, bindings, customer) {
   const fields = templateFields(template)
   const values = {
     name: customer.name,
+    firstName: String(customer.name || '').trim().split(/\s+/)[0],
+    personalLink: customer.personalLink,
     phone: customer.phone,
     city: customer.city,
     orderCount: String(customer.orderCount),
@@ -216,6 +218,7 @@ export function renderTemplate(template, bindings, customer) {
   const resolved = Object.fromEntries(
     fields.map((f) => {
       const b = bindings?.[f.key]
+      if (b?.source === 'personalLink' && f.component !== 'BUTTON') throw new Error('Le lien personnel est réservé au bouton.')
       const value = b?.source === 'literal' ? b.value : values[b?.source]
       if (typeof value !== 'string' || !value.trim() || value.length > (f.kind === 'image' ? 2048 : 1000))
         throw new Error(

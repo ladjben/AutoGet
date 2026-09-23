@@ -1,0 +1,316 @@
+{% layout none %}
+<!doctype html>
+<html lang="ar-DZ" dir="rtl">
+<head><meta name="referrer" content="no-referrer"><script>
+(function(){
+ const u=new URL(location.href),t=u.searchParams.get('access');
+ if(t!==null){
+  u.searchParams.delete('access');history.replaceState(null,'',u.pathname+u.search+u.hash);
+  window.COSMOS_PERSONAL_TOKEN=/^[A-Za-z0-9_-]{43}$/.test(t)?t:null;
+  try{if(window.COSMOS_PERSONAL_TOKEN)sessionStorage.setItem('cosmos40-personal-access',t);else sessionStorage.removeItem('cosmos40-personal-access');}catch(e){}
+ }else{try{window.COSMOS_PERSONAL_TOKEN=sessionStorage.getItem('cosmos40-personal-access');}catch(e){}}
+})();
+</script><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="#101010"><meta name="description" content="عرض خاص لزبائن COSMOS القدام: بريميوم 2.0 كحل، بريميوم 4.4 كحل. بـ 3 300 دج، قياس 40 برك."><title>عرض خاص ليك — COSMOS الجزائر</title><link rel="preload" href="{{ 'archivo.woff2' | asset_url }}" as="font" type="font/woff2" crossorigin><style>@font-face{font-family:Instrument;src:url("{{ 'instrument.woff2' | asset_url }}") format('woff2');font-display:swap}@font-face{font-family:Archivo;src:url("{{ 'archivo.woff2' | asset_url }}") format('woff2');font-display:swap}
+:root{--ink:#101010;--muted:#666;--line:#dedede;--paper:#f5f5f3}*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:20px}body{margin:0;color:var(--ink);background:#fff;font-family:Instrument,Arial,sans-serif;font-size:16px;line-height:1.5}button,a,input{-webkit-tap-highlight-color:transparent}button,a{touch-action:manipulation}button{font:inherit;cursor:pointer}a{color:inherit}img{max-width:100%;display:block}h1,h2,p{margin:0}h1,h2,.model-name,.big-price{font-family:Archivo,'Arial Narrow',sans-serif;font-weight:400}button:focus-visible,a:focus-visible,summary:focus-visible{outline:3px solid #4868c5;outline-offset:5px}[hidden]{display:none!important}.wrap{max-width:1256px;margin-inline:auto;padding-inline:40px}.announcement{text-align:center;background:var(--ink);color:white;padding:10px 16px;font-size:12px;letter-spacing:.14em}.header{max-width:1256px;margin:auto;padding:18px 40px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}.header img{object-fit:contain}.header>span{font-size:12px;letter-spacing:.13em;display:flex;gap:20px;align-items:center}.header-rule{width:40px;height:1px;background:#aaa}.intro{display:flex;justify-content:space-between;gap:35px;align-items:center;padding-top:55px;padding-bottom:46px}.eyebrow{font-size:12px;letter-spacing:.14em;margin-bottom:18px}h1{font-size:clamp(44px,5.5vw,76px);line-height:1.04;letter-spacing:-.04em}h1 span{color:#757575}.intro-copy{margin-top:22px;color:#555;font-size:17px}.intro-copy strong{color:var(--ink)}.size-stamp{border:1px solid var(--ink);width:220px;min-width:220px;display:flex;align-items:center;flex-direction:column;padding:21px 8px 16px}.size-stamp span{font-size:10px;letter-spacing:.08em}.size-stamp strong{font-family:Archivo,sans-serif;font-size:120px;line-height:1.13;font-weight:400;letter-spacing:-.06em;margin-right:6px}.section-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}.section-top h2{font-size:25px}.section-top>span{font-size:12px;color:#666;letter-spacing:.08em}.models{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;border:0;padding:0;margin:0}.model{position:relative;cursor:pointer;min-width:0}.model input{position:absolute;opacity:0;width:1px;height:1px}.model-inner{position:relative;display:block;border:1px solid var(--line);height:100%;transition:border-color .15s}.model input:checked+.model-inner{border:2px solid var(--ink)}.model input:focus-visible+.model-inner{outline:3px solid #4868c5;outline-offset:4px}.model-number{position:absolute;left:18px;top:16px;font-size:12px;color:#777}.check{display:none;position:absolute;right:14px;top:14px;background:var(--ink);color:white;border-radius:100%;height:25px;width:25px;text-align:center}.model input:checked+.model-inner .check{display:block}.product-photo{display:block;overflow:hidden;aspect-ratio:1.38}.product-photo img{width:100%;height:100%;object-fit:cover;object-position:50% 54%}.model:first-child .product-photo img{object-position:50% 55%}.model-text{display:flex;flex-direction:column;padding:10px 22px 22px}.model-name{font-size:29px;line-height:1.15}.color{font-size:14px;color:#666;display:flex;align-items:center;gap:8px;margin-top:7px}.color i{width:10px;height:10px;background:#202020;border:1px solid #555;border-radius:50%}.color .white{background:#fff}.card-price{font-size:17px;margin-top:17px;font-weight:700}.card-price s{font-weight:400;font-size:13px;color:#777;margin-left:8px;white-space:nowrap}.select-label{margin-top:18px;font-size:13px;border-top:1px solid var(--line);padding-top:12px}.model input:checked+.model-inner .select-label{font-weight:700}.price-note{font-size:12px;color:#666;margin-top:12px}.order{background:var(--ink);color:white;margin-top:36px;padding-top:30px;padding-bottom:30px;display:flex;justify-content:space-between;gap:30px}.order .eyebrow{color:#bdbdbd;margin-bottom:7px}.order h2{font-size:35px;margin-bottom:10px}.order-heading>p:not(.eyebrow){font-size:14px;color:#d2d2d2}.dot-separator{margin-inline:8px;color:#777}.order .saving{margin-top:9px;color:#c8c8c8;font-size:12px}.order-action{width:340px}.big-price{font-size:40px;line-height:1;margin-bottom:13px}.big-price span{font-size:24px}.primary{border:1px solid var(--ink);background:var(--ink);color:#fff;min-height:52px;padding:13px 22px;display:flex;align-items:center;justify-content:space-between;gap:24px;text-decoration:none;font-size:16px}.order .primary{background:white;color:var(--ink);width:100%}.primary:hover{background:#333}.order .primary:hover{background:#ddd}.order-action>p:last-child{font-size:11px;color:#bcbcbc;margin-top:9px}.reassurance{display:grid;grid-template-columns:repeat(3,1fr);gap:30px;padding-block:36px;border-bottom:1px solid var(--line)}.reassurance-icon{display:block;font-size:12px;color:#777;margin-bottom:10px}.reassurance strong{font-size:15px}.reassurance p{font-size:13px;color:#666;margin-top:4px}.details-section{padding-block:65px;display:grid;grid-template-columns:1fr 1fr;align-items:center;gap:65px}.detail-image{position:relative;background:var(--paper);aspect-ratio:1.15;overflow:hidden}.detail-image img{width:100%;height:100%;object-fit:cover;mix-blend-mode:multiply}.detail-image>span{position:absolute;bottom:22px;left:24px;font-size:10px;letter-spacing:.12em}.detail-copy h2{font-size:58px;line-height:1.05;letter-spacing:-.03em}.detail-copy>p:not(.eyebrow){color:#666;margin-top:25px;max-width:400px}.text-link{display:inline-flex;gap:38px;text-decoration:none;border-bottom:1px solid var(--ink);padding-bottom:5px;margin-top:25px;font-size:14px}.faq{display:grid;grid-template-columns:1fr 1.4fr;gap:40px;padding-bottom:65px}.faq h2{font-size:38px}.faq details{border-top:1px solid var(--line)}summary{cursor:pointer;padding:18px 25px 18px 0;position:relative;font-size:15px;list-style:none}summary::-webkit-details-marker{display:none}summary:after{content:'+';position:absolute;right:0}details[open] summary:after{content:'−'}.faq details p{font-size:14px;color:#666;padding:0 20px 20px 0}.faq details:last-child{border-bottom:1px solid var(--line)}footer{border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:20px;padding-block:24px}footer p{font-family:Archivo,sans-serif;font-size:22px}footer a{font-size:12px;color:#666}.mobile-bar{display:none}dialog{border:0;padding:40px;max-width:480px;width:calc(100% - 32px);color:var(--ink)}dialog::backdrop{background:#0009}dialog h2{font-size:35px;line-height:1.1;margin-bottom:20px}dialog p:not(.eyebrow){margin-bottom:20px;font-size:15px}dialog .close{position:absolute;top:5px;right:8px;border:0;background:none;font-size:32px;width:44px;height:44px}.secondary{background:white;border:1px solid #ccc;width:100%;padding:12px;margin-top:12px}.sr-only,.skip:not(:focus){position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}.skip:focus{display:block;padding:14px}.noscript{padding:20px;border:2px solid black}
+@media(min-width:1256px){.order{max-width:1176px}}
+@media(max-width:700px){.wrap{padding-inline:18px}.header{padding:12px 18px}.header img{width:72px;height:45px}.header>span{font-size:9px;gap:9px}.header-rule{width:16px}.announcement{font-size:10px;padding:9px 5px}.intro{padding-top:30px;padding-bottom:29px;gap:10px;align-items:flex-start}.eyebrow{font-size:10px;letter-spacing:.08em;margin-bottom:12px}h1{font-size:42px}.intro-copy{font-size:14px;margin-top:15px}.size-stamp{min-width:74px;width:74px;padding:10px 3px;margin-top:29px}.size-stamp strong{font-size:58px;line-height:1.1}.size-stamp span{font-size:7px;letter-spacing:0;text-align:center}.size-stamp span:last-child{display:none}.section-top{margin-bottom:13px}.section-top h2{font-size:22px}.section-top>span{display:none}.models{gap:7px}.model-number{left:9px;top:8px;font-size:10px}.check{right:7px;top:7px;width:18px;height:18px;line-height:18px;font-size:11px}.product-photo{aspect-ratio:.92}.product-photo img{object-fit:cover;width:100%;max-width:100%;margin-left:0;object-position:50% 52%}.model-text{padding:7px 8px 12px}.model-name{font-size:19px}.color{font-size:12px;gap:5px;margin-top:5px}.card-price{font-size:13px;margin-top:11px}.card-price s{font-size:11px;margin:2px 0 0;display:block}.select-label{font-size:10px;margin-top:10px;padding-top:8px;min-height:37px}.price-note{font-size:10px}.order{margin-top:25px;display:block;padding-top:24px;padding-bottom:24px}.order h2{font-size:31px}.order-action{width:100%;margin-top:22px}.big-price{font-size:40px}.order-action>p:last-child{font-size:11px}.reassurance{gap:14px;padding-block:25px}.reassurance strong{font-size:12px;line-height:1.3;display:block}.reassurance p{font-size:11px}.reassurance-icon{margin-bottom:7px}.details-section{padding-block:36px;gap:25px;grid-template-columns:1fr}.detail-image{aspect-ratio:1.35}.detail-copy h2{font-size:42px}.detail-copy>p:not(.eyebrow){margin-top:15px;font-size:15px}.faq{display:block;padding-bottom:36px}.faq h2{font-size:32px;margin-bottom:20px}summary{font-size:14px}.faq details p{font-size:14px}footer{flex-wrap:wrap;gap:12px;padding-bottom:115px}footer p{font-size:20px}footer a{width:100%;font-size:12px}.mobile-bar{display:flex;position:fixed;bottom:0;left:0;right:0;z-index:5;background:#fff;border-top:1px solid #ddd;padding:12px 16px calc(12px + env(safe-area-inset-bottom));align-items:center;justify-content:space-between;gap:8px}.mobile-bar>div{display:flex;flex-direction:column}.mobile-bar strong{font-size:11px}.mobile-bar>div>span{font-size:18px}.mobile-bar .primary{font-size:14px;min-height:46px;padding:10px 16px}dialog{padding:35px 23px}dialog h2{font-size:30px}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important}}
+
+@media(max-width:700px){.select-label{font-size:12px}.model-name{font-size:20px}.card-price{font-size:14px}.reassurance strong{font-size:14px}.reassurance p{font-size:12px}}
+.header img{width:130px;height:32px;object-fit:cover}footer img{width:115px;height:30px;object-fit:cover}.model input:disabled+.model-inner{opacity:.55}.model:has(input:disabled){cursor:not-allowed}@media(max-width:700px){.header img{width:110px;height:30px}}
+
+@media(max-width:700px){.select-label{font-size:12px}.model-name{font-size:20px}.card-price{font-size:14px}.reassurance strong{font-size:14px}.reassurance p{font-size:12px}}
+
+@media(max-width:700px){.model-name>span{display:block}.model-name{min-height:46px}}
+
+@media(max-width:700px){.select-label{font-size:12px}.model-name{font-size:20px}.card-price{font-size:14px}.reassurance strong{font-size:14px}.reassurance p{font-size:12px}}
+
+/* Darija algérienne : composition RTL, sans miroir sur les photos produit. */
+html[dir="rtl"] body{font-family:Tahoma,"Segoe UI",Arial,sans-serif;line-height:1.8}
+html[dir="rtl"] h1,html[dir="rtl"] h2,html[dir="rtl"] .big-price{font-family:Tahoma,"Segoe UI",Arial,sans-serif;letter-spacing:0;line-height:1.5}
+html[dir="rtl"] h1{font-size:clamp(32px,4.4vw,58px);font-weight:700}
+html[dir="rtl"] .eyebrow,html[dir="rtl"] .announcement,html[dir="rtl"] .header>span{letter-spacing:0}
+html[dir="rtl"] .model-name{font-family:Archivo,Arial,sans-serif;text-align:right;line-height:1.2}
+html[dir="rtl"] .model-number{left:auto;right:18px}
+html[dir="rtl"] .check{right:auto;left:14px}
+html[dir="rtl"] .card-price s{margin-left:0;margin-right:8px}
+html[dir="rtl"] .detail-image>span{left:auto;right:24px}
+html[dir="rtl"] summary{padding:18px 0 18px 25px}
+html[dir="rtl"] summary:after{right:auto;left:0}
+html[dir="rtl"] .faq details p{padding:0 0 20px 20px}
+html[dir="rtl"] dialog .close{right:auto;left:8px}
+html[dir="rtl"] .big-price{font-size:38px}
+html[dir="rtl"] .section-top h2{font-size:24px}
+html[dir="rtl"] .size-stamp strong{direction:ltr}
+html[dir="rtl"] .detail-copy h2{font-size:40px}
+@media(max-width:700px){
+html[dir="rtl"] h1{font-size:29px;line-height:1.55}
+html[dir="rtl"] .intro{gap:12px}
+html[dir="rtl"] .intro-copy{font-size:15px}
+html[dir="rtl"] .size-stamp{min-width:65px;width:65px}
+html[dir="rtl"] .size-stamp span{font-size:10px}
+html[dir="rtl"] .section-top h2{font-size:21px}
+html[dir="rtl"] .model-number{right:8px}
+html[dir="rtl"] .check{left:7px}
+html[dir="rtl"] .card-price{font-size:14px}
+html[dir="rtl"] .card-price s{margin-right:0;font-size:12px}
+html[dir="rtl"] .select-label{font-size:12px}
+html[dir="rtl"] .order h2{font-size:25px}
+html[dir="rtl"] .detail-copy h2{font-size:31px}
+html[dir="rtl"] .faq h2{font-size:28px}
+html[dir="rtl"] .mobile-bar strong{font-size:12px}
+html[dir="rtl"] .header>span{font-size:11px}
+html[dir="rtl"] .price-note{font-size:12px}
+}
+
+@media(max-width:700px){.select-label{font-size:12px}.model-name{font-size:20px}.card-price{font-size:14px}.reassurance strong{font-size:14px}.reassurance p{font-size:12px}}
+
+#cosmos-product-form{margin:0;width:100%}
+#cosmos-product-form .es-popup-button{width:100%!important;min-height:54px;background:#fff!important;color:#101010!important;border-radius:0!important;margin:0!important;animation:none!important;cursor:pointer}
+#cosmos-product-form .es-button-title{font-family:Tahoma,Arial,sans-serif!important;color:#101010!important;font-size:17px!important}
+#cosmos-product-form .es-popup-button[aria-disabled="true"]{opacity:.5;pointer-events:none}
+#cosmos-product-form .es-popup-button:focus-visible{outline:3px solid #8bb1ff;outline-offset:4px}
+#cosmos-cod-status{font-size:14px;line-height:1.8;margin:10px 0;color:#ddd}
+#sticky-order:disabled{opacity:.5;cursor:not-allowed}
+#cosmos-direct-form{display:grid;gap:14px;text-align:right;margin-top:24px;width:100%}#cosmos-direct-form label{display:grid;gap:6px;font-size:15px}#cosmos-direct-form input,#cosmos-direct-form select{font:inherit;width:100%;min-height:48px;padding:12px;border:1px solid #bbb;border-radius:4px;background:#fff;color:#111}.cod-columns{display:grid;grid-template-columns:1fr 1fr;gap:12px}.cod-total{font-size:22px}.cod-hp{position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden}#cosmos-direct-form button:disabled{opacity:.5;cursor:default}#cosmos-cod-status{font-size:15px}.order-action{min-width:0}@media(max-width:600px){.cod-columns{grid-template-columns:1fr}}
+
+/* Formulaire simplifie, quatre champs visibles */
+.order{align-items:flex-start}.order-action{width:min(100%,560px);flex-shrink:0}
+#cosmos-direct-form{background:#fff;color:#111;padding:28px;border:2px solid #dedede;border-radius:16px;box-shadow:0 12px 32px #0003;gap:18px;margin-top:20px;position:relative}
+.cod-heading strong{display:block;font-size:29px;font-weight:800}.cod-heading p{color:#555;font-size:15px;margin-top:5px}
+#cosmos-direct-form label{font-weight:700;gap:8px;font-size:16px}
+#cosmos-direct-form input,#cosmos-direct-form select{min-height:56px;border:1.5px solid #aaa;border-radius:8px;padding:14px;font-size:16px;font-weight:400;background:#fafafa}
+#cosmos-direct-form input:focus,#cosmos-direct-form select:focus{outline:3px solid #ccc;outline-offset:2px;border-color:#111;background:#fff}
+#cosmos-direct-form .cod-total{border-top:1px solid #ddd;padding-top:16px;display:flex;justify-content:space-between;gap:12px;font-size:22px}.cod-total strong{font-size:27px}
+#cosmos-direct-form #cod-submit{display:flex;align-items:center;justify-content:center;width:100%;min-height:66px;background:#101010;color:#fff;border:2px solid #101010;border-radius:10px;box-shadow:0 5px 0 #777;padding:16px 12px;font-size:21px;font-weight:800;text-align:center;gap:8px}
+#cosmos-direct-form #cod-submit:hover:not(:disabled){background:#333;transform:translateY(-1px)}#cosmos-direct-form #cod-submit:active:not(:disabled){transform:translateY(2px);box-shadow:0 2px 0 #777}
+#cosmos-cod-status:empty{display:none}#cosmos-cod-status{color:#111;overflow-wrap:anywhere}.mobile-bar #sticky-order{background:#111;color:#fff;border-radius:8px;font-weight:800;min-height:54px;font-size:17px}
+@media(max-width:900px){.order{display:block}.order-action{width:100%;margin-top:24px}}@media(max-width:600px){#cosmos-direct-form{padding:20px 16px;gap:16px}.cod-heading strong{font-size:26px}#cosmos-direct-form #cod-submit{font-size:19px;min-height:64px}}
+
+/* Responsive RTL : largeur intrinseque des champs et debordements */
+html{ -webkit-text-size-adjust:100%;text-size-adjust:100% }
+body{min-width:0}
+.wrap,.header{width:100%;min-width:0}
+.intro>div,.order-heading,.order-action,.detail-copy,.faq>div,.reassurance>div{min-width:0}
+.models{min-inline-size:0;width:100%}
+#cosmos-direct-form{min-width:0;max-width:100%;grid-template-columns:minmax(0,1fr)}
+#cosmos-direct-form label,#cosmos-direct-form input,#cosmos-direct-form select{min-width:0;max-width:100%}
+#cosmos-direct-form .cod-hp{position:absolute;inset:0 auto auto 0;width:1px;height:1px;padding:0;margin:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap;pointer-events:none}
+#cosmos-direct-form #cod-submit{white-space:normal;line-height:1.55;overflow-wrap:anywhere}
+.cod-total{flex-wrap:wrap}.cod-total strong{white-space:nowrap}
+@media(max-width:900px){.details-section{gap:24px}.order-action{max-width:100%}}
+@media(max-width:700px){
+.wrap{padding-inline:16px}.header{padding-inline:16px;gap:12px}.header>span{flex-wrap:wrap;justify-content:flex-end}
+html[dir="rtl"] .intro{display:grid;grid-template-columns:minmax(0,1fr) 64px;align-items:center;gap:10px;padding-block:24px}
+html[dir="rtl"] h1{font-size:clamp(22px,6.7vw,29px);line-height:1.6;overflow-wrap:break-word}
+html[dir="rtl"] .size-stamp{min-width:0;width:64px;margin:0;padding:9px 3px}.size-stamp strong{font-size:52px}
+.models{gap:10px}.model-inner{border-radius:8px;overflow:hidden}.product-photo{aspect-ratio:1}.product-photo img{object-fit:contain;background:#f6f6f4}
+.model-text{padding:10px}.model-name{font-size:18px!important;min-height:44px}.select-label{font-size:13px;min-height:44px;display:flex;align-items:center}
+.order{margin-top:24px;padding-block:22px}.order-action{margin-top:16px}html[dir="rtl"] .order h2{font-size:23px}
+#cosmos-direct-form{padding:20px 14px;border-radius:12px;margin-top:12px}#cosmos-direct-form input,#cosmos-direct-form select{font-size:16px;padding:12px;min-height:52px}
+#cosmos-direct-form #cod-submit{font-size:18px;padding:14px 8px;min-height:60px}.cod-heading strong{font-size:24px}.cod-heading p{font-size:14px}
+.reassurance{grid-template-columns:1fr;gap:16px}.reassurance>div{position:relative;padding-inline-start:32px}.reassurance-icon{position:absolute;inset-inline-start:0;top:3px}.reassurance p{font-size:13px}
+.mobile-bar{gap:12px;padding:10px 14px calc(10px + env(safe-area-inset-bottom));box-shadow:0 -3px 16px #0000000d}
+.mobile-bar>div{flex:1;min-width:0}.mobile-bar strong{line-height:1.6;overflow-wrap:anywhere}.mobile-bar #sticky-order{flex:0 0 auto;max-width:45%;padding:12px 18px;justify-content:center;white-space:normal}
+footer{padding-bottom:140px}#cosmos-direct-form{scroll-margin-block:20px 140px}
+body:has(#cosmos-direct-form input:focus) .mobile-bar,body:has(#cosmos-direct-form select:focus) .mobile-bar{display:none}
+}
+@media(max-width:359px){.wrap{padding-inline:12px}.models{gap:8px}.model-text{padding:8px}.card-price{font-size:13px!important}.cod-total strong{font-size:24px}.mobile-bar #sticky-order{padding-inline:14px}}
+#cod-total{direction:ltr;unicode-bidi:isolate}#cosmos-direct-form .personal-address-confirmation{display:flex;align-items:center;gap:12px}#cosmos-direct-form .personal-address-confirmation input{width:24px;min-height:24px;height:24px;flex:0 0 24px}
+</style>{{ content_for_header }}</head>
+<body>
+<a class="skip" href="#selection">شوف الموديلات</a>
+<div class="announcement">عرض خاص لزبائننا القدام</div>
+<header class="header"><a href="https://cosmos-algerie.com" aria-label="COSMOS الجزائر، الصفحة الرئيسية"><img src="{{ 'logo.jpg' | asset_url }}" width="88" height="55" alt="COSMOS"></a><span>عرض خاص <span class="header-rule"></span> الجزائر</span></header>
+<main>
+<section class="intro wrap" aria-labelledby="title"><div><p class="eyebrow">خاطر راك من زبائن COSMOS.</p><h1 id="title">صباطك الجديد.<br><span>بسومة خاصة ليك.</span></h1><p class="intro-copy">زوج موديلات، بنفس السومة.<br>اختار الموديل لي يعجبك بـ <strong>3 300 دج.</strong></p></div><div class="size-stamp"><span>قياس واحد برك</span><strong>40</strong><span>هذا قياسك؟ هذا عرضك.</span></div></section>
+<section class="selection wrap" id="selection" aria-labelledby="selection-title"><div class="section-top"><h2 id="selection-title">01 / وش من موديل عجبك؟</h2><span>زوج موديلات · جلد طبيعي</span></div>
+<fieldset class="models"><legend class="sr-only">اختار الموديل تاعك، قياس 40</legend>
+<label class="model"><input type="radio" name="model" value="p20" checked><span class="model-inner"><span class="model-number">01</span><span class="check" aria-hidden="true">✓</span><span class="product-photo"><img src="{{ 'premium-20-noir.png' | asset_url }}" alt="بريميوم 2.0 كحل: جلد كحل مثقّب، رباط كحل وسمالة كحلة بنقشة" width="750" height="900" fetchpriority="high"></span><span class="model-text"><span class="model-name" dir="ltr">Premium <span>2.0</span></span><span class="color"><i></i>كحل</span><span class="card-price">3 300 دج <s>4 900 دج</s></span><span class="select-label">نختار هذا</span></span></span></label>
+<label class="model"><input type="radio" name="model" value="p44n"><span class="model-inner"><span class="model-number">02</span><span class="check" aria-hidden="true">✓</span><span class="product-photo"><img src="{{ 'premium-44-noir.png' | asset_url }}" alt="بريميوم 4.4 كحل: جلد كحل، قطع رمادي غامق وسمالة كحلة بارزة" width="1080" height="1080"></span><span class="model-text"><span class="model-name" dir="ltr">Premium <span>4.4</span></span><span class="color"><i></i>كحل</span><span class="card-price">3 300 دج <s>5 200 دج</s></span><span class="select-label">نختار هذا</span></span></span></label>
+</fieldset><p class="price-note">السومة المشطوبة هي لي راهي معروضة في صفحات COSMOS. السومة الخاصة ليك: 3 300 دج للزوج، بلا مصاريف التوصيل.</p>
+</section>
+<section class="order wrap" id="commande" aria-labelledby="order-title"><div class="order-heading"><p class="eyebrow">الموديل لي خيّرتو</p><h2 id="order-title">بريميوم 2.0 — كحل</h2><p>القياس <strong>40</strong> <span class="dot-separator">/</span> زوج واحد <span class="dot-separator">/</span> جلد طبيعي</p><p class="saving" id="saving">تربح 600 دج مقارنة بالسومة الحالية في الموقع.</p></div><div class="order-action"><p class="big-price">3 300 <span>دج</span></p><form id="cosmos-direct-form">
+<div class="cod-heading"><strong>كمّل طلبك هنا</strong><p>عمّر هاذ المعلومات واختار طريقة التوصيل</p></div>
+<label>الاسم واللقب<input name="name" autocomplete="name" required minlength="3" maxlength="100"></label>
+<label>رقم الهاتف<input name="phone" type="tel" dir="ltr" autocomplete="tel" placeholder="05 / 06 / 07" required maxlength="30"></label>
+<label>الولاية<select name="wilaya" autocomplete="address-level1" required><option value="" disabled selected>اختار الولاية تاعك</option><option value="01 - Adrar أدرار">01 - Adrar أدرار</option><option value="02 - Chlef الشلف">02 - Chlef الشلف</option><option value="03 - Laghouat الأغواط">03 - Laghouat الأغواط</option><option value="04 - Oum El Bouaghi أم البواقي">04 - Oum El Bouaghi أم البواقي</option><option value="05 - Batna باتنة">05 - Batna باتنة</option><option value="06 - Béjaïa بجاية">06 - Béjaïa بجاية</option><option value="07 - Biskra بسكرة">07 - Biskra بسكرة</option><option value="08 - Béchar بشار">08 - Béchar بشار</option><option value="09 - Blida البليدة">09 - Blida البليدة</option><option value="10 - Bouïra البويرة">10 - Bouïra البويرة</option><option value="11 - Tamanrasset تمنراست">11 - Tamanrasset تمنراست</option><option value="12 - Tébessa تبسة">12 - Tébessa تبسة</option><option value="13 - Tlemcen تلمسان">13 - Tlemcen تلمسان</option><option value="14 - Tiaret تيارت">14 - Tiaret تيارت</option><option value="15 - Tizi Ouzou تيزي وزو">15 - Tizi Ouzou تيزي وزو</option><option value="16 - Algiers الجزائر">16 - Algiers الجزائر</option><option value="17 - Djelfa الجلفة">17 - Djelfa الجلفة</option><option value="18 - Jijel جيجل">18 - Jijel جيجل</option><option value="19 - Sétif سطيف">19 - Sétif سطيف</option><option value="20 - Saïda سعيدة">20 - Saïda سعيدة</option><option value="21 - Skikda سكيكدة">21 - Skikda سكيكدة</option><option value="22 - Sidi Bel Abbès سيدي بلعباس">22 - Sidi Bel Abbès سيدي بلعباس</option><option value="23 - Annaba عنابة">23 - Annaba عنابة</option><option value="24 - Guelma قالمة">24 - Guelma قالمة</option><option value="25 - Constantine قسنطينة">25 - Constantine قسنطينة</option><option value="26 - Médéa المدية">26 - Médéa المدية</option><option value="27 - Mostaganem مستغانم">27 - Mostaganem مستغانم</option><option value="28 - M&#x27;Sila المسيلة">28 - M&#x27;Sila المسيلة</option><option value="29 - Mascara معسكر">29 - Mascara معسكر</option><option value="30 - Ouargla ورقلة">30 - Ouargla ورقلة</option><option value="31 - Oran وهران">31 - Oran وهران</option><option value="32 - El Bayadh البيض">32 - El Bayadh البيض</option><option value="33 - Illizi اليزي">33 - Illizi اليزي</option><option value="34 - Bordj Bou Arréridj برج بوعريريج">34 - Bordj Bou Arréridj برج بوعريريج</option><option value="35 - Boumerdès بومرداس">35 - Boumerdès بومرداس</option><option value="36 - El Tarf الطارف">36 - El Tarf الطارف</option><option value="37 - Tindouf تندوف">37 - Tindouf تندوف</option><option value="38 - Tissemsilt تسمسيلت">38 - Tissemsilt تسمسيلت</option><option value="39 - El Oued الوادي">39 - El Oued الوادي</option><option value="40 - Khenchela خنشلة">40 - Khenchela خنشلة</option><option value="41 - Souk Ahras سوق أهراس">41 - Souk Ahras سوق أهراس</option><option value="42 - Tipaza تيبازة">42 - Tipaza تيبازة</option><option value="43 - Mila ميلة">43 - Mila ميلة</option><option value="44 - Aïn Defla عين الدفلى">44 - Aïn Defla عين الدفلى</option><option value="45 - Naâma النعامة">45 - Naâma النعامة</option><option value="46 - Aïn Témouchent عين تموشنت">46 - Aïn Témouchent عين تموشنت</option><option value="47 - Ghardaïa غرداية">47 - Ghardaïa غرداية</option><option value="48 - Relizane غليزان">48 - Relizane غليزان</option><option value="49 - Timimoun تيميمون">49 - Timimoun تيميمون</option><option value="50 - Bordj Baji Mokhtar برج باجي مختار">50 - Bordj Baji Mokhtar برج باجي مختار</option><option value="51 - Ouled Djellal أولاد جلال">51 - Ouled Djellal أولاد جلال</option><option value="52 - Béni Abbès بني عباس">52 - Béni Abbès بني عباس</option><option value="53 - In Salah عين صالح">53 - In Salah عين صالح</option><option value="54 - In Guezzam عين قزّام">54 - In Guezzam عين قزّام</option><option value="55 - Touggourt تقرت">55 - Touggourt تقرت</option><option value="56 - Djanet جانت">56 - Djanet جانت</option><option value="57 - El M&#x27;Ghair المغير">57 - El M&#x27;Ghair المغير</option><option value="58 - El Menia المنيعة">58 - El Menia المنيعة</option></select></label>
+<label>العنوان الكامل<input name="address" autocomplete="street-address" placeholder="البلدية، الحي ورقم الدار" required minlength="4" maxlength="220"></label>
+<label>طريقة التوصيل<select name="delivery"><option value="home">للدار — 600 دج</option><option value="stop_desk">للمكتب (Stop desk) — 400 دج</option></select></label>
+<div aria-hidden="true" class="cod-hp"><label>Website<input name="website" tabindex="-1" autocomplete="off"></label></div>
+<p>الزوج: 3 300 دج · التوصيل: <span id="cod-shipping">600</span> دج</p>
+<p class="cod-total">المجموع: <strong id="cod-total">3 900 دج</strong></p>
+<button type="submit" class="primary" id="cod-submit" disabled>نشري ضرك — الدفع عند الاستلام</button>
+<p>تخلّص كي توصلك الطلبية.</p><p id="cosmos-cod-status" role="status" aria-live="polite">الطلب غير متاح حاليا.</p>
+</form></div></section>
+<div class="reassurance wrap"><div><span class="reassurance-icon" aria-hidden="true">01</span><strong>خلّص كي توصلك</strong><p>الدفع عند الاستلام.</p></div><div><span class="reassurance-icon" aria-hidden="true">02</span><strong>وين ما راك في الجزائر</strong><p>حسب الموقع، التوصيل من 24 حتى 72 ساعة.</p></div><div><span class="reassurance-icon" aria-hidden="true">03</span><strong>نبقاو معاك حتى من بعد</strong><p>التبديل وترجيع الدراهم حسب شروط COSMOS.</p></div></div>
+<section class="details-section wrap" aria-labelledby="details-title"><div class="detail-image"><img id="detail-image" src="{{ 'premium-20-noir.png' | asset_url }}" alt="الصورة الأصلية تاع بريميوم 2.0 — كحل" width="750" height="900" loading="lazy"><span>اختيارات COSMOS / قياس 40</span></div><div class="detail-copy"><p class="eyebrow">شوف الموديل مليح.</p><h2 id="details-title">كحل كامل.<br>ستايل بسيط.</h2><p id="detail-description">جلد كحل مثقّب، رباط من نفس اللون وسمالة كحلة بنقشة. بريميوم 2.0، كحل من الفوق للتحت.</p><a class="text-link" id="source-link" href="https://cosmos-algerie.com/products/cosmos-premium-2-0-noir-cuir-veritable" target="_blank" rel="noopener">شوف صفحة الموديل الأصلية <span aria-hidden="true">↖</span></a></div></section>
+<section class="faq wrap" aria-labelledby="faq-title"><h2 id="faq-title">قبل ما تطلب.</h2><div><details><summary>هذا العرض فيه قياس 40 برك؟</summary><p>إيه، هذا العرض خاص بزبائن COSMOS القدام. الزوج موديلات كامل متوفرين في هذا العرض بقياس 40 برك.</p></details><details><summary>الزوج موديلات بنفس السومة؟</summary><p>إيه، الزوج بـ 3 300 دج: بريميوم 2.0 كحل ولا بريميوم 4.4 كحل. مصاريف التوصيل تزيد على السومة وتبانلك قبل ما تأكّد الطلبية.</p></details><details><summary>كيفاش نخلّص وكيفاش يوصلني؟</summary><p>تطلب من موقع COSMOS وتخلّص كي توصلك الطلبية. حسب الموقع، التوصيل من 24 حتى 72 ساعة في كامل الجزائر. شوف <a href="https://cosmos-algerie.com/policies/shipping-policy" target="_blank" rel="noopener">شروط التوصيل</a>.</p></details><details><summary>وإذا احتجت مساعدة من بعد؟</summary><p>COSMOS عندها خدمة ما بعد البيع. تقدر تطلب التبديل ولا ترجيع الدراهم حسب <a href="https://cosmos-algerie.com/policies/refund-policy" target="_blank" rel="noopener">شروط الاسترجاع</a>.</p></details></div></section>
+</main>
+<footer class="wrap"><img src="{{ 'logo.jpg' | asset_url }}" width="80" height="50" alt="COSMOS"><p>ستايلك مع COSMOS.</p><a href="https://cosmos-algerie.com">cosmos-algerie.com ↗</a></footer>
+<div class="mobile-bar"><div><strong id="sticky-name">بريميوم 2.0 — كحل · 40</strong><span>3 300 دج</span></div><button class="primary" id="sticky-order">نطلب ↖</button></div>
+
+<noscript><p class="noscript">فعّل JavaScript في المتصفح باش تقدر تختار الموديل وتطلب.</p></noscript>
+<script>
+window.COSMOS_CONFIG = {checkoutReady: true, storeOrigin: {{ shop.url | json }}, images: {
+ p20: {{ 'premium-20-noir.png' | asset_url | json }},
+ p44n: {{ 'premium-44-noir.png' | asset_url | json }},
+}, products: {}};
+{% for variant in product.variants %}
+{% assign model = variant.option1 | downcase | strip %}
+{% assign size = variant.option2 | append: '' %}
+{% assign key = '' %}
+{% if size == '40' %}
+  {% case model %}
+    {% when 'premium 2.0 noir', 'بريميوم 2.0 كحل', 'بريميوم 2.0 — كحل' %}{% assign key = 'p20' %}
+    {% when 'premium 4.4 noir', 'بريميوم 4.4 كحل', 'بريميوم 4.4 — كحل' %}{% assign key = 'p44n' %}
+  {% endcase %}
+{% endif %}
+{% if key != '' %}
+window.COSMOS_CONFIG.products[{{ key | json }}] = {variantId: {{ variant.id | append: '' | json }}, price: {{ variant.price | json }}, available: {{ variant.available | json }}};
+{% endif %}
+{% endfor %}
+</script><script>'use strict';
+const products = {
+  p20: {name:'بريميوم 2.0 — كحل', image:'{{ 'premium-20-noir.png' | asset_url }}', publicPrice:3900, title:'كحل كامل.<br>ستايل بسيط.', description:'جلد كحل مثقّب، رباط من نفس اللون وسمالة كحلة بنقشة. بريميوم 2.0، كحل من الفوق للتحت.', handle:'cosmos-premium-2-0-noir-cuir-veritable'},
+  p44n: {name:'بريميوم 4.4 — كحل', image:'{{ 'premium-44-noir.png' | asset_url }}', publicPrice:4700, title:'تفاصيل بارزة.<br>ستايل عندو طابعو.', description:'جلد كحل مع قطع رمادي غامق، وسمالة كحلة بتفاصيل بارزة. هاذي هي بريميوم 4.4 كحل.', handle:'cosmos-premium-4-4-cuir'},
+};
+for (const [key, image] of Object.entries(window.COSMOS_CONFIG?.images || {})) { if (products[key]) products[key].image = image; }
+let selected = 'p20';
+const $ = (selector) => document.querySelector(selector);
+function selectProduct(key) {
+  if (!products[key]) return;
+  selected = key;
+  refreshDirectForm();
+  const p = products[key];
+  $('#order-title').textContent = p.name;
+  $('#sticky-name').textContent = p.name + ' · 40';
+  $('#saving').textContent = 'تربح ' + (p.publicPrice - 3300).toLocaleString('fr-DZ') + ' دج مقارنة بالسومة الحالية في الموقع.';
+  $('#detail-image').src = p.image;
+  $('#detail-image').alt = 'الصورة الأصلية تاع ' + p.name;
+  $('#details-title').innerHTML = p.title;
+  $('#detail-description').textContent = p.description;
+  $('#source-link').href = 'https://cosmos-algerie.com/products/' + p.handle;
+  document.querySelectorAll('.model').forEach(label => {
+    const input = label.querySelector('input');
+    label.querySelector('.select-label').textContent = input.disabled ? 'ماهوش متوفر' : input.checked ? 'خيّرت هذا' : 'نختار هذا';
+  });
+}
+document.querySelectorAll('[name="model"]').forEach(input => input.addEventListener('change', () => selectProduct(input.value)));
+
+function selectionIsOrderable() {
+  const item = window.COSMOS_CONFIG?.products?.[selected];
+  return item?.available === true && item?.price === 330000 && /^\d+$/.test(item?.variantId || '');
+}
+// Activer uniquement après le test complet du workflow publié.
+const DIRECT_ORDERS_ENABLED = true;
+const ORDER_ENDPOINT = 'https://n8n.ikleelcos.com/webhook/cosmos-offre-40-commandes';
+const directForm = document.getElementById('cosmos-direct-form');
+const submitButton = document.getElementById('cod-submit');
+const directStatus = document.getElementById('cosmos-cod-status');
+let sending = false, submitted = false, uncertain = false;
+let requestId = null;
+let frozenPayload = null;
+const storageKey = 'cosmos40-pending-order-v1';
+try { const saved=JSON.parse(sessionStorage.getItem(storageKey)||'null'); if(saved?.requestId){requestId=saved.requestId;uncertain=true;}} catch(e) {}
+function refreshDirectForm(){
+ if(!document.getElementById('cod-submit'))return;
+ submitButton.disabled=!DIRECT_ORDERS_ENABLED||!selectionIsOrderable()||sending||submitted||uncertain;
+ document.getElementById('sticky-order').disabled=submitted;
+ if(!DIRECT_ORDERS_ENABLED)directStatus.textContent='الطلب غير متاح حاليا. عاود من بعد.';
+ else if(uncertain)directStatus.textContent='عندك طلب راهو قيد التحقق. ما تعاودش تبعث طلب جديد.';
+ else if(!selectionIsOrderable())directStatus.textContent='هذا الموديل ما راهوش متوفر حاليا.';
+ else if(!sending&&!submitted)directStatus.textContent='';
+}
+function updateDelivery(){
+ const home=directForm.elements.delivery.value==='home';
+ document.getElementById('cod-shipping').textContent=home?'600':'400';
+ document.getElementById('cod-total').textContent=home?'3 900 دج':'3 700 دج';
+}
+directForm.elements.delivery.addEventListener('change',updateDelivery);
+document.getElementById('sticky-order').addEventListener('click',()=>{directForm.scrollIntoView({behavior:'smooth',block:'center'});directForm.elements.name.focus({preventScroll:true});});
+directForm.addEventListener('submit',async event=>{
+ event.preventDefault();
+ if(personalMode){await submitPersonalOrder();return;}
+ if(!DIRECT_ORDERS_ENABLED||sending||submitted||uncertain||!selectionIsOrderable()||!directForm.reportValidity())return;
+ const fields=Object.fromEntries(new FormData(directForm));
+ const phone=fields.phone.replace(/[\s().-]/g,'');
+ if(!/^(0[567]\d{8}|\+213[567]\d{8})$/.test(phone)){directStatus.textContent='دخل رقم هاتف جزائري صحيح.';directForm.elements.phone.focus();return;}
+ requestId=crypto.randomUUID();
+ frozenPayload={...fields,phone,model:selected,quantity:1,requestId};
+ try{sessionStorage.setItem(storageKey,JSON.stringify({requestId}));}catch(e){}
+ sending=true;refreshDirectForm();submitButton.textContent='راه يتبعث الطلب…';directStatus.textContent='';
+ document.querySelectorAll('[name="model"]').forEach(el=>el.disabled=true);
+ const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),85000);
+ try{
+  const response=await fetch(ORDER_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(frozenPayload),signal:controller.signal,credentials:'omit'});
+  const data=await response.json();
+  if(response.ok&&data.ok===true&&data.orderName){submitted=true;try{sessionStorage.removeItem(storageKey);}catch(e){} directStatus.textContent='تسجّلت طلبيتك '+data.orderName+' — المجموع '+data.total+' دج. تخلّص كي توصلك.';submitButton.textContent='الطلبية تسجّلت ✓';}
+  else if([400,403,409].includes(response.status)&&data.pending!==true){try{sessionStorage.removeItem(storageKey);}catch(e){}directStatus.textContent=data.message||'راجع المعلومات وعاود جرّب.';requestId=null;}
+  else{uncertain=true;directStatus.textContent='ما قدرناش نأكدو النتيجة دُرك. ما تعاودش تبعث الطلب، تواصل مع COSMOS باش نتحققو.';}
+ }catch(e){uncertain=true;directStatus.textContent='الاتصال تقطع وما قدرناش نأكدو النتيجة. ما تعاودش تبعث الطلب، تواصل مع COSMOS باش نتحققو.';}
+ finally{clearTimeout(timer);sending=false;if(!submitted)submitButton.textContent=uncertain?'الطلب قيد التحقق':'نشري ضرك — الدفع عند الاستلام';submitButton.disabled=submitted||uncertain;document.querySelectorAll('[name="model"]').forEach(el=>{const item=window.COSMOS_CONFIG.products[el.value];el.disabled=submitted||uncertain||!item?.available||item?.price!==330000;});}
+});
+updateDelivery();
+if (window.COSMOS_CONFIG?.checkoutReady) {
+  document.querySelectorAll('[name="model"]').forEach(input => {
+    const item = window.COSMOS_CONFIG.products[input.value];
+    input.disabled = !item || !item.available || item.price !== 330000;
+  });
+  const first = document.querySelector('[name="model"]:not(:disabled)');
+  if (first) { first.checked = true; selected = first.value; }
+}
+selectProduct(selected);
+const PERSONAL_API='https://autoget-tau.vercel.app/api/marketing/personal';
+const personalToken=window.COSMOS_PERSONAL_TOKEN;
+let personalMode=false;
+const personalSummary=document.createElement('p');
+personalSummary.setAttribute('role','status');
+personalSummary.style.cssText='padding:16px;background:#f3f3f3;border:1px solid #ddd;border-radius:8px;color:#111';
+const changeContact=document.createElement('button');
+changeContact.type='button';changeContact.className='secondary';changeContact.textContent='نبدّل المعلومات / نكتب عنوان جديد';changeContact.hidden=true;
+const addressConfirmation=document.createElement('label');addressConfirmation.hidden=true;addressConfirmation.className='personal-address-confirmation';
+addressConfirmation.innerHTML='<input type="checkbox" name="same_address"> نأكّد بلي عنوان طلبيتي السابقة ما تبدّلش';
+directForm.prepend(personalSummary);directForm.append(addressConfirmation,changeContact);personalSummary.hidden=true;
+const contactFields=['name','phone','wilaya','address'].map(name=>directForm.elements[name]);
+function manualContact(){
+ personalMode=false;changeContact.hidden=true;personalSummary.hidden=true;addressConfirmation.hidden=true;addressConfirmation.querySelector('input').required=false;
+ contactFields.forEach(el=>{el.disabled=false;el.closest('label').hidden=false;});
+ try{sessionStorage.removeItem('cosmos40-personal-access');}catch(e){}
+ refreshDirectForm();
+}
+changeContact.addEventListener('click',manualContact);
+async function personalRequest(action,body){
+ const response=await fetch(PERSONAL_API+'/'+action,{method:'POST',headers:{'Content-Type':'application/json'},credentials:'omit',referrerPolicy:'no-referrer',body:JSON.stringify({token:personalToken,...body}),signal:AbortSignal.timeout(95000)});
+ const data=await response.json();return {response,data};
+}
+async function submitPersonalOrder(){
+ if(!DIRECT_ORDERS_ENABLED||sending||submitted||uncertain||!selectionIsOrderable()||!directForm.reportValidity())return;
+ sending=true;refreshDirectForm();changeContact.disabled=true;submitButton.textContent='راه يتبعث الطلب…';
+ document.querySelectorAll('[name="model"]').forEach(el=>el.disabled=true);
+ try{
+  const {response,data}=await personalRequest('confirm',{model:selected,delivery:directForm.elements.delivery.value});
+  if(response.ok&&data.ok&&data.orderName){submitted=true;directStatus.textContent='تسجّلت طلبيتك '+data.orderName+' — المجموع '+data.total+' دج.';submitButton.textContent='الطلبية تسجّلت ✓';}
+  else {uncertain=true;directStatus.textContent=data.error||'طلبك قيد التحقق. ما تعاودش تبعث طلب جديد، تواصل مع COSMOS.';submitButton.textContent='الطلب قيد التحقق';}
+ }catch(e){uncertain=true;directStatus.textContent='ما قدرناش نأكدو النتيجة. تواصل مع COSMOS قبل ما تعاود تطلب.';}
+ finally{sending=false;refreshDirectForm();}
+}
+async function loadPersonalContact(){
+ if(!personalToken)return;
+ sending=true;refreshDirectForm();personalSummary.hidden=false;personalSummary.textContent='راهي تتحمّل معلومات طلبيتك السابقة…';
+ try{
+  const {response,data}=await personalRequest('preview',{});
+  if(response.ok&&data.state==='ready'){
+   personalMode=true;addressConfirmation.hidden=false;addressConfirmation.querySelector('input').required=true;personalSummary.textContent='نستعملو معلومات طلبيتك السابقة: '+data.wilaya+' — رقمك يكمل بـ '+data.phoneEnding+'. أكّد بلي عنوانك ما تبدّلش، ولا اضغط باش تكتب المعلومات الجديدة.';
+   contactFields.forEach(el=>{el.disabled=true;el.closest('label').hidden=true;});changeContact.hidden=false;
+  }else if(response.ok&&data.state==='created'){
+   submitted=true;personalSummary.textContent='هذا الرابط عندو طلبية مسجّلة '+(data.result?.orderName||'')+'.';
+  }else if(response.ok&&['processing','review','failed'].includes(data.state)){
+   uncertain=true;personalSummary.textContent='هذا الرابط عندو طلب قيد التحقق. تواصل مع COSMOS.';
+  }else{personalSummary.textContent='ما قدرناش نجيبو المعلومات السابقة. عمّر المعلومات تاعك هنا.';}
+ }catch(e){personalSummary.textContent='المعلومات السابقة ما راهيش متاحة. تقدر تعمّر الفورمولار.';}
+ finally{sending=false;refreshDirectForm();}
+}
+loadPersonalContact();
+
+</script></body></html>

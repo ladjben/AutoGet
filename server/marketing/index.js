@@ -1,3 +1,4 @@
+import { installPersonalLinks } from './personal-links.js'
 import express from 'express'
 import helmet from 'helmet'
 import { fileURLToPath } from 'node:url'
@@ -39,6 +40,7 @@ export function createApp(cfg, db, erp, meta) {
   installWebhook(app, db, cfg) // signature verification needs original bytes
   app.use(express.json({ limit: '2mb' }))
   installJobs(app, db, erp, cfg, meta)
+  installPersonalLinks(app, db, cfg)
   installAuth(app, cfg, db)
   installApi(app, db, erp, cfg, meta)
   app.use('/api', (req, res) =>

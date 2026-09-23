@@ -293,6 +293,8 @@ export default function WhatsAppMarketing() {
   const previewValues = previewCustomer
     ? {
         name: previewCustomer.name,
+        firstName: String(previewCustomer.name || '').trim().split(/\s+/)[0],
+        personalLink: "exemple_lien_personnel",
         phone: previewCustomer.phone,
         city: previewCustomer.city,
         orderCount: String(previewCustomer.orderCount),
@@ -863,6 +865,8 @@ export default function WhatsAppMarketing() {
                     <option value="">Choisir une valeur</option>
                     {[
                       ['name', 'Nom du client'],
+                      ['firstName', 'Prénom (premier mot du nom)'],
+                      ...(f.kind === 'url' ? [['personalLink', 'Lien personnel COSMOS (configuration requise)']] : []),
                       ['products', 'Produits achetés'],
                       ['sizes', 'Pointures'],
                       ['city', 'Ville'],

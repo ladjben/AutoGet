@@ -1,3 +1,4 @@
+import { newPersonalLink, validatePersonalBindings, personalLinksEnabled } from './personal-links.js'
 import { dispatchBatch } from './worker.js'
 import { campaignAnalytics, recipientsCsv, validateCostConfig } from './analytics.js'
 import { createMarketingTemplate } from './template-create.js'
@@ -27,6 +28,7 @@ export function installApi(app, db, erp, cfg, meta) {
     const sync = await db.query("SELECT *, completed_at > now()-interval '48 hours' AS fresh FROM marketing.sync_state WHERE id=1")
     res.json({
       sync: sync.rows[0] || null,
+      personalLinksEnabled: personalLinksEnabled(cfg),
       sendingEnabled: sendingEnabled(cfg),
       serverless: Boolean(cfg.env.VERCEL),
       worker: result.rows[0] || null,
@@ -137,11 +139,12 @@ export function installApi(app, db, erp, cfg, meta) {
       fail('Ce modèle n’est pas approuvé ou n’est plus disponible.')
     let messages
     try {
-      messages = recipients.map((c) => ({
-        name: c.name,
-        phone: c.phone,
-        payload: renderTemplate(template, bindings, c),
-      }))
+      const personal = validatePersonalBindings(template, bindings, cfg)
+      messages = recipients.map((c) => {
+        const link = personal ? newPersonalLink() : null
+        return { id: randomUUID(), name: c.name, phone: c.phone, link,
+          payload: renderTemplate(template, bindings, { ...c, personalLink: link?.token }) }
+      })
     } catch (e) {
       fail(e.message)
     }
@@ -165,7 +168,7 @@ export function installApi(app, db, erp, cfg, meta) {
             id,
             JSON.stringify(
               messages.slice(offset, offset + 500).map((c) => ({
-                id: randomUUID(),
+                id: c.id,
                 phone: c.phone,
                 name: c.name,
                 payload: c.payload,
@@ -173,6 +176,13 @@ export function installApi(app, db, erp, cfg, meta) {
             ),
           ],
         )
+      }
+      const links = messages.filter(c => c.link)
+      for (let offset = 0; offset < links.length; offset += 500) {
+        await client.query(`INSERT INTO marketing.personal_links(token_hash,recipient_id,request_id)
+          SELECT x.hash,x.recipient_id,x.request_id FROM jsonb_to_recordset($1::jsonb)
+          AS x(hash text,recipient_id uuid,request_id uuid)`,
+          [JSON.stringify(links.slice(offset,offset+500).map(c => ({ hash:c.link.hash,recipient_id:c.id,request_id:c.link.requestId })))])
       }
       return id
     })
